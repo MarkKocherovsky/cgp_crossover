@@ -1,6 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy import random, sin, exp, cos, sqrt, pi
+from sys import path, argv
+from pathlib import Path
+from functions import *
 
 def first(x):
 	return x[0]
@@ -38,54 +41,28 @@ def exp_x(x):
 def exp_y(x):
 	return exp(x[-1])
 
-def sphere(coord):
-	res = 0
-	return sum([res+(x**2) for x in coord])
-def sine(coord):
-	res = 0
-	return sum([res+(sin(x)) for x in coord])
-def sqare_root(coord):
-	return sqrt(coord)
-def line(coord):
-	res = 0
-	return sum([res+(x*2) for x in coord])
-def ackley(coord):
-	res = 0
-	for x in coord:
-		res += -20*exp(-0.2*sqrt(1*x**2))-exp(1*cos(2*pi*x))+exp(1)+20
-	return res
-def gramacy_lee(coord):
-	res = 0
-	return sum([res+(sin(10*pi*x)/(2*x)+(x-1)**4) for x in coord])
-def rastrigin(coord):
-	res = 0
-	return sum([res+(10+x**2-10*cos(2*pi*x)) for x in coord])
-def dixon_price(coord):
-	res = 0
-	return sum([res+(x-1)**2+(2*x**2-x)**2 for x in coord])
-def michalewicz(coord):
-	res = 0
-	return sum([res+(-1*sin(x)*sin(x**2/pi)**2*10) for x in coord])
 
-func = gramacy_lee
-train_x = np.arange(0.5, 2.51, 0.05)
-train_y = np.array([func([x]) for x in train_x]).flatten()
-
-max_t = 1 #trials
-max_g = 10 #generations
-max_r = 50 #rules
-max_d = 4 #destinations (other than output)
+t = int(argv[1]) #trials
+max_g = int(argv[2]) #generations
+max_r = int(argv[3]) #rules
+max_d = int(argv[4]) #destinations (other than output)
 if max_r < 1:
 	print("Number of rules too small, setting to 10")
 	max_r = 10
-max_p = 40 #parents
-max_c = 40 #children
+max_p = int(argv[5]) #parents
+max_c = int(argv[6]) #children
 arity = 2 #sources
 n_inp = 1 #number of inputs
 bias = np.arange(0, 11, 1)
 n_bias = bias.shape[0] #number of bias inputs
 
 p_mut = 1/max_p #mutation probability
+
+func_bank = Collection()
+func = func_bank.func_list[int(argv[7])]
+func_name = func_bank.name_list[int(argv[7])]
+train_x = func.x_dom
+train_y = func.y_test
 
 output_index = 0
 input_indices = np.arange(1, n_inp+1, 1)
@@ -266,52 +243,64 @@ def clean(pop): # remove consecutive duplicate rules
 		new.append(c.copy())
 	return new
 					
-for t in range(1, max_t+1):
-	print(f"#####Trial {t}#####")
-	parents = []
-	fit_track = []
-	for i in range(0, max_p):
-		parents.append(generate_ind())
-	fitnesses = np.zeros((max_p+max_c),)
-	#sort parents before xover and mutation?
-	#select before or after xover?
-	for g in range(1, max_g+1):
-		fitnesses[0:max_p] = mass_eval(parents)
-		parents = xover(parents)
-		#print(f'p[0] shape {parents[0].shape}')
-		#parents = clean(parents.copy())
-		#print(f'after cleaning: {parents[0].shape}')
-		children = mutate(parents.copy())
-		#children = clean(children.copy())
-		fitnesses[max_p:] = mass_eval(children)
-		pop = parents+children
-		
-		best_i = np.argmin(fitnesses)
-		best_pop = pop[i]
-		best_fit = fitnesses[i]
-		fit_track.append(best_fit)
-		
-		parents = select(pop, fitnesses)
-		
-	#fig, ax = plt.subplots()
-	#ax = plt.plot(fit_track)
-	#print(fit_track)
-	#plt.show()
-		
-	print(np.round(fitnesses, 5))
-	print(f"Best Pop:\n{best_pop}")
-	print(f"Best Fit: {np.round(best_fit, 4)}")
-	if best_fit < 0.9:
-		break
-	#elif np.isnan(best_fit):
-	#	print("Redoing Trial")
-	#	t = t-1
+print(f"#####Trial {t}#####")
+parents = []
+fit_track = []
+for i in range(0, max_p):
+	parents.append(generate_ind())
+fitnesses = np.zeros((max_p+max_c),)
+#sort parents before xover and mutation?
+#select before or after xover?
+for g in range(1, max_g+1):
+	fitnesses[0:max_p] = mass_eval(parents)
+	parents = xover(parents)
+	#print(f'p[0] shape {parents[0].shape}')
+	#parents = clean(parents.copy())
+	#print(f'after cleaning: {parents[0].shape}')
+	children = mutate(parents.copy())
+	#children = clean(children.copy())
+	fitnesses[max_p:] = mass_eval(children)
+	pop = parents+children
+	
+	best_i = np.argmin(fitnesses)
+	best_pop = pop[i]
+	best_fit = fitnesses[i]
+	fit_track.append(best_fit)
+	
+	parents = select(pop, fitnesses)
+	
+#fig, ax = plt.subplots()
+#ax = plt.plot(fit_track)
+#print(fit_track)
+#plt.show()
+	
+print(np.round(fitnesses, 5))
+print(f"Best Pop:\n{best_pop}")
+print(f"Best Fit: {np.round(best_fit, 4)}")
+#elif np.isnan(best_fit):
+#	print("Redoing Trial")
+#	t = t-1
 preds = predict(best_pop, train_x)
+print('preds')
 print(preds)
+
+Path(f"../output/lgp/{func_name}/log/").mkdir(parents=True, exist_ok=True)
+import pickle
+with open(f"../output/lgp/{func_name}/log/output_{t}.pkl", "wb") as f:
+	pickle.dump(bias, f)
+	pickle.dump(best_pop, f)
+	pickle.dump(preds, f)
+	pickle.dump(np.round(best_fit, 4), f)
+
+
 fig, ax = plt.subplots()
-ax = plt.scatter(train_x, train_y)
-ax = plt.scatter(train_x, preds)
-plt.show()
+ax.scatter(train_x, train_y, label = 'Ground Truth')
+ax.scatter(train_x, preds, label = 'Predicted')
+fig.suptitle(f"{func_name} Trial {t}")
+ax.set_title(f"RMSE = {np.round(best_fit, 2)}")
+ax.legend()
+Path(f"../output/lgp/{func_name}/scatter/").mkdir(parents=True, exist_ok=True)
+plt.savefig(f"../output/lgp/{func_name}/scatter/comp_{t}.png")
 
 first_body_node = n_inp+n_bias
 print(first_body_node)

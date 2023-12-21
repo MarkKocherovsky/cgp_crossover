@@ -2,7 +2,7 @@
 
 #Mark Kocherovsky
 
-#SBATCH --time=00:05:00
+#SBATCH --time=00:15:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 
@@ -18,11 +18,13 @@ conda activate cgp
 
 t=$1
 g=$2
-n=$3
-c=$4
-f=$5
+r=$3
+d=$4
+p=$5
+c=$6
+f=$7
 
 cd /mnt/home/kocherov/Documents/cgp/launchers/
-python3 -u ../src/cgp.py $t $g $n $c $f &
+python3 -u ../src/lgp.py $t $g $r $d $p $c $f
 conda deactivate
 
