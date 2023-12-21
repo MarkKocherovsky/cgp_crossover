@@ -1,0 +1,28 @@
+#!/bin/bash
+
+#Mark Kocherovsky
+#SBATCH --time=00:05:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+
+#SBATCH --job-name=kocherov_cgp_job
+#SBATCH -o "logs\/%x-%j.txt"
+#SBATCH --mem=8G
+
+module purge
+cd $HOME
+module load Conda/3
+conda init bash
+conda activate cgp
+
+f=$1
+t=$2
+g=$3
+n=$4
+c=$5
+
+cd /mnt/home/kocherov/Documents/cgp/src
+echo "CGP Baseline $f $t $g $n $c"
+python3 -u cgp.py $f $t $g $n $c
+conda deactivate
+
