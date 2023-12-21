@@ -4,35 +4,8 @@ from numpy import random, sin, cos, tan, sqrt, exp, log, abs, floor, ceil
 from math import log, pi
 from sys import path
 from pathlib import Path
-def sphere(coord):
-	res = 0
-	return sum([res+(x**2) for x in coord])
-def sine(coord):
-	res = 0
-	return sum([res+(sin(x)) for x in coord])
-def sqare_root(coord):
-	return sqrt(coord)
-def line(coord):
-	res = 0
-	return sum([res+(x*2) for x in coord])
-def ackley(coord):
-	res = 0
-	for x in coord:
-		res += -20*exp(-0.2*sqrt(1*x**2))-exp(1*cos(2*pi*x))+exp(1)+20
-	return res
-def gramacy_lee(x):
-	x = x[0]
-	return sin(10*pi*x)/(2*x)+(x-1)**4
-def rastrigin(coord):
-	res = 0
-	return sum([res+(10+x**2-10*cos(2*pi*x)) for x in coord])
-def dixon_price(coord):
-	res = 0
-	return sum([res+(x-1)**2+(2*x**2-x)**2 for x in coord])
-def michalewicz(coord):
-	res = 0
-	return sum([res+(-1*sin(x)*sin(x**2/pi)**2*10) for x in coord])
-
+from functions import *
+from sys import argv
 def x(x,y):
 	return x
 def y(x, y):
@@ -97,17 +70,15 @@ def midpoint(x,y):
 	return (x+y)/2
 
 
-train_x = np.arange(0.5, 2.51, 0.05)
-train_y = np.array([func([x]) for x in train_x]).flatten()
 #test_x = np.arange(11, 30.1, 1)
 #test_y = [func([y]) for y in test_x]
 #print(train_x)
 #print(train_y)
 #print(powe(0)
-t = int(argv[1]) #max trials
+t = int(argv[1]) #trial
 max_g = int(argv[2]) #max generations
 max_n = int(argv[3]) #max body nodes
-max_c = int(arvg[4]) #max children
+max_c = int(argv[4]) #max children
 outputs = 1
 inputs = 1
 biases = np.arange(0, 10, 1).astype(np.int32)
@@ -121,9 +92,11 @@ arity = 2
 bank = (add, sub, mul, div, x, y, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, midpoint)
 bank_string = ("+", "-", "*", "/", "x", "y", "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "avg")
 
-
-func = func_bank[int(argv[5])]
-func_name = func_string[int(argv[6])]
+func_bank = Collection()
+func = func_bank.func_list[int(argv[5])]
+func_name = func_bank.name_list[int(argv[5])]
+train_x = func.x_dom
+train_y = func.y_test
 
 from scipy.stats import pearsonr
 def rmse(preds, reals):
@@ -198,75 +171,84 @@ def mutate(ind, out, p_mut = 0.5, arity = arity, in_size = inputs+bias):
 	return ind, out
 
 final_fit = []
-for t in range(1, max_t+1):
-	fit_track = []
-	ind_base = np.zeros(((arity+1)*max_n,), np.int32)
-	ind_base = ind_base.reshape(-1, arity+1) #for my sanity
-	train_x_bias = np.zeros((train_x.shape[0], biases.shape[0]+1))
-	train_x_bias[:, 0] = train_x
-	train_x_bias[:, 1:] = biases
-	#print(train_x_bias)
-	#print(inputs+bias+max_n)
+fit_track = []
+ind_base = np.zeros(((arity+1)*max_n,), np.int32)
+ind_base = ind_base.reshape(-1, arity+1) #for my sanity
+train_x_bias = np.zeros((train_x.shape[0], biases.shape[0]+1))
+train_x_bias[:, 0] = train_x
+train_x_bias[:, 1:] = biases
+#print(train_x_bias)
+#print(inputs+bias+max_n)
 
-	#instantiate parent
-	for i in range(0, max_n):
-		#print(i < inputs+bias)
-		for j in range(0, arity): #input
-			if i < (inputs+bias):
-				ind_base[i,j] = random.randint(0, (inputs+bias))
-			else:
-				ind_base[i,j] = random.randint(0, i+(inputs+bias))
-		ind_base[i, -1] = random.randint(0, len(bank))
-	#print("First Parent")
-	#print(ind_base)
-	output_nodes = random.randint(0, max_n+(inputs+bias), (outputs,), np.int32)
+#instantiate parent
+for i in range(0, max_n):
+	#print(i < inputs+bias)
+	for j in range(0, arity): #input
+		if i < (inputs+bias):
+			ind_base[i,j] = random.randint(0, (inputs+bias))
+		else:
+			ind_base[i,j] = random.randint(0, i+(inputs+bias))
+	ind_base[i, -1] = random.randint(0, len(bank))
+#print("First Parent")
+#print(ind_base)
+output_nodes = random.randint(0, max_n+(inputs+bias), (outputs,), np.int32)
 
-	#test = run_output(ind_base, output_nodes, np.array([10.0]))
-	p_fit = fitness(train_x_bias, train_y, ind_base, output_nodes)
+#test = run_output(ind_base, output_nodes, np.array([10.0]))
+p_fit = fitness(train_x_bias, train_y, ind_base, output_nodes)
+fit_track.append(p_fit)
+#print(f"Pre-Run Parent Fitness: {p_fit}")
+for g in range(1, max_g+1):
+	children = [mutate(ind_base.copy(), output_nodes.copy()) for x in range(0, max_c)]
+	c_fit = [fitness(train_x_bias, train_y, child[0], child[1]) for child in children]
+	#print(p_fit)
+	#print(c_fit)
+
+	if any(np.array(c_fit) <= p_fit):
+		best = np.argmin(c_fit)
+		ind_base = children[best][0].copy()
+		output_nodes = children[best][1].copy()
+		p_fit = np.min(c_fit)
+	#print(f"Gen {g} Best Fitness: {p_fit}")
+	#print(p_fit)
 	fit_track.append(p_fit)
-	#print(f"Pre-Run Parent Fitness: {p_fit}")
-	for g in range(1, max_g+1):
-		children = [mutate(ind_base.copy(), output_nodes.copy()) for x in range(0, max_c)]
-		c_fit = [fitness(train_x_bias, train_y, child[0], child[1]) for child in children]
-		#print(p_fit)
-		#print(c_fit)
+	#if(p_fit > 0.96):
+	#	break
 
-		if any(np.array(c_fit) <= p_fit):
-			best = np.argmin(c_fit)
-			ind_base = children[best][0].copy()
-			output_nodes = children[best][1].copy()
-			p_fit = np.min(c_fit)
-		#print(f"Gen {g} Best Fitness: {p_fit}")
-		#print(p_fit)
-		fit_track.append(p_fit)
-		#if(p_fit > 0.96):
-		#	break
-	
-	print(f"Trial {t}: Best Fitness = {p_fit}")
-	if p_fit < 0.4:
-		break
-	final_fit.append(p_fit)
-	#fig, ax = plt.subplots()
-	#ax = plt.plot(fit_track)
-	#print(fit_track)
-	#plt.show()
+print(f"Trial {t}: Best Fitness = {p_fit}")
+final_fit.append(p_fit)
+#fig, ax = plt.subplots()
+#ax = plt.plot(fit_track)
+#print(fit_track)
+#plt.show()
 #print(final_fit)
+print('biases')
 print(biases)
+print('best individual')
 print(ind_base)
+print('output nodes')
 print(output_nodes)
 print('preds')
-print(fitness(train_x_bias, train_y, ind_base, output_nodes, opt = 1))
+preds = fitness(train_x_bias, train_y, ind_base, output_nodes, opt = 1)
+print(preds)
 #print(list(train_y))
+Path(f"../output/cgp/{func_name}/log/").mkdir(parents=True, exist_ok=True)
 import pickle
-with open("cgp_output.pkl", "wb") as f:
+print(f"../output/cgp/{func_name}/log/output_{t}.pkl")
+with open(f"../output/cgp/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump(biases, f)
 	pickle.dump(ind_base, f)
 	pickle.dump(output_nodes, f)
+	pickle.dump(preds, f)
+	pickle.dump(p_fit, f)
 
 fig, ax = plt.subplots()
-ax = plt.scatter(train_x, train_y)
-ax = plt.scatter(train_x, fitness(train_x_bias, train_y, ind_base, output_nodes, opt = 1))
-plt.show()
+ax.scatter(train_x, train_y, label = 'Ground Truth')
+ax.scatter(train_x, preds, label = 'Predicted')
+fig.suptitle(f"{func_name} Trial {t}")
+ax.set_title(f"RMSE = {np.round(p_fit, 2)}")
+ax.legend()
+Path(f"../output/cgp/{func_name}/scatter/").mkdir(parents=True, exist_ok=True)
+plt.savefig(f"../output/cgp/{func_name}/scatter/comp_{t}.png")
 
 #export graph
 import graphviz as gv
@@ -301,7 +283,8 @@ for o in range(outputs):
 	dot.node(f'O_{o}', f'O_{o}', shape='square', fillcolor='lightblue', style='filled')
 	dot.edge(f'N_{node}', f'O_{o}')
 #	dot.edge(f"l_{total_layers-1}", f'O_{o}')
-dot.render('./cgp', view=True)
+Path(f"../output/cgp/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
+dot.render(f"../output/cgp/{func_name}/full_graphs/graph_{t}", view=False)
 
 #active nodes only
 
@@ -343,7 +326,8 @@ def plot_active_nodes(name = "active_nodes", output_nodes = output_nodes, output
 	size = sum([1 if 'label' in x else 0 for x in active_graph])
 	print(f'graph size = {size}')
 	"""
-	active_graph.render('./cgp_active_nodes', view=True)
+	Path(f"../output/cgp/{func_name}/active_nodes/").mkdir(parents=True, exist_ok=True)
+	active_graph.render(f"../output/cgp/{func_name}/active_nodes/active_{t}", view=False)
 
 def get_expression(output_nodes = output_nodes, outputs = outputs, fb_node = first_body_node):
 	expressions = []
@@ -379,6 +363,6 @@ def get_expression(output_nodes = output_nodes, outputs = outputs, fb_node = fir
 	return(expressions)
 	
 plot_active_nodes()
-expressions = get_expression()
-for expression in expressions:
-	print(expression)
+#expressions = get_expression()
+#for expression in expressions:
+#	print(expression)
