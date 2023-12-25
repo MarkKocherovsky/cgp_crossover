@@ -6,6 +6,7 @@ from sys import path
 from pathlib import Path
 from functions import *
 from sys import argv
+print("started")
 def x(x,y):
 	return x
 def y(x, y):
@@ -76,14 +77,18 @@ def midpoint(x,y):
 #print(train_y)
 #print(powe(0)
 t = int(argv[1]) #trial
+print(f'trial {t}')
 max_g = int(argv[2]) #max generations
+print(f'generations {max_g}')
 max_n = int(argv[3]) #max body nodes
+print(f'max body nodes {max_n}')
 max_c = int(argv[4]) #max children
+print(f'children {max_c}')
 outputs = 1
 inputs = 1
 biases = np.arange(0, 10, 1).astype(np.int32)
 bias = biases.shape[0] #number of biases
-print(bias)
+print(f'biases {biases}')
 arity = 2
 
 #bank = (add, sub, mul, div, x, y, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, floor_x, floor_y, ceil_x, ceil_y, max_f, min_f, midpoint)
@@ -97,7 +102,7 @@ func = func_bank.func_list[int(argv[5])]
 func_name = func_bank.name_list[int(argv[5])]
 train_x = func.x_dom
 train_y = func.y_test
-
+print(train_x)
 from scipy.stats import pearsonr
 def rmse(preds, reals):
 	return np.sqrt(np.mean((preds-reals)**2)) #copied from stack overflow
@@ -177,9 +182,10 @@ ind_base = ind_base.reshape(-1, arity+1) #for my sanity
 train_x_bias = np.zeros((train_x.shape[0], biases.shape[0]+1))
 train_x_bias[:, 0] = train_x
 train_x_bias[:, 1:] = biases
+print(train_x_bias)
 #print(train_x_bias)
 #print(inputs+bias+max_n)
-
+print("instantiating parent")
 #instantiate parent
 for i in range(0, max_n):
 	#print(i < inputs+bias)
@@ -208,7 +214,7 @@ for g in range(1, max_g+1):
 		ind_base = children[best][0].copy()
 		output_nodes = children[best][1].copy()
 		p_fit = np.min(c_fit)
-	#print(f"Gen {g} Best Fitness: {p_fit}")
+	print(f"Gen {g} Best Fitness: {p_fit}")
 	#print(p_fit)
 	fit_track.append(p_fit)
 	#if(p_fit > 0.96):

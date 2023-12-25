@@ -12,79 +12,79 @@ digraph {
 	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
 	N_10 [label=9 fillcolor=yellow rank=same shape=square style=filled]
 	rank=same
-	N_11 [label="cos(y)"]
-	N_10 -> N_11
-	N_7 -> N_11
-	N_12 [label=avg]
-	N_3 -> N_12
-	N_5 -> N_12
-	N_13 [label=y]
-	N_5 -> N_13
-	N_11 -> N_13
-	N_14 [label="$sqrt{x^2+y^2}$"]
-	N_9 -> N_14
-	N_7 -> N_14
-	N_15 [label=x]
-	N_2 -> N_15
-	N_2 -> N_15
-	N_16 [label="-"]
-	N_9 -> N_16
-	N_9 -> N_16
-	N_17 [label="+"]
-	N_2 -> N_17
-	N_15 -> N_17
-	N_18 [label="|y|"]
+	N_11 [label="$\sqrt{x+y}$"]
+	N_9 -> N_11
+	N_5 -> N_11
+	N_12 [label="sin(y)"]
+	N_8 -> N_12
+	N_8 -> N_12
+	N_13 [label="/"]
+	N_6 -> N_13
+	N_8 -> N_13
+	N_14 [label="sin(y)"]
+	N_13 -> N_14
+	N_11 -> N_14
+	N_15 [label="+"]
+	N_11 -> N_15
+	N_8 -> N_15
+	N_16 [label="/"]
+	N_13 -> N_16
+	N_10 -> N_16
+	N_17 [label="sin(x)"]
+	N_7 -> N_17
+	N_8 -> N_17
+	N_18 [label="cos(x)"]
 	N_15 -> N_18
-	N_12 -> N_18
-	N_19 [label="sin(x)"]
-	N_7 -> N_19
-	N_11 -> N_19
-	N_20 [label="|y|"]
-	N_7 -> N_20
-	N_1 -> N_20
-	N_21 [label=x]
-	N_0 -> N_21
-	N_1 -> N_21
-	N_22 [label="^"]
-	N_17 -> N_22
-	N_11 -> N_22
-	N_23 [label="+"]
-	N_12 -> N_23
-	N_9 -> N_23
-	N_24 [label="/"]
-	N_19 -> N_24
-	N_4 -> N_24
-	N_25 [label="cos(x)"]
-	N_7 -> N_25
-	N_24 -> N_25
-	N_26 [label=avg]
-	N_9 -> N_26
-	N_2 -> N_26
-	N_27 [label="sin(x)"]
-	N_0 -> N_27
-	N_19 -> N_27
-	N_28 [label="$\sqrt{x+y}$"]
-	N_25 -> N_28
-	N_26 -> N_28
-	N_29 [label=x]
-	N_8 -> N_29
-	N_21 -> N_29
-	N_30 [label=x]
-	N_1 -> N_30
+	N_3 -> N_18
+	N_19 [label=y]
+	N_17 -> N_19
+	N_17 -> N_19
+	N_20 [label="*"]
+	N_11 -> N_20
+	N_4 -> N_20
+	N_21 [label="cos(y)"]
+	N_19 -> N_21
+	N_5 -> N_21
+	N_22 [label="sin(y)"]
+	N_19 -> N_22
+	N_8 -> N_22
+	N_23 [label="sin(y)"]
+	N_17 -> N_23
+	N_16 -> N_23
+	N_24 [label=avg]
+	N_21 -> N_24
+	N_12 -> N_24
+	N_25 [label="/"]
+	N_15 -> N_25
+	N_20 -> N_25
+	N_26 [label="$sqrt{x^2+y^2}$"]
+	N_10 -> N_26
+	N_18 -> N_26
+	N_27 [label="+"]
+	N_26 -> N_27
+	N_10 -> N_27
+	N_28 [label="|x|"]
+	N_13 -> N_28
+	N_24 -> N_28
+	N_29 [label="$\sqrt{x+y}$"]
+	N_24 -> N_29
+	N_24 -> N_29
+	N_30 [label="|y|"]
 	N_11 -> N_30
-	N_31 [label="-"]
-	N_30 -> N_31
+	N_25 -> N_30
+	N_31 [label="^"]
+	N_1 -> N_31
 	N_18 -> N_31
-	N_32 [label="sin(y)"]
-	N_15 -> N_32
-	N_9 -> N_32
-	N_33 [label="/"]
-	N_31 -> N_33
-	N_31 -> N_33
-	N_34 [label="$\sqrt{x+y}$"]
-	N_3 -> N_34
-	N_15 -> N_34
+	N_32 [label="/"]
+	N_3 -> N_32
+	N_19 -> N_32
+	N_33 [label="|x|"]
+	N_32 -> N_33
+	N_0 -> N_33
+	N_34 [label="|y|"]
+	N_21 -> N_34
+	N_17 -> N_34
 	rank=max
 	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
-	N_10 -> O_0
+	N_26 -> O_0
 }

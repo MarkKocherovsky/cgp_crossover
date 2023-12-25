@@ -1,6 +1,22 @@
 // trial 3 active nodes
 strict digraph {
 	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
+	N_26 [label="$sqrt{x^2+y^2}$"]
 	N_10 [label=9 fillcolor=yellow rank=same shape=square style=filled]
-	N_10 -> O_0
+	N_10 -> N_26
+	N_18 [label="cos(x)"]
+	N_15 [label="+"]
+	N_11 [label="$\sqrt{x+y}$"]
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_11
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_11
+	N_11 -> N_15
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_15
+	N_15 -> N_18
+	N_3 [label=2 fillcolor=yellow rank=same shape=square style=filled]
+	N_3 -> N_18
+	N_18 -> N_26
+	N_26 -> O_0
 }
