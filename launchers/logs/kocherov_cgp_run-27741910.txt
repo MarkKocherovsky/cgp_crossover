@@ -1,0 +1,74 @@
+no change     /mnt/home/kocherov/anaconda3/condabin/conda
+no change     /mnt/home/kocherov/anaconda3/bin/conda
+no change     /mnt/home/kocherov/anaconda3/bin/conda-env
+no change     /mnt/home/kocherov/anaconda3/bin/activate
+no change     /mnt/home/kocherov/anaconda3/bin/deactivate
+no change     /mnt/home/kocherov/anaconda3/etc/profile.d/conda.sh
+no change     /mnt/home/kocherov/anaconda3/etc/fish/conf.d/conda.fish
+no change     /mnt/home/kocherov/anaconda3/shell/condabin/Conda.psm1
+no change     /mnt/home/kocherov/anaconda3/shell/condabin/conda-hook.ps1
+no change     /mnt/home/kocherov/anaconda3/lib/python3.9/site-packages/xontrib/conda.xsh
+no change     /mnt/home/kocherov/anaconda3/etc/profile.d/conda.csh
+no change     /mnt/home/kocherov/.bashrc
+No action taken.
+#####Trial 3#####
+/mnt/ufs18/home-220/kocherov/Documents/cgp/launchers/../src/lgp.py:42: RuntimeWarning: overflow encountered in exp
+  return exp(x[-1])
+[0.      1.09912 0.      0.      0.      0.      0.      0.      0.
+ 0.      0.      0.      0.      0.      0.      0.      0.      0.70711
+ 0.96521 0.      0.      0.      1.05954 0.      0.70711 0.      0.
+ 1.05954 0.      0.      0.08918 0.      0.      0.      0.08918 0.
+ 0.      0.      0.      0.      1.38244 0.08918 0.      0.98707 0.
+ 1.05954 0.      0.      1.09912 0.      0.      0.      0.      0.
+ 1.19144 0.08918 0.      1.09912 0.98707 0.      0.      0.      0.08918
+ 0.      0.      1.38244 0.      0.      0.82756 0.      0.      1.09912
+ 0.      0.      0.96521 0.      0.      0.      0.70711 0.96521]
+Best Pop:
+[[ 0.  6.  1. 13.]
+ [ 0.  6. 16. 13.]
+ [13.  7.  1.  4.]
+ [13.  7.  7.  9.]
+ [ 0.  1.  1. 12.]
+ [14.  6.  1.  7.]
+ [ 0.  6.  1. 15.]
+ [14.  6. 16. 13.]
+ [ 0.  6.  3. 13.]
+ [15.  2.  1.  4.]]
+Best Fit: 0.0
+preds
+[0.84147098 0.84147098 0.84147098 0.84147098 0.84147098 0.84147098
+ 0.84147098 0.84147098 0.84147098 0.84147098 0.84147098 0.84147098
+ 0.84147098 0.84147098 0.84147098 0.84147098 0.84147098 0.84147098
+ 0.84147098 0.84147098]
+12
+R	Op	I
+1
+13
+R_0	sin(x)	['R_-10', 'R_2']
+16
+13
+R_0	sin(x)	['R_5', 'R_2']
+1
+4
+R_1	sin(y)	['R_-10', 3]
+7
+9
+R_1	sin(y)	[6, 8]
+1
+12
+R_0	last	['R_-10', 'R_1']
+1
+7
+R_2	sin(x)	['R_-10', 6]
+1
+15
+R_0	sin(x)	['R_-10', 'R_4']
+16
+13
+R_2	sin(x)	['R_5', 'R_2']
+3
+13
+R_0	sin(x)	[2, 'R_2']
+1
+4
+R_3	+	['R_-10', 3]

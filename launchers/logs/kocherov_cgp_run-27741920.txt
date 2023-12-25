@@ -1,0 +1,93 @@
+no change     /mnt/home/kocherov/anaconda3/condabin/conda
+no change     /mnt/home/kocherov/anaconda3/bin/conda
+no change     /mnt/home/kocherov/anaconda3/bin/conda-env
+no change     /mnt/home/kocherov/anaconda3/bin/activate
+no change     /mnt/home/kocherov/anaconda3/bin/deactivate
+no change     /mnt/home/kocherov/anaconda3/etc/profile.d/conda.sh
+no change     /mnt/home/kocherov/anaconda3/etc/fish/conf.d/conda.fish
+no change     /mnt/home/kocherov/anaconda3/shell/condabin/Conda.psm1
+no change     /mnt/home/kocherov/anaconda3/shell/condabin/conda-hook.ps1
+no change     /mnt/home/kocherov/anaconda3/lib/python3.9/site-packages/xontrib/conda.xsh
+no change     /mnt/home/kocherov/anaconda3/etc/profile.d/conda.csh
+no change     /mnt/home/kocherov/.bashrc
+No action taken.
+#####Trial 3#####
+/mnt/ufs18/home-220/kocherov/Documents/cgp/launchers/../src/lgp.py:42: RuntimeWarning: overflow encountered in exp
+  return exp(x[-1])
+/mnt/ufs18/home-220/kocherov/Documents/cgp/launchers/../src/lgp.py:32: RuntimeWarning: invalid value encountered in sin
+  return sin(x[0])
+/mnt/ufs18/home-220/kocherov/Documents/cgp/launchers/../src/lgp.py:36: RuntimeWarning: invalid value encountered in cos
+  return cos(x[0])
+/mnt/ufs18/home-220/kocherov/Documents/cgp/launchers/../src/lgp.py:29: RuntimeWarning: invalid value encountered in scalar divide
+  y /= i
+/mnt/ufs18/home-220/kocherov/Documents/cgp/launchers/../src/lgp.py:40: RuntimeWarning: overflow encountered in exp
+  return exp(x[0])
+/mnt/ufs18/home-220/kocherov/Documents/cgp/launchers/../src/lgp.py:34: RuntimeWarning: invalid value encountered in sin
+  return sin(x[-1])
+/mnt/ufs18/home-220/kocherov/Documents/cgp/launchers/../src/lgp.py:22: RuntimeWarning: invalid value encountered in scalar multiply
+  y *= i
+/mnt/ufs18/home-220/kocherov/Documents/cgp/launchers/../src/lgp.py:38: RuntimeWarning: invalid value encountered in cos
+  return cos(x[-1])
+/mnt/ufs18/home-220/kocherov/Documents/cgp/launchers/../src/lgp.py:17: RuntimeWarning: invalid value encountered in scalar subtract
+  y -= i
+[      nan       nan   1.86895       nan       nan       nan       nan
+       nan       nan 146.33911       nan       nan       nan       nan
+       nan       nan       nan       nan       nan       nan 146.33911
+       nan 146.33911 146.33911 146.33911       nan       nan   1.86895
+ 146.33911       nan       nan   1.86895   1.7459        nan       nan
+       nan       nan       nan       nan       nan   2.4376    1.86087
+   1.48782       nan       nan   2.4376        nan   1.86895   1.48782
+   4.87713   1.41134       nan       nan       nan       nan       nan
+   2.37131       nan   2.23607   1.86087   1.86895   1.86087   2.37131
+   2.23607       nan   1.86087   1.86087       nan   1.86895       nan
+       nan       nan       nan       nan       nan 146.33911       nan
+   1.86087       nan       nan]
+Best Pop:
+[[14. 11.  6.  9.]
+ [14. 11.  1. 10.]
+ [ 0. 11.  6.  7.]
+ [14. 11.  6.  9.]
+ [14. 11.  1.  6.]
+ [14. 11. 12. 14.]
+ [14. 11.  5.  2.]
+ [14. 11.  2. 14.]
+ [ 0.  6. 14.  6.]
+ [ 0.  6. 14.  6.]]
+Best Fit: nan
+preds
+[0.41078129 0.41078129 0.41078129 0.41078129 0.41078129 0.41078129
+ 0.41078129 0.41078129 0.41078129 0.41078129 0.41078129 0.41078129
+ 0.41078129 0.41078129 0.41078129 0.41078129 0.41078129 0.41078129
+ 0.41078129 0.41078129 0.41078129]
+12
+R	Op	I
+6
+9
+R_2	exp(y)	[5, 8]
+1
+10
+R_2	exp(y)	['R_-10', 9]
+6
+7
+R_0	exp(y)	[5, 6]
+6
+9
+R_2	exp(y)	[5, 8]
+1
+6
+R_2	exp(y)	['R_-10', 5]
+12
+14
+R_2	exp(y)	['R_1', 'R_3']
+5
+2
+R_2	exp(y)	[4, 1]
+2
+14
+R_2	exp(y)	[1, 'R_3']
+14
+6
+R_0	sin(x)	['R_3', 5]
+14
+6
+R_0	sin(x)	['R_3', 5]

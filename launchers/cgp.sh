@@ -9,7 +9,7 @@ c=4
 
 for f in {0..2}
 do
-	for t in {1..1}
+	for t in {1..10}
 	do
 		sbatch cgp.sb $t $g $n $c $f &
 		#python3 ../src/cgp.py $t $g $n $c $f &

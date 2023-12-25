@@ -1,0 +1,109 @@
+no change     /mnt/home/kocherov/anaconda3/condabin/conda
+no change     /mnt/home/kocherov/anaconda3/bin/conda
+no change     /mnt/home/kocherov/anaconda3/bin/conda-env
+no change     /mnt/home/kocherov/anaconda3/bin/activate
+no change     /mnt/home/kocherov/anaconda3/bin/deactivate
+no change     /mnt/home/kocherov/anaconda3/etc/profile.d/conda.sh
+no change     /mnt/home/kocherov/anaconda3/etc/fish/conf.d/conda.fish
+no change     /mnt/home/kocherov/anaconda3/shell/condabin/Conda.psm1
+no change     /mnt/home/kocherov/anaconda3/shell/condabin/conda-hook.ps1
+no change     /mnt/home/kocherov/anaconda3/lib/python3.9/site-packages/xontrib/conda.xsh
+no change     /mnt/home/kocherov/anaconda3/etc/profile.d/conda.csh
+no change     /mnt/home/kocherov/.bashrc
+No action taken.
+#####Trial 8#####
+/mnt/ufs18/home-220/kocherov/Documents/cgp/launchers/../src/lgp.py:42: RuntimeWarning: overflow encountered in exp
+  return exp(x[-1])
+/mnt/ufs18/home-220/kocherov/Documents/cgp/launchers/../src/lgp.py:40: RuntimeWarning: overflow encountered in exp
+  return exp(x[0])
+[ 7.98696  7.98696  8.71541  8.20436  7.98696  7.98696  7.98696  7.98696
+  7.98696  8.20436 12.55708  7.98696  8.25379  7.98696  7.98696  7.98696
+ 12.55708 12.55708  7.98696  7.98696  7.98696  7.98696 12.55708  7.98696
+  7.98696  7.98696 12.55708  7.98696  7.98696  7.98696  7.98696 12.55708
+  7.98696  7.98696  7.98696  7.98696 12.55708  7.98696 12.27973  7.98696
+  8.79157  7.98696  7.98696  7.98696 12.27973  7.98696  7.98696 12.55708
+  8.20436 12.55708  7.98696  7.98696 12.5214   7.98696  7.98696  8.21986
+  7.98696 11.55242  7.98696  8.17473  7.98696  8.25379 12.5214   7.98696
+  7.98696  8.20436 12.5214   7.98696  7.98696  8.20436  7.98696  7.98696
+ 12.55708  7.98696  7.98696 12.55708  7.98696  7.98696  7.98696 12.55708]
+Best Pop:
+[[16.  9.  8.  7.]
+ [16.  9.  9.  7.]
+ [14.  7.  6. 12.]
+ [16.  9.  9.  7.]
+ [15.  8.  1. 16.]
+ [16.  9.  9.  7.]
+ [13.  8.  1.  5.]
+ [13.  8.  1. 16.]
+ [15.  5.  9.  8.]
+ [15.  3. 14.  8.]
+ [16.  8.  1.  3.]
+ [ 0.  8.  1.  7.]
+ [15.  9.  9.  8.]
+ [15.  8.  1. 16.]
+ [ 0.  3. 11. 13.]
+ [13.  8.  1.  3.]
+ [ 0.  3. 11. 13.]
+ [13.  8.  1.  8.]]
+Best Fit: 7.987
+preds
+[8.71633781 9.2107958  9.65364362 9.93645669 9.9899925  9.80114362
+ 9.41614684 8.9292628  8.45969769 8.12241744 8.         8.12241744
+ 8.45969769 8.9292628  9.41614684 9.80114362 9.9899925  9.93645669
+ 9.65364362 9.2107958  8.71633781]
+12
+R	Op	I
+8
+7
+R_4	cos(y)	[7, 6]
+9
+7
+R_4	cos(y)	[8, 6]
+6
+12
+R_2	sin(y)	[5, 'R_1']
+9
+7
+R_4	cos(y)	[8, 6]
+1
+16
+R_3	cos(x)	['R_-10', 'R_5']
+9
+7
+R_4	cos(y)	[8, 6]
+1
+5
+R_1	cos(x)	['R_-10', 4]
+1
+16
+R_1	cos(x)	['R_-10', 'R_5']
+9
+8
+R_3	/	[8, 7]
+14
+8
+R_3	-	['R_3', 7]
+1
+3
+R_4	cos(x)	['R_-10', 2]
+1
+7
+R_0	cos(x)	['R_-10', 6]
+9
+8
+R_3	cos(y)	[8, 7]
+1
+16
+R_3	cos(x)	['R_-10', 'R_5']
+11
+13
+R_0	-	[10, 'R_2']
+1
+3
+R_1	cos(x)	['R_-10', 2]
+11
+13
+R_0	-	[10, 'R_2']
+1
+8
+R_1	cos(x)	['R_-10', 7]

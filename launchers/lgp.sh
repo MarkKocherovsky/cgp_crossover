@@ -11,7 +11,7 @@ c=40 #children
 
 for f in {0..2}
 do
-	for t in {1..1}
+	for t in {1..10}
 	do
 		sbatch lgp.sb $t $g $r $d $p $c $f
 		#python3 ../src/lgp.py $t $g $r $d $p $c $f &
