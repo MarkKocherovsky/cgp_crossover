@@ -19,13 +19,13 @@ lgp_base_p_fits = []
 
 method_names = ["CGP - Base", "LGP - Base"]
 
-
-def get_logs_cgp(base_path):
+max_e = 10
+def get_logs_cgp(base_path, max_e = 10):
 	full_logs = [] #full logs
 	full_fits = []
-	max_e = 3 #number of trials
+	#max_e = 10 #number of trials
 	for name in f_name:
-		print(f"Loading {base_path} {name}")
+		print(f"Loading {base_path}{name}")
 		logs = [] #idk what to call it, I just want everything easily accessible from a few lists
 		p_log = []
 		for e in range(1, max_e+1):
@@ -36,16 +36,18 @@ def get_logs_cgp(base_path):
 				out = pickle.load(f)
 				preds = pickle.load(f)
 				p_fit = pickle.load(f)
+				if np.isnan(p_fit):
+					p_fit = np.PINF
 			logs.append((bias, ind, out, preds, p_fit))
 			p_log.append(p_fit)
 		full_logs.append(logs)
 		full_fits.append(p_log)
 	return logs, np.array(full_fits)
 	
-def get_logs_lgp(base_path):
+def get_logs_lgp(base_path, max_e = 10):
 	full_logs = [] #full logs
 	full_fits = []
-	max_e = 3 #number of trials
+	#max_e = 10 #number of trials
 	for name in f_name:
 		print(f"Loading {base_path} {name}")
 		logs = [] #idk what to call it, I just want everything easily accessible from a few lists
@@ -57,6 +59,8 @@ def get_logs_lgp(base_path):
 				ind = pickle.load(f)
 				preds = pickle.load(f)
 				best_fit = pickle.load(f)
+				if np.isnan(best_fit):
+					best_fit = np.PINF
 			logs.append((bias, ind, preds, best_fit))
 			p_log.append(best_fit)
 		full_logs.append(logs)
@@ -66,9 +70,9 @@ def get_logs_lgp(base_path):
 
 #plot boxes
 _ , cgp_base_p_fits = get_logs_cgp(cgp_base_path)
-_ , lgp_base_b_fits = get_logs_lgp(lgp_base_path)
-print(cgp_base_p_fits)
-fig, axs = plt.subplots(1,3)
+_ , lgp_base_p_fits = get_logs_lgp(lgp_base_path)
+#print(cgp_base_p_fits)
+fig, axs = plt.subplots(1,len(f_name))
 for n in range(len(f_name)):
 	print(n)
 	axs[n].boxplot([cgp_base_p_fits[n], lgp_base_p_fits[n]], showfliers = True)
