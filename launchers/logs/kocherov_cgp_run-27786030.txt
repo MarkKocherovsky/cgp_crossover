@@ -1,0 +1,204 @@
+no change     /mnt/home/kocherov/anaconda3/condabin/conda
+no change     /mnt/home/kocherov/anaconda3/bin/conda
+no change     /mnt/home/kocherov/anaconda3/bin/conda-env
+no change     /mnt/home/kocherov/anaconda3/bin/activate
+no change     /mnt/home/kocherov/anaconda3/bin/deactivate
+no change     /mnt/home/kocherov/anaconda3/etc/profile.d/conda.sh
+no change     /mnt/home/kocherov/anaconda3/etc/fish/conf.d/conda.fish
+no change     /mnt/home/kocherov/anaconda3/shell/condabin/Conda.psm1
+no change     /mnt/home/kocherov/anaconda3/shell/condabin/conda-hook.ps1
+no change     /mnt/home/kocherov/anaconda3/lib/python3.9/site-packages/xontrib/conda.xsh
+no change     /mnt/home/kocherov/anaconda3/etc/profile.d/conda.csh
+no change     /mnt/home/kocherov/.bashrc
+No action taken.
+trial 2
+started
+trial 2
+generations 120
+max body nodes 24
+children 4
+biases [0 1 2 3 4 5 6 7 8 9]
+[ 0.   0.5  1.   1.5  2.   2.5  3.   3.5  4.   4.5  5.   5.5  6.   6.5
+  7.   7.5  8.   8.5  9.   9.5 10. ]
+[[ 0.   0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 0.5  0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 1.   0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 1.5  0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 2.   0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 2.5  0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 3.   0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 3.5  0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 4.   0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 4.5  0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 5.   0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 5.5  0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 6.   0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 6.5  0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 7.   0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 7.5  0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 8.   0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 8.5  0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 9.   0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [ 9.5  0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]
+ [10.   0.   1.   2.   3.   4.   5.   6.   7.   8.   9. ]]
+instantiating parent
+/mnt/ufs18/home-220/kocherov/Documents/cgp/src/cgp.py:159: DeprecationWarning: Conversion of an array with ndim > 0 to a scalar is deprecated, and will error in future. Ensure you extract a single element from your array before performing this operation. (Deprecated NumPy 1.25.)
+  out_x[x] = run_output(ind_base, output_nodes, in_val)
+Gen 1 Best Fitness: 0.7576341909648898
+Gen 2 Best Fitness: 0.14239156673238154
+Gen 3 Best Fitness: 0.14239156673238154
+Gen 4 Best Fitness: 0.14239156673238154
+Gen 5 Best Fitness: 0.14239156673238154
+Gen 6 Best Fitness: 0.14239156673238154
+Gen 7 Best Fitness: 0.14239156673238154
+Gen 8 Best Fitness: 0.14239156673238154
+Gen 9 Best Fitness: 0.14239156673238154
+Gen 10 Best Fitness: 0.14239156673238154
+Gen 11 Best Fitness: 0.14239156673238154
+Gen 12 Best Fitness: 0.14239156673238154
+Gen 13 Best Fitness: 0.14239156673238154
+Gen 14 Best Fitness: 0.14239156673238154
+Gen 15 Best Fitness: 0.14239156673238154
+Gen 16 Best Fitness: 0.14239156673238154
+Gen 17 Best Fitness: 0.14239156673238154
+Gen 18 Best Fitness: 0.14239156673238154
+Gen 19 Best Fitness: 0.14239156673238154
+Gen 20 Best Fitness: 0.14239156673238154
+Gen 21 Best Fitness: 0.14239156673238154
+Gen 22 Best Fitness: 0.14239156673238154
+Gen 23 Best Fitness: 0.14239156673238154
+Gen 24 Best Fitness: 5.312198516312458e-08
+Gen 25 Best Fitness: 5.312198516312458e-08
+Gen 26 Best Fitness: 5.312198516312458e-08
+Gen 27 Best Fitness: 5.312198516312458e-08
+Gen 28 Best Fitness: 5.312198516312458e-08
+Gen 29 Best Fitness: 5.312198516312458e-08
+Gen 30 Best Fitness: 5.312198516312458e-08
+Gen 31 Best Fitness: 5.312198516312458e-08
+Gen 32 Best Fitness: 5.312198516312458e-08
+Gen 33 Best Fitness: 5.312198516312458e-08
+Gen 34 Best Fitness: 5.312198516312458e-08
+Gen 35 Best Fitness: 5.312198516312458e-08
+Gen 36 Best Fitness: 5.312198516312458e-08
+Gen 37 Best Fitness: 5.312198516312458e-08
+Gen 38 Best Fitness: 5.312198516312458e-08
+Gen 39 Best Fitness: 5.312198516312458e-08
+Gen 40 Best Fitness: 5.312198516312458e-08
+Gen 41 Best Fitness: 5.312198516312458e-08
+Gen 42 Best Fitness: 5.312198516312458e-08
+Gen 43 Best Fitness: 5.312198516312458e-08
+Gen 44 Best Fitness: 5.312198516312458e-08
+Gen 45 Best Fitness: 5.312198516312458e-08
+Gen 46 Best Fitness: 5.312198516312458e-08
+Gen 47 Best Fitness: 5.312198516312458e-08
+Gen 48 Best Fitness: 5.312198516312458e-08
+Gen 49 Best Fitness: 5.312198516312458e-08
+Gen 50 Best Fitness: 5.312198516312458e-08
+Gen 51 Best Fitness: 5.312198516312458e-08
+Gen 52 Best Fitness: 5.312198516312458e-08
+Gen 53 Best Fitness: 5.312198516312458e-08
+Gen 54 Best Fitness: 5.312198516312458e-08
+Gen 55 Best Fitness: 5.312198516312458e-08
+Gen 56 Best Fitness: 5.312198516312458e-08
+Gen 57 Best Fitness: 5.312198516312458e-08
+Gen 58 Best Fitness: 5.312198516312458e-08
+Gen 59 Best Fitness: 5.312198516312458e-08
+Gen 60 Best Fitness: 5.312198516312458e-08
+Gen 61 Best Fitness: 5.312198516312458e-08
+Gen 62 Best Fitness: 5.312198516312458e-08
+Gen 63 Best Fitness: 5.312198516312458e-08
+Gen 64 Best Fitness: 5.312198516312458e-08
+Gen 65 Best Fitness: 5.312198516312458e-08
+Gen 66 Best Fitness: 5.312198516312458e-08
+Gen 67 Best Fitness: 5.312198516312458e-08
+Gen 68 Best Fitness: 5.312198516312458e-08
+Gen 69 Best Fitness: 5.312198516312458e-08
+Gen 70 Best Fitness: 5.312198516312458e-08
+Gen 71 Best Fitness: 5.312198516312458e-08
+Gen 72 Best Fitness: 5.312198516312458e-08
+Gen 73 Best Fitness: 5.312198516312458e-08
+Gen 74 Best Fitness: 5.312198516312458e-08
+Gen 75 Best Fitness: 5.312198516312458e-08
+Gen 76 Best Fitness: 5.312198516312458e-08
+Gen 77 Best Fitness: 5.312198516312458e-08
+Gen 78 Best Fitness: 5.312198516312458e-08
+Gen 79 Best Fitness: 5.312198516312458e-08
+Gen 80 Best Fitness: 5.312198516312458e-08
+Gen 81 Best Fitness: 5.312198516312458e-08
+Gen 82 Best Fitness: 5.312198516312458e-08
+Gen 83 Best Fitness: 5.312198516312458e-08
+Gen 84 Best Fitness: 5.312198516312458e-08
+Gen 85 Best Fitness: 5.312198516312458e-08
+Gen 86 Best Fitness: 5.312198516312458e-08
+Gen 87 Best Fitness: 5.312198516312458e-08
+Gen 88 Best Fitness: 5.312198516312458e-08
+Gen 89 Best Fitness: 5.312198516312458e-08
+Gen 90 Best Fitness: 5.312198516312458e-08
+Gen 91 Best Fitness: 5.312198516312458e-08
+Gen 92 Best Fitness: 5.312198516312458e-08
+Gen 93 Best Fitness: 5.312198516312458e-08
+Gen 94 Best Fitness: 5.312198516312458e-08
+Gen 95 Best Fitness: 5.312198516312458e-08
+Gen 96 Best Fitness: 5.312198516312458e-08
+Gen 97 Best Fitness: 5.312198516312458e-08
+Gen 98 Best Fitness: 5.312198516312458e-08
+Gen 99 Best Fitness: 5.312198516312458e-08
+Gen 100 Best Fitness: 5.312198516312458e-08
+Gen 101 Best Fitness: 5.312198516312458e-08
+Gen 102 Best Fitness: 5.312198516312458e-08
+Gen 103 Best Fitness: 5.312198516312458e-08
+Gen 104 Best Fitness: 5.312198516312458e-08
+Gen 105 Best Fitness: 5.312198516312458e-08
+Gen 106 Best Fitness: 5.312198516312458e-08
+Gen 107 Best Fitness: 5.312198516312458e-08
+Gen 108 Best Fitness: 5.312198516312458e-08
+Gen 109 Best Fitness: 5.312198516312458e-08
+Gen 110 Best Fitness: 5.312198516312458e-08
+Gen 111 Best Fitness: 5.312198516312458e-08
+Gen 112 Best Fitness: 5.312198516312458e-08
+Gen 113 Best Fitness: 5.312198516312458e-08
+Gen 114 Best Fitness: 5.312198516312458e-08
+Gen 115 Best Fitness: 5.312198516312458e-08
+Gen 116 Best Fitness: 5.312198516312458e-08
+Gen 117 Best Fitness: 5.312198516312458e-08
+Gen 118 Best Fitness: 5.312198516312458e-08
+/mnt/ufs18/home-220/kocherov/Documents/cgp/src/cgp.py:29: RuntimeWarning: overflow encountered in scalar power
+  return x**y
+Gen 119 Best Fitness: 5.312198516312458e-08
+Gen 120 Best Fitness: 5.312198516312458e-08
+Trial 2: Best Fitness = 5.312198516312458e-08
+biases
+[0 1 2 3 4 5 6 7 8 9]
+best individual
+[[ 0  0 14]
+ [11  1 11]
+ [ 2  4  5]
+ [ 8  4  5]
+ [ 5 12 12]
+ [ 2 10  8]
+ [15  1  8]
+ [11  9  9]
+ [ 2  7  6]
+ [ 6 14 10]
+ [16  3  2]
+ [15 14  5]
+ [ 8 17 13]
+ [ 2 21  0]
+ [18 12 13]
+ [13  8 13]
+ [23 11  1]
+ [14 16 10]
+ [12 22  5]
+ [18 22  6]
+ [ 7  3  1]
+ [ 3 25  4]
+ [23  2 12]
+ [ 2 27  1]]
+output nodes
+[12]
+preds
+[0.         0.70710678 1.         1.22474487 1.41421356 1.58113883
+ 1.73205081 1.87082869 2.         2.12132034 2.23606798 2.34520788
+ 2.44948974 2.54950976 2.64575131 2.73861279 2.82842712 2.91547595
+ 3.         3.082207   3.16227766]
+../output/cgp/SquareRoot/log/output_2.pkl

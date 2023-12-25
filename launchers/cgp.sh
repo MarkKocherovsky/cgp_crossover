@@ -7,7 +7,7 @@ g=120
 n=24
 c=4
 
-for f in {0..2}
+for f in {0..6}
 do
 	for t in {1..10}
 	do

@@ -9,7 +9,7 @@ d=4 #destinations
 p=40 #parents
 c=40 #children
 
-for f in {0..2}
+for f in {0..6}
 do
 	for t in {1..10}
 	do
