@@ -1,0 +1,18 @@
+// trial 5 active nodes
+strict digraph {
+	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
+	N_28 [label="*"]
+	N_24 [label="$sqrt{x^2+y^2}$"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_24
+	N_2 [label=1 fillcolor=yellow rank=same shape=square style=filled]
+	N_2 -> N_24
+	N_24 -> N_28
+	N_17 [label=avg]
+	N_2 [label=1 fillcolor=yellow rank=same shape=square style=filled]
+	N_2 -> N_17
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_17
+	N_17 -> N_28
+	N_28 -> O_0
+}

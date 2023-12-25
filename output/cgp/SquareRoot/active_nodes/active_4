@@ -1,0 +1,6 @@
+// trial 4 active nodes
+strict digraph {
+	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
+	N_3 [label=2 fillcolor=yellow rank=same shape=square style=filled]
+	N_3 -> O_0
+}

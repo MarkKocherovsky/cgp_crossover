@@ -1,0 +1,22 @@
+// trial 8 active nodes
+strict digraph {
+	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
+	N_26 [label="|y|"]
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_26
+	N_24 [label="$\sqrt{x+y}$"]
+	N_11 [label=avg]
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_11
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_11
+	N_11 -> N_24
+	N_19 [label="cos(y)"]
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_19
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_19
+	N_19 -> N_24
+	N_24 -> N_26
+	N_26 -> O_0
+}
