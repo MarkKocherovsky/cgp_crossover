@@ -162,7 +162,7 @@ def fitness(data, targ, ind_base, output_nodes, opt = 0):
 	return rmse(out_x, targ)
 		
 
-def mutate(ind, out, p_mut = 0.5, arity = arity, in_size = inputs+bias):
+def mutate(ind, out, p_mut = 0.1, arity = arity, in_size = inputs+bias):
 	for i in range(ind.shape[0]):
 		for j in range(ind.shape[1]):
 			if random.random() < p_mut: #mutate
