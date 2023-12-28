@@ -1,18 +1,10 @@
 // trial 2 active nodes
 strict digraph {
 	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
-	N_25 [label=y]
-	N_6 [label=5 fillcolor=yellow rank=same shape=square style=filled]
-	N_6 -> N_25
-	N_24 [label="sin(x)"]
+	N_13 [label="sin(y)"]
+	N_4 [label=3 fillcolor=yellow rank=same shape=square style=filled]
+	N_4 -> N_13
 	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
-	N_0 -> N_24
-	N_12 [label="|x|"]
-	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
-	N_8 -> N_12
-	N_3 [label=2 fillcolor=yellow rank=same shape=square style=filled]
-	N_3 -> N_12
-	N_12 -> N_24
-	N_24 -> N_25
-	N_25 -> O_0
+	N_0 -> N_13
+	N_13 -> O_0
 }

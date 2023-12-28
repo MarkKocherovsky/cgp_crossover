@@ -70,7 +70,6 @@ def min_f(x,y):
 def midpoint(x,y):
 	return (x+y)/2
 
-
 #test_x = np.arange(11, 30.1, 1)
 #test_y = [func([y]) for y in test_x]
 #print(train_x)
@@ -94,8 +93,8 @@ arity = 2
 #bank = (add, sub, mul, div, x, y, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, floor_x, floor_y, ceil_x, ceil_y, max_f, min_f, midpoint)
 #bank_string = ("+", "-", "*", "/", "x", "y", "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "$\lfloor{x}\rfloor$", "$\lfloor{y}\rfloor$", "$\lceil{x}\rceil$", "$\lceil{y}\rceil$", "max", "min", "avg")
 
-bank = (add, sub, mul, div, x, y, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, midpoint)
-bank_string = ("+", "-", "*", "/", "x", "y", "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "avg")
+bank = (add, sub, mul, div, x, y) #, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, midpoint)
+bank_string = ("+", "-", "*", "/", "x", "y") #, "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "avg")
 
 func_bank = Collection()
 func = func_bank.func_list[int(argv[5])]
@@ -205,11 +204,13 @@ fit_track.append(p_fit)
 #print(f"Pre-Run Parent Fitness: {p_fit}")
 for g in range(1, max_g+1):
 	children = [mutate(ind_base.copy(), output_nodes.copy()) for x in range(0, max_c)]
-	c_fit = [fitness(train_x_bias, train_y, child[0], child[1]) for child in children]
+	c_fit = np.array([fitness(train_x_bias, train_y, child[0], child[1]) for child in children])
 	#print(p_fit)
 	#print(c_fit)
-
-	if any(np.array(c_fit) <= p_fit):
+	if any(np.isnan(c_fit)): #Replace nans with positive infinity to screen them out
+		nans = np.isnan(c_fit)
+		c_fit[nans] = np.PINF 
+	if any(c_fit <= p_fit):
 		best = np.argmin(c_fit)
 		ind_base = children[best][0].copy()
 		output_nodes = children[best][1].copy()
@@ -221,7 +222,7 @@ for g in range(1, max_g+1):
 	#	break
 
 print(f"Trial {t}: Best Fitness = {p_fit}")
-final_fit.append(p_fit)
+#final_fit.append(p_fit)
 #fig, ax = plt.subplots()
 #ax = plt.plot(fit_track)
 #print(fit_track)
@@ -239,13 +240,6 @@ print(preds)
 #print(list(train_y))
 Path(f"../output/cgp/{func_name}/log/").mkdir(parents=True, exist_ok=True)
 import pickle
-print(f"../output/cgp/{func_name}/log/output_{t}.pkl")
-with open(f"../output/cgp/{func_name}/log/output_{t}.pkl", "wb") as f:
-	pickle.dump(biases, f)
-	pickle.dump(ind_base, f)
-	pickle.dump(output_nodes, f)
-	pickle.dump(preds, f)
-	pickle.dump(p_fit, f)
 
 fig, ax = plt.subplots()
 ax.scatter(train_x, train_y, label = 'Ground Truth')
@@ -254,7 +248,14 @@ fig.suptitle(f"{func_name} Trial {t}")
 ax.set_title(f"RMSE = {np.round(p_fit, 2)}")
 ax.legend()
 Path(f"../output/cgp/{func_name}/scatter/").mkdir(parents=True, exist_ok=True)
-plt.savefig(f"../output/cgp/{func_name}/scatter/comp_{t}.png")
+plt.savefig(f"../output/cgp/{func_name}/scatter/plot_{t}.png")
+
+fig, ax = plt.subplots()
+ax.plot(fit_track)
+ax.set_title(f'{func_name} Trial {t}')
+Path(f"../output/cgp/{func_name}/plot/").mkdir(parents=True, exist_ok=True)
+plt.savefig(f"../output/cgp/{func_name}/plot/plot_{t}.png")
+
 
 #export graph
 import graphviz as gv
@@ -296,6 +297,7 @@ dot.render(f"../output/cgp/{func_name}/full_graphs/graph_{t}", view=False)
 
 def plot_active_nodes(name = "active_nodes", output_nodes = output_nodes, outputs=outputs, fb_node = first_body_node):
 	active_graph = gv.Digraph(comment=f'trial {t} active nodes', strict = True)
+	active_nodes = []
 	size = 0
 	def plot_body_node(n_node):
 		node = ind_base[n_node-first_body_node]
@@ -303,6 +305,8 @@ def plot_active_nodes(name = "active_nodes", output_nodes = output_nodes, output
 		active_graph.node(f'N_{n_node}', op)
 		for a in range(arity):
 			prev_node = node[a]
+			if prev_node not in active_nodes:
+				active_nodes.append(prev_node) #count active nodes
 			if prev_node < inputs: #inputs
 				active_graph.node(f'N_{prev_node}', f'I_{prev_node}', shape='square', rank='same', fillcolor = 'orange', style='filled')
 				active_graph.edge(f'N_{prev_node}', f'N_{n_node}')
@@ -318,12 +322,19 @@ def plot_active_nodes(name = "active_nodes", output_nodes = output_nodes, output
 		if node < inputs: #inputs
 			active_graph.node(f'N_{node}', f'I_{node}', shape='square', rank='same', fillcolor = 'orange', style='filled')
 			active_graph.edge(f'N_{node}', f'O_{o}')
+			if node not in active_nodes:
+				active_nodes.append(node)
 		elif node >= inputs and node < first_body_node: #bias:
 			active_graph.node(f'N_{node}', f"{biases[node-inputs]}", shape='square', rank='same', fillcolor='yellow', style='filled')
 			active_graph.edge(f'N_{node}', f'O_{o}')
+			if node not in active_nodes:
+				active_nodes.append(node)
 		else:
 			plot_body_node(node)
 			active_graph.edge(f'N_{node}', f'O_{o}')
+			if node not in active_nodes:
+				active_nodes.append(node)
+
 	"""
 	for x in active_graph:
 		print(x)
@@ -334,6 +345,8 @@ def plot_active_nodes(name = "active_nodes", output_nodes = output_nodes, output
 	"""
 	Path(f"../output/cgp/{func_name}/active_nodes/").mkdir(parents=True, exist_ok=True)
 	active_graph.render(f"../output/cgp/{func_name}/active_nodes/active_{t}", view=False)
+	active_node_num = len(active_nodes)+outputs #all outputs are active by definition
+	return active_node_num
 
 def get_expression(output_nodes = output_nodes, outputs = outputs, fb_node = first_body_node):
 	expressions = []
@@ -368,7 +381,17 @@ def get_expression(output_nodes = output_nodes, outputs = outputs, fb_node = fir
 	#print(expressions)
 	return(expressions)
 	
-plot_active_nodes()
+n = plot_active_nodes()
+print(f'Active Nodes = {n}')
+print(f"../output/cgp/{func_name}/log/output_{t}.pkl")
+with open(f"../output/cgp/{func_name}/log/output_{t}.pkl", "wb") as f:
+	pickle.dump(biases, f)
+	pickle.dump(ind_base, f)
+	pickle.dump(output_nodes, f)
+	pickle.dump(preds, f)
+	pickle.dump(p_fit, f)
+	pickle.dump(n, f)
+	pickle.dump(final_fit, f)
 #expressions = get_expression()
 #for expression in expressions:
 #	print(expression)

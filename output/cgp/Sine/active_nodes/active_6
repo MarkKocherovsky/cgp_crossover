@@ -4,7 +4,7 @@ strict digraph {
 	N_31 [label="sin(x)"]
 	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
 	N_0 -> N_31
-	N_3 [label=2 fillcolor=yellow rank=same shape=square style=filled]
-	N_3 -> N_31
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_31
 	N_31 -> O_0
 }

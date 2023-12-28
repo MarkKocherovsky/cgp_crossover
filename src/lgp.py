@@ -69,8 +69,8 @@ input_indices = np.arange(1, n_inp+1, 1)
 #print(input_indices)
 
 #bank = (add, add)
-bank = (first, last, add, sub, mul, div, sin_x, sin_y, cos_x, cos_y, exp_x, exp_y)
-bank_string = ('first', 'last', '+', '-', '*', '/', 'sin(x)', 'sin(y)', 'cos(x)', 'cos(y)', 'exp(x)', 'exp(y)')
+bank = (first, last, add, sub, mul, div)#, sin_x, sin_y, cos_x, cos_y, exp_x, exp_y)
+bank_string = ('first', 'last', '+', '-', '*', '/')#, 'sin(x)', 'sin(y)', 'cos(x)', 'cos(y)', 'exp(x)', 'exp(y)')
 def rmse(preds, reals):
 	return np.sqrt(np.mean((preds-reals)**2)) #copied from stack overflow
 
@@ -249,6 +249,7 @@ fit_track = []
 for i in range(0, max_p):
 	parents.append(generate_ind())
 fitnesses = np.zeros((max_p+max_c),)
+fit_track.append(np.argmin(fitnesses))
 #sort parents before xover and mutation?
 #select before or after xover?
 for g in range(1, max_g+1):
@@ -261,7 +262,9 @@ for g in range(1, max_g+1):
 	#children = clean(children.copy())
 	fitnesses[max_p:] = mass_eval(children)
 	pop = parents+children
-	
+	if any(np.isnan(fitnesses)): #screen out nan values
+		nans = np.isnan(fitnesses)
+		fitnesses[nans] = np.PINF
 	best_i = np.argmin(fitnesses)
 	best_pop = pop[i]
 	best_fit = fitnesses[i]
@@ -291,7 +294,8 @@ with open(f"../output/lgp/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump(best_pop, f)
 	pickle.dump(preds, f)
 	pickle.dump(np.round(best_fit, 4), f)
-
+	pickle.dump(best_pop.shape[0], f)
+	pickle.dump(fit_track, f)
 
 fig, ax = plt.subplots()
 ax.scatter(train_x, train_y, label = 'Ground Truth')
@@ -301,6 +305,13 @@ ax.set_title(f"RMSE = {np.round(best_fit, 2)}")
 ax.legend()
 Path(f"../output/lgp/{func_name}/scatter/").mkdir(parents=True, exist_ok=True)
 plt.savefig(f"../output/lgp/{func_name}/scatter/comp_{t}.png")
+
+fig, ax = plt.subplots()
+ax.plot(fit_track)
+ax.set_title(f"{func_name} Trial {t}")
+Path(f"../output/lgp/{func_name}/plot/").mkdir(parents=True, exist_ok=True)
+plt.savefig(f"../output/lgp/{func_name}/plot/plot_{t}.png")
+
 
 first_body_node = n_inp+n_bias
 print(first_body_node)

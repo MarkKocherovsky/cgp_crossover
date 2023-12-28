@@ -12,79 +12,79 @@ digraph {
 	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
 	N_10 [label=9 fillcolor=yellow rank=same shape=square style=filled]
 	rank=same
-	N_11 [label="+"]
-	N_2 -> N_11
+	N_11 [label="cos(x)"]
+	N_6 -> N_11
 	N_3 -> N_11
-	N_12 [label="^"]
-	N_11 -> N_12
-	N_7 -> N_12
-	N_13 [label="*"]
-	N_12 -> N_13
-	N_6 -> N_13
-	N_14 [label="sin(x)"]
-	N_0 -> N_14
+	N_12 [label="$\sqrt{x+y}$"]
+	N_0 -> N_12
+	N_1 -> N_12
+	N_13 [label=y]
+	N_1 -> N_13
+	N_0 -> N_13
+	N_14 [label=x]
 	N_5 -> N_14
-	N_15 [label=x]
-	N_14 -> N_15
-	N_5 -> N_15
+	N_4 -> N_14
+	N_15 [label="sin(y)"]
+	N_12 -> N_15
+	N_11 -> N_15
 	N_16 [label="$\sqrt{x+y}$"]
-	N_12 -> N_16
-	N_9 -> N_16
+	N_13 -> N_16
+	N_2 -> N_16
 	N_17 [label="|x|"]
-	N_2 -> N_17
-	N_5 -> N_17
+	N_10 -> N_17
+	N_10 -> N_17
 	N_18 [label="^"]
-	N_3 -> N_18
-	N_14 -> N_18
-	N_19 [label="cos(x)"]
+	N_5 -> N_18
+	N_8 -> N_18
+	N_19 [label="+"]
 	N_17 -> N_19
-	N_8 -> N_19
-	N_20 [label="*"]
-	N_9 -> N_20
-	N_12 -> N_20
+	N_17 -> N_19
+	N_20 [label="sin(x)"]
+	N_19 -> N_20
+	N_4 -> N_20
 	N_21 [label="sin(y)"]
-	N_9 -> N_21
-	N_4 -> N_21
-	N_22 [label="sin(y)"]
-	N_7 -> N_22
+	N_14 -> N_21
+	N_15 -> N_21
+	N_22 [label="cos(x)"]
 	N_17 -> N_22
-	N_23 [label="sin(x)"]
-	N_17 -> N_23
-	N_0 -> N_23
-	N_24 [label="|x|"]
-	N_16 -> N_24
-	N_6 -> N_24
-	N_25 [label=avg]
-	N_4 -> N_25
-	N_24 -> N_25
-	N_26 [label="|x|"]
-	N_15 -> N_26
-	N_2 -> N_26
-	N_27 [label=y]
-	N_12 -> N_27
-	N_16 -> N_27
-	N_28 [label="|x|"]
-	N_3 -> N_28
-	N_23 -> N_28
-	N_29 [label=y]
+	N_8 -> N_22
+	N_23 [label="$\sqrt{x+y}$"]
+	N_6 -> N_23
+	N_7 -> N_23
+	N_24 [label="^"]
+	N_17 -> N_24
+	N_7 -> N_24
+	N_25 [label=y]
+	N_22 -> N_25
+	N_7 -> N_25
+	N_26 [label="$\sqrt{x+y}$"]
+	N_6 -> N_26
+	N_7 -> N_26
+	N_27 [label="cos(x)"]
+	N_18 -> N_27
+	N_8 -> N_27
+	N_28 [label="$sqrt{x^2+y^2}$"]
+	N_10 -> N_28
+	N_24 -> N_28
+	N_29 [label=x]
 	N_3 -> N_29
-	N_7 -> N_29
-	N_30 [label="cos(x)"]
-	N_8 -> N_30
-	N_9 -> N_30
-	N_31 [label="cos(y)"]
-	N_12 -> N_31
-	N_26 -> N_31
-	N_32 [label="cos(x)"]
-	N_11 -> N_32
-	N_9 -> N_32
-	N_33 [label="|x|"]
-	N_31 -> N_33
-	N_18 -> N_33
-	N_34 [label="sin(y)"]
-	N_24 -> N_34
-	N_10 -> N_34
+	N_17 -> N_29
+	N_30 [label=y]
+	N_13 -> N_30
+	N_5 -> N_30
+	N_31 [label="|y|"]
+	N_18 -> N_31
+	N_14 -> N_31
+	N_32 [label="sin(x)"]
+	N_12 -> N_32
+	N_27 -> N_32
+	N_33 [label="|y|"]
+	N_8 -> N_33
+	N_20 -> N_33
+	N_34 [label="*"]
+	N_13 -> N_34
+	N_6 -> N_34
 	rank=max
 	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
-	N_28 -> O_0
+	N_12 -> O_0
 }
