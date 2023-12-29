@@ -391,7 +391,7 @@ with open(f"../output/cgp/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump(preds, f)
 	pickle.dump(p_fit, f)
 	pickle.dump(n, f)
-	pickle.dump(final_fit, f)
+	pickle.dump(fit_track, f)
 #expressions = get_expression()
 #for expression in expressions:
 #	print(expression)

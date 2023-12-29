@@ -1,14 +1,42 @@
 // trial 10 active nodes
 strict digraph {
 	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
-	N_13 [label="/"]
-	N_4 [label=3 fillcolor=yellow rank=same shape=square style=filled]
-	N_4 -> N_13
-	N_12 [label="-"]
-	N_6 [label=5 fillcolor=yellow rank=same shape=square style=filled]
-	N_6 -> N_12
+	N_34 [label=x]
+	N_32 [label=x]
+	N_28 [label=x]
+	N_17 [label=x]
+	N_11 [label="-"]
+	N_1 [label=0 fillcolor=yellow rank=same shape=square style=filled]
+	N_1 -> N_11
+	N_2 [label=1 fillcolor=yellow rank=same shape=square style=filled]
+	N_2 -> N_11
+	N_11 -> N_17
 	N_10 [label=9 fillcolor=yellow rank=same shape=square style=filled]
-	N_10 -> N_12
-	N_12 -> N_13
-	N_13 -> O_0
+	N_10 -> N_17
+	N_17 -> N_28
+	N_24 [label="*"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_24
+	N_15 [label="-"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_15
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_15
+	N_15 -> N_24
+	N_24 -> N_28
+	N_28 -> N_32
+	N_27 [label="-"]
+	N_1 [label=0 fillcolor=yellow rank=same shape=square style=filled]
+	N_1 -> N_27
+	N_20 [label=x]
+	N_10 [label=9 fillcolor=yellow rank=same shape=square style=filled]
+	N_10 -> N_20
+	N_3 [label=2 fillcolor=yellow rank=same shape=square style=filled]
+	N_3 -> N_20
+	N_20 -> N_27
+	N_27 -> N_32
+	N_32 -> N_34
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_34
+	N_34 -> O_0
 }

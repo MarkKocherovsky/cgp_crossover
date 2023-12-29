@@ -12,79 +12,79 @@ digraph {
 	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
 	N_10 [label=9 fillcolor=yellow rank=same shape=square style=filled]
 	rank=same
-	N_11 [label=x]
-	N_0 -> N_11
-	N_1 -> N_11
-	N_12 [label=x]
-	N_2 -> N_12
-	N_10 -> N_12
-	N_13 [label="/"]
+	N_11 [label="-"]
+	N_4 -> N_11
+	N_8 -> N_11
+	N_12 [label="/"]
+	N_6 -> N_12
+	N_8 -> N_12
+	N_13 [label="*"]
+	N_10 -> N_13
 	N_6 -> N_13
-	N_8 -> N_13
 	N_14 [label="*"]
-	N_11 -> N_14
-	N_5 -> N_14
+	N_0 -> N_14
+	N_13 -> N_14
 	N_15 [label="/"]
+	N_10 -> N_15
 	N_14 -> N_15
-	N_4 -> N_15
-	N_16 [label="*"]
-	N_14 -> N_16
-	N_12 -> N_16
-	N_17 [label="*"]
-	N_13 -> N_17
-	N_10 -> N_17
-	N_18 [label="/"]
-	N_16 -> N_18
-	N_17 -> N_18
-	N_19 [label=y]
-	N_6 -> N_19
-	N_13 -> N_19
-	N_20 [label=x]
+	N_16 [label=y]
+	N_0 -> N_16
+	N_13 -> N_16
+	N_17 [label="-"]
+	N_16 -> N_17
+	N_8 -> N_17
+	N_18 [label="*"]
+	N_12 -> N_18
+	N_4 -> N_18
+	N_19 [label="*"]
+	N_8 -> N_19
+	N_17 -> N_19
+	N_20 [label="/"]
+	N_10 -> N_20
 	N_2 -> N_20
-	N_15 -> N_20
-	N_21 [label="-"]
-	N_17 -> N_21
-	N_13 -> N_21
-	N_22 [label="-"]
-	N_5 -> N_22
-	N_14 -> N_22
-	N_23 [label=x]
-	N_16 -> N_23
-	N_5 -> N_23
-	N_24 [label="-"]
-	N_21 -> N_24
-	N_3 -> N_24
-	N_25 [label="+"]
-	N_15 -> N_25
-	N_23 -> N_25
-	N_26 [label="*"]
-	N_22 -> N_26
-	N_6 -> N_26
+	N_21 [label="*"]
+	N_15 -> N_21
+	N_19 -> N_21
+	N_22 [label=y]
+	N_1 -> N_22
+	N_7 -> N_22
+	N_23 [label="-"]
+	N_3 -> N_23
+	N_14 -> N_23
+	N_24 [label="*"]
+	N_1 -> N_24
+	N_2 -> N_24
+	N_25 [label="/"]
+	N_3 -> N_25
+	N_6 -> N_25
+	N_26 [label="/"]
+	N_13 -> N_26
+	N_11 -> N_26
 	N_27 [label="+"]
-	N_19 -> N_27
-	N_5 -> N_27
-	N_28 [label="/"]
-	N_8 -> N_28
-	N_5 -> N_28
+	N_20 -> N_27
+	N_10 -> N_27
+	N_28 [label=y]
+	N_2 -> N_28
+	N_23 -> N_28
 	N_29 [label="+"]
-	N_12 -> N_29
-	N_21 -> N_29
-	N_30 [label=x]
-	N_2 -> N_30
-	N_2 -> N_30
-	N_31 [label=x]
-	N_0 -> N_31
-	N_18 -> N_31
-	N_32 [label=x]
-	N_10 -> N_32
-	N_21 -> N_32
-	N_33 [label="*"]
-	N_9 -> N_33
-	N_25 -> N_33
-	N_34 [label=x]
-	N_33 -> N_34
-	N_17 -> N_34
+	N_26 -> N_29
+	N_4 -> N_29
+	N_30 [label="/"]
+	N_17 -> N_30
+	N_12 -> N_30
+	N_31 [label="*"]
+	N_27 -> N_31
+	N_13 -> N_31
+	N_32 [label="+"]
+	N_0 -> N_32
+	N_25 -> N_32
+	N_33 [label="/"]
+	N_11 -> N_33
+	N_23 -> N_33
+	N_34 [label="-"]
+	N_5 -> N_34
+	N_0 -> N_34
 	rank=max
 	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
-	N_15 -> O_0
+	N_32 -> O_0
 }
