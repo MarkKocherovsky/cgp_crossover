@@ -1,6 +1,14 @@
 // trial 4 active nodes
 strict digraph {
 	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
+	N_25 [label="*"]
+	N_13 [label="/"]
 	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
-	N_0 -> O_0
+	N_0 -> N_13
+	N_3 [label=2 fillcolor=yellow rank=same shape=square style=filled]
+	N_3 -> N_13
+	N_13 -> N_25
+	N_4 [label=3 fillcolor=yellow rank=same shape=square style=filled]
+	N_4 -> N_25
+	N_25 -> O_0
 }

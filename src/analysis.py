@@ -124,21 +124,27 @@ def get_avg_gens(f):
 		#print(p.shape)
 		avgs.append(np.average(p, axis = 0))
 		std_devs.append(np.std(p, axis = 0))
-	return np.array(avgs), np.array(std_devs)
+	avgs = np.array(avgs)
+	std_devs = np.array(std_devs)
+	return avgs, avgs-std_devs, avgs+std_devs
 
 def get_err_ribbon(avgs, stds):
 	return avgs + stds, avgs - stds
-cgp_avgs, cgp_std_devs = get_avg_gens(cgp_base_fit_tracks)
-lgp_avgs, lgp_std_devs = get_avg_gens(lgp_base_fit_tracks)
+cgp_avgs, cgp_s_p, cgp_s_m = get_avg_gens(cgp_base_fit_tracks)
+lgp_avgs, lgp_s_p, lgp_s_m = get_avg_gens(lgp_base_fit_tracks)
 print(cgp_avgs.shape)
 print(lgp_avgs.shape)
+print(lgp_s_p.shape)
 fig, axs = plt.subplots(1, len(f_name), figsize = (20, 5))
 for n in range(len(f_name)):
-	axs[n].plot(cgp_avgs[n])
-	axs[n].plot(lgp_avgs[n])
-	axs[n].fill_between(range(cgp_avgs[n].shape[0]), get_err_ribbon(cgp_avgs[n], cgp_std_devs[n]), )
+	axs[n].plot(cgp_avgs[n], label='CGP(1+4)')
+	axs[n].plot(lgp_avgs[n], label='LGP-RC')
+	axs[n].fill_between(range(cgp_avgs[n].shape[0]), cgp_s_m[n], cgp_s_p[n], alpha = 0.25)
+	axs[n].fill_between(range(lgp_avgs[n].shape[0]), lgp_s_m[n], lgp_s_p[n], alpha = 0.25)
+	axs[n].set_ylim(0, 2)
 	axs[n].set_title(f'{f_name[n]}')
 axs[0].set_ylabel("RMSE")
+axs[0].legend()
 fig.suptitle("Fitness over generations")
 fig.tight_layout()
 plt.show()

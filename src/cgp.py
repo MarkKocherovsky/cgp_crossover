@@ -200,7 +200,7 @@ output_nodes = random.randint(0, max_n+(inputs+bias), (outputs,), np.int32)
 
 #test = run_output(ind_base, output_nodes, np.array([10.0]))
 p_fit = fitness(train_x_bias, train_y, ind_base, output_nodes)
-fit_track.append(p_fit)
+#fit_track.append(p_fit)
 #print(f"Pre-Run Parent Fitness: {p_fit}")
 for g in range(1, max_g+1):
 	children = [mutate(ind_base.copy(), output_nodes.copy()) for x in range(0, max_c)]

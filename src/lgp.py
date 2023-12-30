@@ -219,6 +219,13 @@ def select(pop, fitnesses, max_p = max_p):
 	if n_tour <=1:
 		n_tour = 2
 	new_parents = []
+	#new_fitnesses = []
+	#print(fitnesses)
+	#print(np.argmin(fitnesses)
+	best_fit_id = np.argmin(fitnesses)
+	best_fit = np.argmin(fitnesses)
+	#print(pop[best_fit_id])
+	new_parents.append(pop[best_fit_id])
 	while len(new_parents) < max_p:
 		contestant_indices = random.choice(range(len(pop)), n_tour, replace = False)
 		#print(pop)
@@ -229,7 +236,7 @@ def select(pop, fitnesses, max_p = max_p):
 		candidate = fight(contestants, c_fitnesses)
 		new_parents.append(candidate)
 	
-	return new_parents
+	return new_parents, best_fit
 
 from numpy import unique
 def clean(pop): # remove consecutive duplicate rules
@@ -249,7 +256,7 @@ fit_track = []
 for i in range(0, max_p):
 	parents.append(generate_ind())
 fitnesses = np.zeros((max_p+max_c),)
-fit_track.append(np.argmin(fitnesses))
+#fit_track.append(np.argmin(fitnesses))
 #sort parents before xover and mutation?
 #select before or after xover?
 for g in range(1, max_g+1):
@@ -264,13 +271,14 @@ for g in range(1, max_g+1):
 	pop = parents+children
 	if any(np.isnan(fitnesses)): #screen out nan values
 		nans = np.isnan(fitnesses)
-		fitnesses[nans] = np.PINF
-	best_i = np.argmin(fitnesses)
-	best_pop = pop[i]
-	best_fit = fitnesses[i]
+		fitnesses[nans] = np.PINF	
+	parents, best_i = select(pop, fitnesses)
+	pop = parents+children
+	#best_i = np.argmin(fitnesses)
+	best_pop = pop[best_i]
+	best_fit = fitnesses[best_i]
 	fit_track.append(best_fit)
-	
-	parents = select(pop, fitnesses)
+
 	
 #fig, ax = plt.subplots()
 #ax = plt.plot(fit_track)
