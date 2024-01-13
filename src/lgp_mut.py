@@ -4,7 +4,7 @@ from numpy import random, sin, exp, cos, sqrt, pi
 from sys import path, argv
 from pathlib import Path
 from functions import *
-
+#LGP without crossover
 def first(x):
 	return x[0]
 def last(x):
@@ -69,9 +69,8 @@ input_indices = np.arange(1, n_inp+1, 1)
 #print(input_indices)
 
 #bank = (add, add)
-bank = (add, sub, mul, div) #, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, midpoint)
-bank_string = ("+", "-", "*", "/") #, "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "avg")
-
+bank = (first, last, add, sub, mul, div)#, sin_x, sin_y, cos_x, cos_y, exp_x, exp_y)
+bank_string = ('first', 'last', '+', '-', '*', '/')#, 'sin(x)', 'sin(y)', 'cos(x)', 'cos(y)', 'exp(x)', 'exp(y)')
 def rmse(preds, reals):
 	return np.sqrt(np.mean((preds-reals)**2)) #copied from stack overflow
 
@@ -181,34 +180,33 @@ def mutate(parents, max_c = max_c, p_mut = p_mut, bank = bank):
 	children = []
 	while len(children) < max_c:
 		for p in range(0, len(parents)): #go through each parent
-			if random.random() <= p_mut:
-				parent = parents[p]
-				if len(parent < 2):
-					mutation = random.randint(1, 3)
-				else:
-					mutation = random.randint(0, 3)
-				
-				if mutation == 0: #remove instfuction
-					inst = random.randint(0, len(parent))
-					children.append(np.delete(parent, inst, axis = 0))
-				elif mutation == 1: #change instruction
-					inst = random.randint(0, len(parent))
-					part = random.randint(0, len(parent[inst]))
-					possible_destinations, possible_sources = get_registers()
-					if part == 0: #destination
-						parent[inst, part] = random.choice(possible_destinations) #destination index
-					elif part == 1: #operator
-						parent[inst, part] = random.randint(0, len(bank))
-					else: #source
-						parent[inst, part] = random.choice(possible_sources)
-					children.append(parent)
-				elif mutation == 2:
-					inst = random.randint(0, len(parent))
-					new_inst = generate_single_ind() #easiest just to generate a new individual with one instruction
-					np.insert(parent, inst, new_inst, axis = 0) #parent.insert(inst, new_inst)
-					children.append(parent)
-			if len(children) >= max_c:
-				break
+			parent = parents[p]
+			if len(parent < 2):
+				mutation = random.randint(1, 3)
+			else:
+				mutation = random.randint(0, 3)
+			
+			if mutation == 0: #remove instfuction
+				inst = random.randint(0, len(parent))
+				children.append(np.delete(parent, inst, axis = 0))
+			elif mutation == 1: #change instruction
+				inst = random.randint(0, len(parent))
+				part = random.randint(0, len(parent[inst]))
+				possible_destinations, possible_sources = get_registers()
+				if part == 0: #destination
+					parent[inst, part] = random.choice(possible_destinations) #destination index
+				elif part == 1: #operator
+					parent[inst, part] = random.randint(0, len(bank))
+				else: #source
+					parent[inst, part] = random.choice(possible_sources)
+				children.append(parent)
+			elif mutation == 2:
+				inst = random.randint(0, len(parent))
+				new_inst = generate_single_ind() #easiest just to generate a new individual with one instruction
+				np.insert(parent, inst, new_inst, axis = 0) #parent.insert(inst, new_inst)
+				children.append(parent)
+		if len(children) >= max_c:
+			break
 	return children
 
 def fight(contestants, c_fitnesses):
@@ -257,17 +255,16 @@ fit_track = []
 for i in range(0, max_p):
 	parents.append(generate_ind())
 fitnesses = np.zeros((max_p+max_c),)
-fitnesses[:max_p] = mass_eval(parents)
-
 #fit_track.append(np.argmin(fitnesses))
 #sort parents before xover and mutation?
 #select before or after xover?
 for g in range(1, max_g+1):
-	children = xover(parents)
+	fitnesses[0:max_p] = mass_eval(parents)
+	#parents = xover(parents)
 	#print(f'p[0] shape {parents[0].shape}')
 	#parents = clean(parents.copy())
 	#print(f'after cleaning: {parents[0].shape}')
-	children = mutate(children.copy())
+	children = mutate(parents.copy())
 	#children = clean(children.copy())
 	fitnesses[max_p:] = mass_eval(children)
 	pop = parents+children
@@ -275,9 +272,8 @@ for g in range(1, max_g+1):
 		nans = np.isnan(fitnesses)
 		fitnesses[nans] = np.PINF	
 	parents, best_i = select(pop, fitnesses)
-	fitnesses[:max_p] = mass_eval(parents)
 	pop = parents+children
-	best_i = np.argmin(fitnesses)
+	#best_i = np.argmin(fitnesses)
 	best_pop = pop[best_i]
 	best_fit = fitnesses[best_i]
 	fit_track.append(best_fit)
@@ -298,9 +294,9 @@ preds = predict(best_pop, train_x)
 print('preds')
 print(preds)
 
-Path(f"../output/lgp/{func_name}/log/").mkdir(parents=True, exist_ok=True)
+Path(f"../output/lgp_mut/{func_name}/log/").mkdir(parents=True, exist_ok=True)
 import pickle
-with open(f"../output/lgp/{func_name}/log/output_{t}.pkl", "wb") as f:
+with open(f"../output/lgp_mut/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump(bias, f)
 	pickle.dump(best_pop, f)
 	pickle.dump(preds, f)
@@ -314,14 +310,14 @@ ax.scatter(train_x, preds, label = 'Predicted')
 fig.suptitle(f"{func_name} Trial {t}")
 ax.set_title(f"RMSE = {np.round(best_fit, 2)}")
 ax.legend()
-Path(f"../output/lgp/{func_name}/scatter/").mkdir(parents=True, exist_ok=True)
-plt.savefig(f"../output/lgp/{func_name}/scatter/comp_{t}.png")
+Path(f"../output/lgp_mut/{func_name}/scatter/").mkdir(parents=True, exist_ok=True)
+plt.savefig(f"../output/lgp_mut/{func_name}/scatter/comp_{t}.png")
 
 fig, ax = plt.subplots()
 ax.plot(fit_track)
 ax.set_title(f"{func_name} Trial {t}")
-Path(f"../output/lgp/{func_name}/plot/").mkdir(parents=True, exist_ok=True)
-plt.savefig(f"../output/lgp/{func_name}/plot/plot_{t}.png")
+Path(f"../output/lgp_mut/{func_name}/plot/").mkdir(parents=True, exist_ok=True)
+plt.savefig(f"../output/lgp_mut/{func_name}/plot/plot_{t}.png")
 
 
 first_body_node = n_inp+n_bias

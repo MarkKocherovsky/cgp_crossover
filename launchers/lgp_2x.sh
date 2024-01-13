@@ -1,7 +1,7 @@
 #!/bin/bash
 #mark kocherovsky
-#dec 2023
-#launch cgp base
+#Jan 2024
+#launch lgp 2point crossover
 
 g=10000 #generations
 r=64 #rules
@@ -13,7 +13,7 @@ for f in {0..6}
 do
 	for t in {1..50}
 	do
-		sbatch lgp.sb $t $g $r $d $p $c $f
+		sbatch lgp_2x.sb $t $g $r $d $p $c $f
 		#python3 ../src/lgp.py $t $g $r $d $p $c $f &
 	done
 done

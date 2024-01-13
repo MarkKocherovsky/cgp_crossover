@@ -1,3 +1,4 @@
+#CGP 1 Point Crossover
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy import random, sin, cos, tan, sqrt, exp, log, abs, floor, ceil
@@ -81,7 +82,9 @@ max_g = int(argv[2]) #max generations
 print(f'generations {max_g}')
 max_n = int(argv[3]) #max body nodes
 print(f'max body nodes {max_n}')
-max_c = int(argv[4]) #max children
+max_p = int(argv[4]) #max parents
+print(f'Parents {max_p}')
+max_c = int(argv[5]) #max children
 print(f'children {max_c}')
 outputs = 1
 inputs = 1
@@ -97,8 +100,8 @@ bank = (add, sub, mul, div) #, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, dista
 bank_string = ("+", "-", "*", "/") #, "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "avg")
 
 func_bank = Collection()
-func = func_bank.func_list[int(argv[5])]
-func_name = func_bank.name_list[int(argv[5])]
+func = func_bank.func_list[int(argv[6])]
+func_name = func_bank.name_list[int(argv[6])]
 train_x = func.x_dom
 train_y = func.y_test
 print(train_x)
@@ -159,35 +162,85 @@ def fitness(data, targ, ind_base, output_nodes, opt = 0):
 	if opt == 1:
 		return (out_x)
 	return rmse(out_x, targ)
-		
-def mutate(ind, out, arity = arity, in_size = inputs+bias):
-	i = int((ind.shape[0]+out.shape[0])*random.random_sample())
-	if i >= ind.shape[0]: #output node
-		i = i-ind.shape[0]
-		out[i] = random.randint(0, ind.shape[0]+in_size)
-	else: #body node
-		j = int(ind.shape[1]*random.random_sample())
-		#print(i,j)
-		if j < arity:
-			ind[i, j] = random.randint(0, i+in_size)
-		else:
-			ind[i,j] = random.randint(0, len(bank))
-	return ind, out
 
-"""
-def mutate(ind, out, p_mut = 0.1, arity = arity, in_size = inputs+bias):
-	for i in range(ind.shape[0]):
-		for j in range(ind.shape[1]):
-			if random.random() < p_mut: #mutate
-				if j < arity:
-					ind[i,j] = random.randint(0, i+in_size)
-				else:
-					ind[i,j] = random.randint(0, len(bank))
-	for i in range(out.shape[0]):
-		if random.random() < p_mut:
+def xover(parents):
+	children = []
+	for i in range(0, len(parents), 2):
+		ind1, ind2, out1, out2 = xover_aux(parents[i][0], parents[i+1][0], parents[i][1], parents[i+1][1])
+		children.append((ind1, out1))
+		children.append((ind2, out2))
+	return children
+
+def xover_aux(ind1, ind2, out1, out2):
+	s = ind1.shape #preserve real shape
+	ind1 = ind1.flatten()
+	ind2 = ind2.flatten()
+	i = random.randint(0, ind1.shape[0])
+	front_1 = ind1[:i].copy()
+	back_1 = ind1[i:].copy()
+	front_2 = ind2[:i].copy()
+	back_2 = ind2[i:].copy()
+	ind1 = np.concatenate((front_1, back_2))
+	ind2 = np.concatenate((front_2, back_1))
+	
+	if len(out1.shape) <=1 and out1.shape[0] == 1:
+		t = out1.copy()
+		out1 = out2.copy()
+		out2 = t
+	else:
+		i = random.randint(0, out2.shape[0])
+		front_1 = out1[:i].copy()
+		back_1 = out1[i:].copy()
+		front_2 = out2[:i].copy()
+		back_2 = out2[i:].copy()
+		out1 = np.concatenate((front_1, back_2))
+		out2 = np.concatenate((front_2, back_1))
+	return ind1.reshape(s), ind2.reshape(s), out1, out2
+	
+def mutate(subjects, arity = arity, in_size = inputs+bias):
+	mut_id = np.random.randint(0, len(subjects), (1,))
+	#mutants = parents[mut_id]
+	for m in mut_id:
+		mutant = subjects[m]
+		ind = mutant[0]
+		out = mutant[1]
+		i = int((ind.shape[0]+out.shape[0])*random.random_sample())
+		if i >= ind.shape[0]: #output node
+			i = i-ind.shape[0]
 			out[i] = random.randint(0, ind.shape[0]+in_size)
-	return ind, out
-"""
+		else: #body node
+			j = int(ind.shape[1]*random.random_sample())
+			#print(i,j)
+			if j < arity:
+				ind[i, j] = random.randint(0, i+in_size)
+			else:
+				ind[i,j] = random.randint(0, len(bank))
+		subjects[m] = (ind, out)
+	return subjects
+
+def select(pop, f_list, max_p = max_p, n_con = 4):
+	new_p = []
+	idx = np.array(range(0, len(pop)))
+	idxs = []
+	#keep best ind
+	best_f_i = np.argmin(f_list)
+	new_p.append(pop[best_f_i])
+	idxs.append(best_f_i)
+	while len(new_p) < max_p:
+		c_id = random.choice(idx, (n_con,), replace = False) #get contestants id
+		f_c = fitnesses[c_id]
+		winner = np.argmin(f_c)
+		w_id = c_id[winner]
+		#print(w_id)
+		#print(pop[w_id] in new_p)
+		#print((pop[w_id] not in new_p),)
+		#print(all(pop[w_id] not in new_p,))
+		#print(w_id, idxs)
+		#print(w_id not in idxs)
+		if w_id not in idxs:
+			idxs.append(w_id)
+			new_p.append(pop[w_id])
+	return new_p, np.array(idxs)
 final_fit = []
 fit_track = []
 ind_base = np.zeros(((arity+1)*max_n,), np.int32)
@@ -198,78 +251,88 @@ train_x_bias[:, 1:] = biases
 print(train_x_bias)
 #print(train_x_bias)
 #print(inputs+bias+max_n)
-print("instantiating parent")
-#instantiate parent
-for i in range(0, max_n):
-	#print(i < inputs+bias)
-	for j in range(0, arity): #input
-		if i < (inputs+bias):
-			ind_base[i,j] = random.randint(0, (inputs+bias))
-		else:
-			ind_base[i,j] = random.randint(0, i+(inputs+bias))
-	ind_base[i, -1] = random.randint(0, len(bank))
-#print("First Parent")
-#print(ind_base)
-output_nodes = random.randint(0, max_n+(inputs+bias), (outputs,), np.int32)
+#print("instantiating parent")
+#instantiate parents
+parents = []
+for p in range(0, max_p):
+	for i in range(0, max_n):
+		#print(i < inputs+bias)
+		for j in range(0, arity): #input
+			if i < (inputs+bias):
+				ind_base[i,j] = random.randint(0, (inputs+bias))
+			else:
+				ind_base[i,j] = random.randint(0, i+(inputs+bias))
+		ind_base[i, -1] = random.randint(0, len(bank))
+		output_nodes = random.randint(0, max_n+(inputs+bias), (outputs,), np.int32)
+	parents.append((ind_base, output_nodes))
 
 #test = run_output(ind_base, output_nodes, np.array([10.0]))
-p_fit = fitness(train_x_bias, train_y, ind_base, output_nodes)
+fitnesses = np.zeros((max_p+max_c,))
+fitnesses[:max_p] = np.array([fitness(train_x_bias, train_y, ind_base, output_nodes) for ind_base, output_nodes in parents])
+print(np.round(fitnesses, 2))
 #fit_track.append(p_fit)
 #print(f"Pre-Run Parent Fitness: {p_fit}")
 for g in range(1, max_g+1):
-	children = [mutate(ind_base.copy(), output_nodes.copy()) for x in range(0, max_c)]
-	c_fit = np.array([fitness(train_x_bias, train_y, child[0], child[1]) for child in children])
+	#print(f'Gen {g}')
+	children = xover(parents)
+	#print('\txover')
+	children = mutate(children)
+	#print('\tmutate')
+	fitnesses[max_p:] = np.array([fitness(train_x_bias, train_y, child[0], child[1]) for child in children])
+	#print('\teval children')
 	#print(p_fit)
 	#print(c_fit)
-	if any(np.isnan(c_fit)): #Replace nans with positive infinity to screen them out
-		nans = np.isnan(c_fit)
-		c_fit[nans] = np.PINF 
-	if any(c_fit <= p_fit):
-		best = np.argmin(c_fit)
-		ind_base = children[best][0].copy()
-		output_nodes = children[best][1].copy()
-		p_fit = np.min(c_fit)
+	if any(np.isnan(fitnesses)): #Replace nans with positive infinity to screen them out
+		nans = np.isnan(fitnesses)
+		fitnesses[nans] = np.PINF 
+	pop = parents+children
+	#print(len(pop))
+	parents, p_idxs = select(pop, fitnesses)
+	fitnesses[:max_p] = fitnesses[p_idxs]
+	best_i = np.argmin(fitnesses)
+	best_fit = fitnesses[best_i]
 	if g % 100 == 0:
-		print(f"Gen {g} Best Fitness: {p_fit}")
+		print(f"Gen {g} Best Fitness: {best_fit}")
 	#print(p_fit)
-	fit_track.append(p_fit)
+	fit_track.append(best_fit)
 	#if(p_fit > 0.96):
 	#	break
 
-print(f"Trial {t}: Best Fitness = {p_fit}")
+print(f"Trial {t}: Best Fitness = {best_fit}")
 #final_fit.append(p_fit)
 #fig, ax = plt.subplots()
 #ax = plt.plot(fit_track)
 #print(fit_track)
 #plt.show()
 #print(final_fit)
-print('biases')
-print(biases)
+#print('biases')
+#print(biases)
 print('best individual')
-print(ind_base)
-print('output nodes')
-print(output_nodes)
+print(pop[best_i])
 print('preds')
-preds = fitness(train_x_bias, train_y, ind_base, output_nodes, opt = 1)
+preds = fitness(train_x_bias, train_y, pop[best_i][0], pop[best_i][1], opt = 1)
 print(preds)
 #print(list(train_y))
-Path(f"../output/cgp/{func_name}/log/").mkdir(parents=True, exist_ok=True)
+Path(f"../output/cgp_1x/{func_name}/log/").mkdir(parents=True, exist_ok=True)
 import pickle
+
+ind_base = pop[best_i][0]
+output_nodes = pop[best_i][1]
 
 fig, ax = plt.subplots()
 ax.scatter(train_x, train_y, label = 'Ground Truth')
 ax.scatter(train_x, preds, label = 'Predicted')
 fig.suptitle(f"{func_name} Trial {t}")
-ax.set_title(f"RMSE = {np.round(p_fit, 2)}")
+ax.set_title(f"RMSE = {np.round(best_fit, 2)}")
 ax.legend()
-Path(f"../output/cgp/{func_name}/scatter/").mkdir(parents=True, exist_ok=True)
-plt.savefig(f"../output/cgp/{func_name}/scatter/plot_{t}.png")
+Path(f"../output/cgp_1x/{func_name}/scatter/").mkdir(parents=True, exist_ok=True)
+plt.savefig(f"../output/cgp_1x/{func_name}/scatter/plot_{t}.png")
 
 fig, ax = plt.subplots()
 ax.plot(fit_track)
 ax.set_title(f'{func_name} Trial {t}')
-Path(f"../output/cgp/{func_name}/plot/").mkdir(parents=True, exist_ok=True)
-plt.savefig(f"../output/cgp/{func_name}/plot/plot_{t}.png")
+Path(f"../output/cgp_1x/{func_name}/plot/").mkdir(parents=True, exist_ok=True)
+plt.savefig(f"../output/cgp_1x/{func_name}/plot/plot_{t}.png")
 
 
 #export graph
@@ -305,8 +368,8 @@ for o in range(outputs):
 	dot.node(f'O_{o}', f'O_{o}', shape='square', fillcolor='lightblue', style='filled')
 	dot.edge(f'N_{node}', f'O_{o}')
 #	dot.edge(f"l_{total_layers-1}", f'O_{o}')
-Path(f"../output/cgp/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
-dot.render(f"../output/cgp/{func_name}/full_graphs/graph_{t}", view=False)
+Path(f"../output/cgp_1x/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
+dot.render(f"../output/cgp_1x/{func_name}/full_graphs/graph_{t}", view=False)
 
 #active nodes only
 
@@ -358,8 +421,8 @@ def plot_active_nodes(name = "active_nodes", output_nodes = output_nodes, output
 	size = sum([1 if 'label' in x else 0 for x in active_graph])
 	print(f'graph size = {size}')
 	"""
-	Path(f"../output/cgp/{func_name}/active_nodes/").mkdir(parents=True, exist_ok=True)
-	active_graph.render(f"../output/cgp/{func_name}/active_nodes/active_{t}", view=False)
+	Path(f"../output/cgp_1x/{func_name}/active_nodes/").mkdir(parents=True, exist_ok=True)
+	active_graph.render(f"../output/cgp_1x/{func_name}/active_nodes/active_{t}", view=False)
 	active_node_num = len(active_nodes)+outputs #all outputs are active by definition
 	return active_node_num
 
@@ -398,13 +461,13 @@ def get_expression(output_nodes = output_nodes, outputs = outputs, fb_node = fir
 	
 n = plot_active_nodes()
 print(f'Active Nodes = {n}')
-print(f"../output/cgp/{func_name}/log/output_{t}.pkl")
-with open(f"../output/cgp/{func_name}/log/output_{t}.pkl", "wb") as f:
+print(f"../output/cgp_1x/{func_name}/log/output_{t}.pkl")
+with open(f"../output/cgp_1x/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump(biases, f)
 	pickle.dump(ind_base, f)
 	pickle.dump(output_nodes, f)
 	pickle.dump(preds, f)
-	pickle.dump(p_fit, f)
+	pickle.dump(best_fit, f)
 	pickle.dump(n, f)
 	pickle.dump(fit_track, f)
 #expressions = get_expression()
