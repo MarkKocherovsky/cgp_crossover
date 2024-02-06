@@ -1,5 +1,6 @@
 #CGP Subgraph XOver - From Kalkreuth 2017 
 import numpy as np
+import warnings
 import matplotlib.pyplot as plt
 from numpy import random, sin, cos, tan, sqrt, exp, log, abs, floor, ceil
 from math import log, pi
@@ -8,6 +9,8 @@ from pathlib import Path
 from functions import *
 from sys import argv
 print("started")
+warnings.filterwarnings('ignore')
+
 def x(x,y):
 	return x
 def y(x, y):
@@ -20,62 +23,8 @@ def mul(x,y):
 	return x*y
 def div(x,y):
 	if y == 0.0:
-		return 0
+		return np.PINF
 	return x/y
-def powe(x,y):
-	if(x <= 0):
-		return 0
-	if(y==1):
-		return 1
-	return x**y
-def sin_x(x,y):
-	return sin(x)
-def sin_y(x,y):
-	return sin(y)
-def cos_x(x,y):
-	return cos(x)
-def cos_y(x,y):
-	return cos(y)
-def exp_x(x,y):
-	return exp(x)
-def exp_y(x,y):
-	return exp(y)
-def loga(x,y):
-	if y < 0.001:
-		y=0.001
-	return np.emath.logn(x,y)
-
-def sqrt_x_y(x,y):
-	if x+y < 0:
-		return 0
-	else:
-		return(sqrt(x+y))
-def distance(x,y):
-	return sqrt(x**2+y**2)
-def abs_x(x,y):
-	return abs(x)
-def abs_y(x,y):
-	return abs(y)
-def floor_x(x,y):
-	return floor(x)
-def floor_y(x,y):
-	return floor(y)
-def ceil_x(x,y):
-	return ceil(x)
-def ceil_y(x,y):
-	return ceil(y)
-def max_f(x,y):
-	return max(x,y)
-def min_f(x,y):
-	return min(x,y)
-def midpoint(x,y):
-	return (x+y)/2
-
-#test_x = np.arange(11, 30.1, 1)
-#test_y = [func([y]) for y in test_x]
-#print(train_x)
-#print(train_y)
-#print(powe(0)
 t = int(argv[1]) #trial
 print(f'trial {t}')
 max_g = int(argv[2]) #max generations
@@ -99,23 +48,45 @@ first_body_node = inputs+bias
 bank = (add, sub, mul, div) #, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, midpoint)
 bank_string = ("+", "-", "*", "/") #, "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "avg")
 
+p_mut = float(argv[8])
+p_xov = float(argv[9])
+
 func_bank = Collection()
 func = func_bank.func_list[int(argv[6])]
 func_name = func_bank.name_list[int(argv[6])]
 train_x = func.x_dom
 train_y = func.y_test
-print(train_x)
+#print(train_x)
 from scipy.stats import pearsonr
 def rmse(preds, reals):
 	return np.sqrt(np.mean((preds-reals)**2)) #copied from stack overflow
 
 def corr(preds, reals, x=train_x):
 	if any(np.isnan(preds)) or any(np.isinf(preds)):
-		return -1
+		return np.PINF
 	r = pearsonr(preds, reals)[0]
 	if np.isnan(r):
 		r = 0
 	return (1-r**2)
+
+fit_bank = [rmse, corr]
+fit_names = ["RMSE", "1-R^2"]
+f = int(argv[7])
+fit = fit_bank[f]
+fit_name  = fit_names[f]
+print(fit_name)
+def align(ind, out, preds, reals, x = train_x):
+	if not all(np.isfinite(preds)):
+		return 1.0, 0.0
+	try:
+		align = np.round(np.polyfit(preds, reals, 1, rcond=1e-16), decimals = 14)
+	except:
+		return 1.0, 0.0
+	a = align[0]
+	b = align[1]
+	#print(f'align {align}')
+	return (a,b)
+
 
 def run(ind, cur_node, inp_nodes, arity = arity):
 	inp_size = inp_nodes.shape[0]
@@ -171,10 +142,19 @@ def fitness(data, targ, ind_base, output_nodes, opt = 0):
 			in_val = [data[x]]
 		else:
 			in_val = data[x, :]
-		out_x[x] = run_output(ind_base, output_nodes, in_val)
+		with np.errstate(invalid='raise'):
+			try:
+				out_x[x] = run_output(ind_base, output_nodes, in_val)
+			except (OverflowError, FloatingPointError):
+				out_x[x] = np.nan	
+	(a,b) = align(ind_base, output_nodes, out_x, train_y)
+	#print('A, B')
+	#print(a)
+	#print(b)
+	new_x = out_x*a+b
 	if opt == 1:
-		return (out_x)
-	return rmse(out_x, targ)
+		return new_x, a, b
+	return fit(new_x, train_y), a, b
 
 #Kalkreuth 2017
 #n_i: Number of inputs
@@ -186,12 +166,12 @@ def RandomNodeNumber(n_i = inputs, I = [], N_f = [], m = None):
 	if len(N_f) > 0: #check if function node numbers have been passed as argument
 		if m != None: #check if a node number limit has been passed to the function
 			#determine a sublist of N_F where the list elements X of N_F are less or equal to m
-			N_m = list(N_f[N_f < m])
+			N_m = list(N_f[N_f <= m])
 			if len(N_m) == 0: #if the sublist is empty, there are no function nodes before m
 				i = random.randint(0, n_i) #generate a random input node
 				N_R.append(i) #append the random input to the list
 			else:
-				if len(N_m)-1 <= 0: #Python will bust my balls if I don't do this :(
+				if len(N_m)-1 <= 0:
 					i = random.randint(0,1)
 				else:
 					i = random.randint(0, len(N_m)-1) #generate a random integer in the range from 0 to |N_m|-1 inclusive(?)
@@ -207,7 +187,10 @@ def RandomNodeNumber(n_i = inputs, I = [], N_f = [], m = None):
 			j = random.randint(0, len(I)-1)
 		N_R.append(j)
 	#select one node number from the list N_R by chance
-	r = random.randint(0, len(N_R))
+	try:
+		r = random.randint(0, len(N_R)-1)
+	except ValueError:
+		r = 0
 	return N_R[r]
 
 #Kalkreuth 2017
@@ -264,7 +247,7 @@ def DetermineActiveNodes(ind, output_nodes, first_body_node = inputs+bias, arity
 #P1 Genome of the first parent
 #P2 Genome of the second parent
 #n_i Number of Inputs
-def SubgraphCrossover(P1, P2, n_i = inputs):
+def SubgraphCrossover(P1, P2, n_i = inputs, first_body_node = first_body_node):
 	G1 = P1[0].copy() #store the genome of parent p1 in g1
 	G2 = P2[0].copy() #store the genome of parent p2 in g2
 	O1 = P1[1].copy()
@@ -281,9 +264,9 @@ def SubgraphCrossover(P1, P2, n_i = inputs):
 		print(G1, O1)
 		print(G2, O2)
 		return (G1, O1)
-	p_c = C_P+1-inputs
+	p_c = C_P+1-first_body_node
 	G0 = np.concatenate((G1[:p_c], G2[p_c:]), axis = 0) #Copy the parts before and after crossver from G1 and G2 respectively
-	O = O2 #back of the list so self explanatory really
+	O = O2.copy() #back of the list so self explanatory really
 	#Create the list of active function nodes of the offspring
 	#Determine and store a sublist of M1 where the list elements of M are less or equal to CP
 	#print(C_P)
@@ -294,30 +277,38 @@ def SubgraphCrossover(P1, P2, n_i = inputs):
 	NA2 = M2[M2 > C_P]
 	
 	if NA1.shape[0] > 0 and NA2.shape[0] > 0: #check if both lists contain active nodes
+		#print(NA1[-1])
+		#print(NA2[0])
 		nF = NA1[-1] #Determine first active node before CP
 		nB = NA2[0] #Determine the first active node after CP
 		G0 = NeighborhoodConnect(nF, nB, G0)
 		
 	NA = np.concatenate((NA1, NA2)) #combine lists
 	if NA.shape[0] > 0:
-		G0 = RandomActiveConnect(n_i, NA, C_P, G0, O)
-	return (G0, O2)
+		G0, O = RandomActiveConnect(n_i, NA, C_P, G0, O)
+	return (G0, O)
 
 #Kalkreuth 2017
 #nF: Number of the first active node before the crossover point
 #nB: Number of the first active node behind the crossover point
 #G0: Offspring Genome
 def NeighborhoodConnect(nF, nB, G0):
+	#print('neighborhood connect')
 	#print(nF)
 	#print(nB)
 	#print(G0)
+	"""
+	if nB >= nF:
+		print(f'nB {nB} >= nF {nF}')
 	if nF >= nB:
 		print(f'{nF} >= {nB} - {first_body_node}')
 	if nB >= G0.shape[0]:
 		print(f'nF {nF}')
 		print(f'nB {nB}')
 		print(f'G0 {G0}')
-	G0[nB, 0] = nF
+	"""
+	#print(f'G0[{nB-first_body_node}, 0] = {nF}')
+	G0[nB-first_body_node, 0] = nF
 	return G0
 
 #Kalkreuth 2017
@@ -327,39 +318,60 @@ def NeighborhoodConnect(nF, nB, G0):
 # G0: Genome of the Offspring
 # O: Output Nodes
 def RandomActiveConnect(n_i, NA, CP, G0, O):
+	#print('random active connect')
 	I = [] #get input nodes
 	for n in G0:
 		for a in range(0, arity):
 			if n[a] < first_body_node and n[a] not in I:
 				I.append(n[a])
+	#print(f'I {I}')
+	#print(f'Crossover Point {CP}')
+	#print(f'First Body Node {first_body_node}')
+	#print(f'NA {NA}')
 	for n in NA: #iterate over the active nodes
+		#print(f'n {n}')
 		if n > CP: #if node is greater than xover point
+			#print(f'\tn > CP: {n > CP}')
 			node = G0[n-first_body_node] #get connection genes
+			#print(f'\tnode {n} = G0[{n-first_body_node}] = {node}')
 			GC = node[:arity]
+			#print(f'\tGC = {GC}')
 			for i in range(arity): #iterate over connection genes
 				g = GC[i]
+				#print(f'\t\tg = GC[{i}] = {g}')
 				if g not in NA: #if the current connection gene is not connected to an active funciton node
-					G0[node, i] = RandomNodeNumber(n_i, I, NA, CP)
-	for o in range(0, outputs): #Adjust output genes
-		if O[o] not in NA: #if output is connected to an inactive nodes
-			O[o] = RandomNodeNumber(I, NA)
-	return G0
+					#print(f'\t\t\t{g} not in NA')
+					#print(f'\t\t\t{node}')
+					#print(f'\t\t\t{G0[node, i]}')
+					G0[n-first_body_node, i] = RandomNodeNumber(n_i, I, NA, CP)
+					#print(f'\t\t\t{G0[node, i]}')
+	for o in O: #Adjust output genes
+		if o not in NA: #if output is connected to an inactive nodes
+			o = RandomNodeNumber(I, NA)
+	return G0, O
 	
-def xover(parents):
+def xover(parents, p_xov = p_xov):
 	children = []
 	#print(list(range(0, len(parents), 2)))
 	for i in range(0, len(parents), 2):
 	#print(i)
-		for j in [0,1]:
-			P1 = parents[i]
-			P2 = parents[i+1]
+		P1 = parents[i]
+		P2 = parents[i+1]
+		if random.random() < p_xov:
 			children.append(SubgraphCrossover(P1, P2, inputs))
+			children.append(SubgraphCrossover(P2, P1, inputs))
+		else:
+			children.append(P1)
+			children.append(P2)
+	#print(len(children))
 	return children
 
-def mutate(subjects, arity = arity, in_size = inputs+bias):
+def mutate(subjects, arity = arity, in_size = inputs+bias, p_mut = p_mut):
 	mut_id = np.random.randint(0, len(subjects), (1,))
 	#mutants = parents[mut_id]
-	for m in mut_id:
+	for m in range(len(subjects)):
+		if random.random() >= p_mut:
+			continue
 		mutant = subjects[m]
 		ind = mutant[0]
 		out = mutant[1]
@@ -384,25 +396,24 @@ def select(pop, f_list, max_p = max_p, n_con = 4):
 	#keep best ind
 	best_f_i = np.argmin(f_list)
 	new_p.append(pop[best_f_i])
+	idxs.append(best_f_i)
 	while len(new_p) < max_p:
 		c_id = random.choice(idx, (n_con,), replace = False) #get contestants id
 		f_c = fitnesses[c_id]
 		winner = np.argmin(f_c)
 		w_id = c_id[winner]
-		#print(w_id)
-		#print(pop[w_id] in new_p)
-		#print((pop[w_id] not in new_p),)
-		#print(all(pop[w_id] not in new_p,))
-		#print(w_id, idxs)
-		#print(w_id not in idxs)
-		if w_id not in idxs:
-			idxs.append(w_id)
-			new_p.append(pop[w_id])
-	return new_p, best_f_i
+		idxs.append(w_id)
+		new_p.append(pop[w_id])
+	return new_p, np.array(idxs)
+
 final_fit = []
 fit_track = []
 ind_base = np.zeros(((arity+1)*max_n,), np.int32)
 ind_base = ind_base.reshape(-1, arity+1) #for my sanity
+
+alignment = np.zeros((max_p+max_c, 2))
+alignment[:, 0] = 1.0
+
 train_x_bias = np.zeros((train_x.shape[0], biases.shape[0]+1))
 train_x_bias[:, 0] = train_x
 train_x_bias[:, 1:] = biases
@@ -422,12 +433,15 @@ for p in range(0, max_p):
 				ind_base[i,j] = random.randint(0, i+(inputs+bias))
 		ind_base[i, -1] = random.randint(0, len(bank))
 		output_nodes = random.randint(0, max_n+(inputs+bias), (outputs,), np.int32)
-	parents.append((ind_base, output_nodes))
+	parents.append((ind_base.copy(), output_nodes.copy()))
 
 #test = run_output(ind_base, output_nodes, np.array([10.0]))
 fitnesses = np.zeros((max_p+max_c,))
-fitnesses[:max_p] = np.array([fitness(train_x_bias, train_y, ind_base, output_nodes) for ind_base, output_nodes in parents])
-print(np.round(fitnesses, 2))
+fit_temp = np.array([fitness(train_x_bias, train_y, ind_base, output_nodes) for ind_base, output_nodes in parents])
+fitnesses[:max_p] = fit_temp[:, 0].copy().flatten()
+alignment[:max_p, 0] = fit_temp[:, 1].copy() #a
+alignment[:max_p, 1] = fit_temp[:, 2].copy() #b
+print(np.round(fitnesses, 4))
 #fit_track.append(p_fit)
 #print(f"Pre-Run Parent Fitness: {p_fit}")
 for g in range(1, max_g+1):
@@ -436,7 +450,10 @@ for g in range(1, max_g+1):
 	#print('\txover')
 	children = mutate(children)
 	#print('\tmutate')
-	fitnesses[max_p:] = np.array([fitness(train_x_bias, train_y, child[0], child[1]) for child in children])
+	fit_temp =  np.array([fitness(train_x_bias, train_y, child[0], child[1]) for child in children])
+	fitnesses[max_p:] = fit_temp[:, 0].copy().flatten()
+	alignment[max_p:, 0] = fit_temp[:, 1].copy()
+	alignment[max_p:, 1] = fit_temp[:, 2].copy()
 	#print('\teval children')
 	#print(p_fit)
 	#print(c_fit)
@@ -447,11 +464,14 @@ for g in range(1, max_g+1):
 	#print(len(children)) 
 	pop = parents+children
 	#print(len(pop))
-	parents, best_i = select(pop, fitnesses)
-	fitnesses[:max_p] = np.array([fitness(train_x_bias, train_y, parent[0], parent[1]) for parent in parents])
-	#best_i = np.argmin(fitnesses)
+	parents, idxs = select(pop, fitnesses)
+	fitnesses[:max_p] = fitnesses.copy()[idxs]
+	alignment[:max_p, 0] = alignment[:,0].copy()[idxs]
+	alignment[:max_p, 1] = alignment[:,1].copy()[idxs]
+	best_i = np.argmin(fitnesses)
 	best_fit = fitnesses[best_i]
-	print(f"Gen {g} Best Fitness: {best_fit}")
+	if g % 100 == 0:
+		print(f"Gen {g} Best Fitness: {best_fit}")
 	#print(p_fit)
 	fit_track.append(best_fit)
 	#if(p_fit > 0.96):
@@ -469,7 +489,7 @@ print(f"Trial {t}: Best Fitness = {best_fit}")
 print('best individual')
 print(pop[best_i])
 print('preds')
-preds = fitness(train_x_bias, train_y, pop[best_i][0], pop[best_i][1], opt = 1)
+preds, p_A, p_B = fitness(train_x_bias, train_y, pop[best_i][0], pop[best_i][1], opt = 1)
 print(preds)
 #print(list(train_y))
 Path(f"../output/cgp_sgx/{func_name}/log/").mkdir(parents=True, exist_ok=True)
@@ -482,7 +502,7 @@ fig, ax = plt.subplots()
 ax.scatter(train_x, train_y, label = 'Ground Truth')
 ax.scatter(train_x, preds, label = 'Predicted')
 fig.suptitle(f"{func_name} Trial {t}")
-ax.set_title(f"RMSE = {np.round(best_fit, 2)}")
+ax.set_title(f"{fit_name} = {np.round(best_fit, 5)}")
 ax.legend()
 Path(f"../output/cgp_sgx/{func_name}/scatter/").mkdir(parents=True, exist_ok=True)
 plt.savefig(f"../output/cgp_sgx/{func_name}/scatter/plot_{t}.png")
@@ -521,11 +541,16 @@ for n in range(first_body_node, max_n+first_body_node):
 	dot.node(f'N_{n}', op)
 	for a in range(arity):
 		dot.edge(f'N_{node[a]}', f'N_{n}')
+dot.attr(rank = 'max')
+dot.node(f'A', f'*{p_A}', shape = 'diamond', fillcolor='green', style='filled')
+dot.node(f'B', f'+{p_B}', shape = 'diamond', fillcolor = 'green', style = 'filled')
+dot.edge(f'A', f'B')
 for o in range(outputs):
 	node = output_nodes[o]
 	dot.attr(rank='max')
 	dot.node(f'O_{o}', f'O_{o}', shape='square', fillcolor='lightblue', style='filled')
 	dot.edge(f'N_{node}', f'O_{o}')
+	dot.edge(f'O_{o}', 'A')
 #	dot.edge(f"l_{total_layers-1}", f'O_{o}')
 Path(f"../output/cgp_sgx/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
 dot.render(f"../output/cgp_sgx/{func_name}/full_graphs/graph_{t}", view=False)
@@ -553,6 +578,9 @@ def plot_active_nodes(name = "active_nodes", output_nodes = output_nodes, output
 			else:
 				plot_body_node(prev_node)
 				active_graph.edge(f'N_{prev_node}', f'N_{n_node}')
+	active_graph.node(f'A', f'*{np.round(p_A, 5)}', shape = 'diamond', fillcolor='green', style='filled')
+	active_graph.node(f'B', f'+{np.round(p_B, 5)}', shape = 'diamond', fillcolor = 'green', style = 'filled')
+	active_graph.edge(f'A', f'B')
 	for o in range(outputs):
 		node = output_nodes[o]
 		active_graph.node(f'O_{o}', f'O_{o}', shape='square', fillcolor='lightblue', style='filled')
@@ -571,15 +599,7 @@ def plot_active_nodes(name = "active_nodes", output_nodes = output_nodes, output
 			active_graph.edge(f'N_{node}', f'O_{o}')
 			if node not in active_nodes:
 				active_nodes.append(node)
-
-	"""
-	for x in active_graph:
-		print(x)
-		print('label' in x)
-	print([1 if 'label' in x else 0 for x in active_graph])
-	size = sum([1 if 'label' in x else 0 for x in active_graph])
-	print(f'graph size = {size}')
-	"""
+		active_graph.edge(f'O_{o}', 'A')
 	Path(f"../output/cgp_sgx/{func_name}/active_nodes/").mkdir(parents=True, exist_ok=True)
 	active_graph.render(f"../output/cgp_sgx/{func_name}/active_nodes/active_{t}", view=False)
 	active_node_num = len(active_nodes)+outputs #all outputs are active by definition

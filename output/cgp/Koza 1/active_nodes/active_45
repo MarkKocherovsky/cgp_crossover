@@ -1,0 +1,274 @@
+// trial 45 active nodes
+strict digraph {
+	A [label="*0.03969" fillcolor=green shape=diamond style=filled]
+	B [label="+-2.82046" fillcolor=green shape=diamond style=filled]
+	A -> B
+	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
+	N_60 [label="-"]
+	N_59 [label="-"]
+	N_58 [label="*"]
+	N_43 [label="*"]
+	N_42 [label="/"]
+	N_36 [label="-"]
+	N_33 [label="*"]
+	N_6 [label=5 fillcolor=yellow rank=same shape=square style=filled]
+	N_6 -> N_33
+	N_14 [label="-"]
+	N_12 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_12
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_12
+	N_12 -> N_14
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_14
+	N_14 -> N_33
+	N_33 -> N_36
+	N_30 [label="-"]
+	N_28 [label="/"]
+	N_25 [label="/"]
+	N_18 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_18
+	N_17 [label="-"]
+	N_6 [label=5 fillcolor=yellow rank=same shape=square style=filled]
+	N_6 -> N_17
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_17
+	N_17 -> N_18
+	N_18 -> N_25
+	N_23 [label="+"]
+	N_14 [label="-"]
+	N_12 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_12
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_12
+	N_12 -> N_14
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_14
+	N_14 -> N_23
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_23
+	N_23 -> N_25
+	N_25 -> N_28
+	N_12 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_12
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_12
+	N_12 -> N_28
+	N_28 -> N_30
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_30
+	N_30 -> N_36
+	N_36 -> N_42
+	N_23 [label="+"]
+	N_14 [label="-"]
+	N_12 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_12
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_12
+	N_12 -> N_14
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_14
+	N_14 -> N_23
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_23
+	N_23 -> N_42
+	N_42 -> N_43
+	N_25 [label="/"]
+	N_18 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_18
+	N_17 [label="-"]
+	N_6 [label=5 fillcolor=yellow rank=same shape=square style=filled]
+	N_6 -> N_17
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_17
+	N_17 -> N_18
+	N_18 -> N_25
+	N_23 [label="+"]
+	N_14 [label="-"]
+	N_12 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_12
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_12
+	N_12 -> N_14
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_14
+	N_14 -> N_23
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_23
+	N_23 -> N_25
+	N_25 -> N_43
+	N_43 -> N_58
+	N_43 [label="*"]
+	N_42 [label="/"]
+	N_36 [label="-"]
+	N_33 [label="*"]
+	N_6 [label=5 fillcolor=yellow rank=same shape=square style=filled]
+	N_6 -> N_33
+	N_14 [label="-"]
+	N_12 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_12
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_12
+	N_12 -> N_14
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_14
+	N_14 -> N_33
+	N_33 -> N_36
+	N_30 [label="-"]
+	N_28 [label="/"]
+	N_25 [label="/"]
+	N_18 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_18
+	N_17 [label="-"]
+	N_6 [label=5 fillcolor=yellow rank=same shape=square style=filled]
+	N_6 -> N_17
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_17
+	N_17 -> N_18
+	N_18 -> N_25
+	N_23 [label="+"]
+	N_14 [label="-"]
+	N_12 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_12
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_12
+	N_12 -> N_14
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_14
+	N_14 -> N_23
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_23
+	N_23 -> N_25
+	N_25 -> N_28
+	N_12 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_12
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_12
+	N_12 -> N_28
+	N_28 -> N_30
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_30
+	N_30 -> N_36
+	N_36 -> N_42
+	N_23 [label="+"]
+	N_14 [label="-"]
+	N_12 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_12
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_12
+	N_12 -> N_14
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_14
+	N_14 -> N_23
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_23
+	N_23 -> N_42
+	N_42 -> N_43
+	N_25 [label="/"]
+	N_18 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_18
+	N_17 [label="-"]
+	N_6 [label=5 fillcolor=yellow rank=same shape=square style=filled]
+	N_6 -> N_17
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_17
+	N_17 -> N_18
+	N_18 -> N_25
+	N_23 [label="+"]
+	N_14 [label="-"]
+	N_12 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_12
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_12
+	N_12 -> N_14
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_14
+	N_14 -> N_23
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_23
+	N_23 -> N_25
+	N_25 -> N_43
+	N_43 -> N_58
+	N_58 -> N_59
+	N_32 [label="+"]
+	N_26 [label="+"]
+	N_18 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_18
+	N_17 [label="-"]
+	N_6 [label=5 fillcolor=yellow rank=same shape=square style=filled]
+	N_6 -> N_17
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_17
+	N_17 -> N_18
+	N_18 -> N_26
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_26
+	N_26 -> N_32
+	N_28 [label="/"]
+	N_25 [label="/"]
+	N_18 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_18
+	N_17 [label="-"]
+	N_6 [label=5 fillcolor=yellow rank=same shape=square style=filled]
+	N_6 -> N_17
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_17
+	N_17 -> N_18
+	N_18 -> N_25
+	N_23 [label="+"]
+	N_14 [label="-"]
+	N_12 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_12
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_12
+	N_12 -> N_14
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_14
+	N_14 -> N_23
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_23
+	N_23 -> N_25
+	N_25 -> N_28
+	N_12 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_12
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_12
+	N_12 -> N_28
+	N_28 -> N_32
+	N_32 -> N_59
+	N_59 -> N_60
+	N_33 [label="*"]
+	N_6 [label=5 fillcolor=yellow rank=same shape=square style=filled]
+	N_6 -> N_33
+	N_14 [label="-"]
+	N_12 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_12
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_12
+	N_12 -> N_14
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_14
+	N_14 -> N_33
+	N_33 -> N_60
+	N_60 -> O_0
+	O_0 -> A
+}

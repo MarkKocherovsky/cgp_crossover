@@ -1,0 +1,122 @@
+// trial 34 active nodes
+strict digraph {
+	A [label="*-4e-05" fillcolor=green shape=diamond style=filled]
+	B [label="+-63.02325" fillcolor=green shape=diamond style=filled]
+	A -> B
+	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
+	N_52 [label="+"]
+	N_48 [label="+"]
+	N_32 [label="*"]
+	N_2 [label=1 fillcolor=yellow rank=same shape=square style=filled]
+	N_2 -> N_32
+	N_30 [label="/"]
+	N_20 [label="-"]
+	N_13 [label="*"]
+	N_11 [label="*"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_11
+	N_10 [label=9 fillcolor=yellow rank=same shape=square style=filled]
+	N_10 -> N_11
+	N_11 -> N_13
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_13
+	N_13 -> N_20
+	N_3 [label=2 fillcolor=yellow rank=same shape=square style=filled]
+	N_3 -> N_20
+	N_20 -> N_30
+	N_29 [label="+"]
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_29
+	N_21 [label="/"]
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_21
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_21
+	N_21 -> N_29
+	N_29 -> N_30
+	N_30 -> N_32
+	N_32 -> N_48
+	N_44 [label="*"]
+	N_26 [label="-"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_26
+	N_12 [label="*"]
+	N_11 [label="*"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_11
+	N_10 [label=9 fillcolor=yellow rank=same shape=square style=filled]
+	N_10 -> N_11
+	N_11 -> N_12
+	N_11 [label="*"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_11
+	N_10 [label=9 fillcolor=yellow rank=same shape=square style=filled]
+	N_10 -> N_11
+	N_11 -> N_12
+	N_12 -> N_26
+	N_26 -> N_44
+	N_37 [label="+"]
+	N_20 [label="-"]
+	N_13 [label="*"]
+	N_11 [label="*"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_11
+	N_10 [label=9 fillcolor=yellow rank=same shape=square style=filled]
+	N_10 -> N_11
+	N_11 -> N_13
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_13
+	N_13 -> N_20
+	N_3 [label=2 fillcolor=yellow rank=same shape=square style=filled]
+	N_3 -> N_20
+	N_20 -> N_37
+	N_15 [label="-"]
+	N_1 [label=0 fillcolor=yellow rank=same shape=square style=filled]
+	N_1 -> N_15
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_15
+	N_15 -> N_37
+	N_37 -> N_44
+	N_44 -> N_48
+	N_48 -> N_52
+	N_35 [label="-"]
+	N_30 [label="/"]
+	N_20 [label="-"]
+	N_13 [label="*"]
+	N_11 [label="*"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_11
+	N_10 [label=9 fillcolor=yellow rank=same shape=square style=filled]
+	N_10 -> N_11
+	N_11 -> N_13
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_13
+	N_13 -> N_20
+	N_3 [label=2 fillcolor=yellow rank=same shape=square style=filled]
+	N_3 -> N_20
+	N_20 -> N_30
+	N_29 [label="+"]
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_29
+	N_21 [label="/"]
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_21
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_21
+	N_21 -> N_29
+	N_29 -> N_30
+	N_30 -> N_35
+	N_29 [label="+"]
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_29
+	N_21 [label="/"]
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_21
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_21
+	N_21 -> N_29
+	N_29 -> N_35
+	N_35 -> N_52
+	N_52 -> O_0
+	O_0 -> A
+}

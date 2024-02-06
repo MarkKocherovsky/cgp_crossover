@@ -1,9 +1,12 @@
 import numpy as np
+import warnings
 import matplotlib.pyplot as plt
 from numpy import random, sin, exp, cos, sqrt, pi
 from sys import path, argv
 from pathlib import Path
 from functions import *
+from effProg import *
+warnings.filterwarnings('ignore')
 
 def first(x):
 	return x[0]
@@ -22,25 +25,12 @@ def mul(x):
 		y *= i
 	return y
 def div(x):
-	if any(x == 0.0):
-		return 0
+	if any(x[1:] == 0.0):
+		return np.PINF
 	y = x[0]
 	for i in x[1:]:
 		y /= i
 	return y
-def sin_x(x):
-	return sin(x[0])
-def sin_y(x):
-	return sin(x[-1])
-def cos_x(x):
-	return cos(x[0])
-def cos_y(x):
-	return cos(x[-1])
-def exp_x(x):
-	return exp(x[0])
-def exp_y(x):
-	return exp(x[-1])
-
 
 t = int(argv[1]) #trials
 max_g = int(argv[2]) #generations
@@ -57,7 +47,8 @@ bias = np.arange(0, 10, 1)
 n_bias = bias.shape[0] #number of bias inputs
 print("bias nodes")
 print(bias)
-p_mut = 1/max_p #mutation probability
+p_mut = float(argv[9])  #mutation probability
+p_xov = float(argv[10]) #xover probability
 
 func_bank = Collection()
 func = func_bank.func_list[int(argv[7])]
@@ -75,7 +66,31 @@ bank_string = ("+", "-", "*", "/") #, "cos(x)","cos(y)", "sin(x)", "sin(y)", "^"
 
 def rmse(preds, reals):
 	return np.sqrt(np.mean((preds-reals)**2)) #copied from stack overflow
+from scipy.stats import pearsonr
 
+def corr(preds, reals, x=train_x):
+	if any(np.isnan(preds)) or any(np.isinf(preds)):
+		return np.PINF
+	r = pearsonr(preds, reals)[0]
+	if np.isnan(r):
+		r = 0
+	return (1-r**2)
+fit_bank = [rmse, corr]
+fit_names = ["RMSE", "1-R^2"]
+f = int(argv[8])
+fit = fit_bank[f]
+fit_name  = fit_names[f]
+def align(preds, reals, x = train_x):
+	if not all(np.isfinite(preds)):
+		return 1.0, 0.0
+	try:
+		align = np.round(np.polyfit(preds, reals, 1, rcond=1e-16), decimals = 14)
+	except:
+		return 1.0, 0.0
+	a = align[0]
+	b = align[1]
+	#print(f'align {align}')
+	return (a,b)
 #, output_index = output_index, input_indices = input_indices
 def generate_instruction(sources, destinations, arity=arity, bank = bank):
 	instruction = np.zeros(((2+arity),), dtype=np.int32)
@@ -87,7 +102,7 @@ def generate_instruction(sources, destinations, arity=arity, bank = bank):
 def get_registers(arity = arity, max_d = max_d, n_bias = n_bias, inputs = n_inp):
 	possible_indices = np.arange(0, max_d+n_bias+inputs+1)
 	possible_destinations = np.delete(possible_indices, np.arange(1, n_bias+inputs+1)) #removes inputs for destination
-	possible_sources = possible_indices[1:]
+	possible_sources = possible_indices
 	return possible_destinations, possible_sources
 	
 
@@ -130,9 +145,11 @@ def run(individual, train_x = train_x, train_y = train_y, max_d = max_d, n_inp =
 			registers[destination] = operator(registers[sources])
 		preds[i] = registers[0]
 	#print(train_y)
-	return rmse(preds, train_y)
+	(a,b) = align(preds, train_y)
+	preds = preds*a+b
+	return fit(preds, train_y), a, b
 	
-def predict(individual, test, max_d = max_d, n_inp = n_inp, n_bias = n_bias, bias = bias, bank = bank):
+def predict(individual, a, b, test, max_d = max_d, n_inp = n_inp, n_bias = n_bias, bias = bias, bank = bank):
 	preds = np.zeros((len(test),))
 	train_x_bias = np.zeros((test.shape[0], bias.shape[0]+1))
 	train_x_bias[:, 0] = test
@@ -148,22 +165,38 @@ def predict(individual, test, max_d = max_d, n_inp = n_inp, n_bias = n_bias, bia
 			sources = operation[2:]
 			registers[destination] = operator(registers[sources])
 		preds[i] = registers[0]
-	return preds
+	return preds*a+b
 			
+
 
 def mass_eval(pop, func = func):
 	fitnesses = []
+	A = []
+	B = []
 	for ind in pop:
-		fitnesses.append(run(ind))
-	return fitnesses
+		with np.errstate(invalid='raise'):
+			try:
+				f = run(ind)
+				v = f[0]
+				a = f[1]
+				b = f[2]
+				fitnesses.append(v)
+				A.append(a)
+				B.append(b)			
+			except (OverflowError, FloatingPointError):
+				fitnesses.append(np.nan)
+				A.append(1.0)
+				B.append(0.0)
+	return fitnesses, A, B
 
 import operator as opt
-def xover(parents, max_r = max_r): # 1 point crossover
+def xover(parents, max_r = max_r, p_xov = p_xov): # 1 point crossover
 	children = []
 	for i in range(0, len(parents), 2):
 		p1 = parents[i].copy()
 		p2 = parents[i+1].copy()
-		
+		if random.random() > p_xov:
+			continue
 		inst_counts = [len(p1), len(p2)]
 		s = [random.randint(0, p1.shape[0]), random.randint(0, p2.shape[0])]
 
@@ -254,9 +287,9 @@ def select(pop, fitnesses, max_p = max_p):
 			contestants.append(pop[i])
 		c_fitnesses = fitnesses[contestant_indices]
 		candidate, winner = fight(contestants, c_fitnesses)
-		if winner not in idxs:
-			idxs.append(winner)
-			new_parents.append(candidate)
+		#if winner not in idxs:
+		idxs.append(contestant_indices[winner])
+		new_parents.append(candidate)
 		#pop.pop(winner)
 	
 	return new_parents, idxs
@@ -276,36 +309,50 @@ def clean(pop): # remove consecutive duplicate rules
 print(f"#####Trial {t}#####")
 parents = []
 fit_track = []
+alignment = np.zeros((max_p+max_c, 2))
+alignment[:, 0] = 1.0
 for i in range(0, max_p):
 	parents.append(generate_ind())
 fitnesses = np.zeros((max_p+max_c),)
-fitnesses[:max_p] = mass_eval(parents)
+fitnesses[:max_p], alignment[:max_p, 0], alignment[:max_p, 1] = mass_eval(parents)
+print(f'starting fitnesses')
+print(fitnesses)
+print(f'starting scaling')
+print(alignment)
+#fitnesses[:max_p] = fit_temp[:, 0].copy().flatten()
+#alignment[:max_p, 0] = fit_temp[:, 1].copy() #a
+#alignment[:max_p, 1] = fit_temp[:, 2].copy() #b
 #fit_track.append(np.argmin(fitnesses))
 #sort parents before xover and mutation?
 #select before or after xover?
 for g in range(1, max_g+1):
-	parents = xover(parents)
+	children = xover(parents)
 	#print(f'p[0] shape {parents[0].shape}')
 	#parents = clean(parents.copy())
 	#print(f'after cleaning: {parents[0].shape}')
-	children = mutate(parents.copy())
+	children = mutate(children.copy())
 	#children = clean(children.copy())
-	fitnesses[max_p:] = mass_eval(children)
+	fitnesses[max_p:], alignment[max_p:, 0], alignment[max_p:, 1] = mass_eval(children)
+	#fit_temp =  mass_eval(children)
+	#fitnesses[max_p:] = fit_temp[:, 0].copy().flatten()
+	#alignment[max_p:, 0] = fit_temp[:, 1].copy()
+	#alignment[max_p:, 1] = fit_temp[:, 2].copy()
 	pop = parents+children
 	if any(np.isnan(fitnesses)): #screen out nan values
 		nans = np.isnan(fitnesses)
 		fitnesses[nans] = np.PINF	
-	parents, p_idxs = select(pop.copy(), fitnesses)
-	fitnesses[:max_p] = fitnesses[p_idxs]
+	parents, p_idxs = select(pop, fitnesses)
+	fitnesses[:max_p] = fitnesses.copy()[p_idxs]
+	alignment[:max_p, :] = alignment.copy()[p_idxs, :]
 	pop = parents+children
 	best_i = np.argmin(fitnesses)
 	best_pop = pop[best_i]
+	best_a = alignment[best_i, 0]
+	best_b = alignment[best_i, 1]
 	best_fit = fitnesses[best_i]
 	fit_track.append(best_fit)
 	if g % 100 == 0:
-		print(f'g {g} best_fit = {best_fit}')
-
-	
+		print(f'Generation {g}: Best Fit {best_fit}')	
 #fig, ax = plt.subplots()
 #ax = plt.plot(fit_track)
 #print(fit_track)
@@ -317,7 +364,7 @@ print(f"Best Fit: {np.round(best_fit, 4)}")
 #elif np.isnan(best_fit):
 #	print("Redoing Trial")
 #	t = t-1
-preds = predict(best_pop, train_x)
+preds = predict(best_pop, best_a, best_b, train_x)
 print('preds')
 print(preds)
 
@@ -327,7 +374,7 @@ fig, ax = plt.subplots()
 ax.scatter(train_x, train_y, label = 'Ground Truth')
 ax.scatter(train_x, preds, label = 'Predicted')
 fig.suptitle(f"{func_name} Trial {t}")
-ax.set_title(f"RMSE = {np.round(best_fit, 2)}")
+ax.set_title(f"{fit_name} = {np.round(best_fit, 4)}")
 ax.legend()
 Path(f"../output/lgp_1x/{func_name}/scatter/").mkdir(parents=True, exist_ok=True)
 plt.savefig(f"../output/lgp_1x/{func_name}/scatter/comp_{t}.png")
@@ -342,23 +389,22 @@ plt.savefig(f"../output/lgp_1x/{func_name}/plot/plot_{t}.png")
 first_body_node = n_inp+n_bias+1 #1 output + 1 input + 10 bias registers = 12 is the first body register
 print(first_body_node)
 
-def print_individual(ind, fb_node = first_body_node):
+Path(f"../output/lgp_1x/{func_name}/best_program/").mkdir(parents=True, exist_ok=True)
+def print_individual(ind, a, b, fb_node = first_body_node):
 	def put_r(reg, fb_node = first_body_node):
 		if reg == 0:
 			return f'R_0'
-		return f'R_{int(reg-fb_node)}'
+		if reg > 0 and reg <= n_inp:
+			return f'R_{reg}'
+		return f'R_{int(reg-fb_node+2)}'
 	registers = ind[:, 0].astype(np.int32)
 	operators = ind[:, 1].astype(np.int32)
 	operands = ind[:, 2:].astype(np.int32)
 	
 	registers = list(map(put_r, registers))
 	operators = [bank_string[i] for i in operators]
-	l = []
-	print("R_0: Output Registers")
-	print(f"R_1 - R_{n_inp}: Input Register(s)")
-	print(f"R_{n_inp+1} - R{n_inp + n_bias}: {bias}")
-	print(f"R_{n_inp+n_bias+1} - R_{n_inp+n_bias+1+max_d}: Calculation registers")
-	
+	with open(f"../output/lgp_1x/{func_name}/best_program/best_{t}.txt", 'w') as f:
+		f.write('R\tOp\tI\n')
 	print("R\tOp\tI")
 	for i in range(len(registers)):
 		reg = registers[i]
@@ -368,24 +414,42 @@ def print_individual(ind, fb_node = first_body_node):
 		for n in ops:
 			#print(n)
 			if n > 0 and n<=n_inp:
-				nums.append(f'I_{n}')
+				nums.append(f'R_{n}')
 			elif n == 0:
-				nums.append('R_{0}')
+				nums.append(f'R_0')
 			elif n > n_inp and n < fb_node:
 				nums.append(bias[n-n_inp-1])
 			else:
-				nums.append(f'R_{n}')
-		
+				nums.append(f'R_{n-fb_node+2}')
+		with open(f"../output/lgp_1x/{func_name}/best_program/best_{t}.txt", 'a') as f:
+			f.write(f"{reg}\t{op}\t{nums}\n")	
 		print(f"{reg}\t{op}\t{nums}")
-		l.append([reg, op, nums])
-	return l
-p = print_individual(best_pop)
+	print("Scaling")
+	print(f"R_0 = {a}*R_0+{b}")
+	with open(f"../output/lgp_1x/{func_name}/best_program/best_{t}.txt", 'a') as f:
+		f.write(f"R_0 = {a}*R_0+{b}\n\n")
+		f.write(f'{ind}')   
+
+import graphviz as gv
+Path(f"../output/lgp_1x/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
+
+
+print_individual(best_pop, best_a, best_b)
+p = effProg(max_d, best_pop, first_body_node)
+with open(f"../output/lgp_1x/{func_name}/best_program/best_{t}.txt", 'a') as f:
+	f.write(f"\nEffective Instructions\n\n")  
+print(print_individual(p, best_a, best_b))
+dot = draw_graph_thicc(p, best_a, best_b)
+
+dot.render(f"../output/lgp_1x/{func_name}/full_graphs/graph_{t}", view=False)
+
+
 with open(f"../output/lgp_1x/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump(bias, f)
 	pickle.dump(best_pop, f)
 	pickle.dump(preds, f)
 	pickle.dump(np.round(best_fit, 4), f)
-	pickle.dump(best_pop.shape[0], f)
+	pickle.dump(len(p), f)
 	pickle.dump(fit_track, f)
 	pickle.dump(p, f)
 

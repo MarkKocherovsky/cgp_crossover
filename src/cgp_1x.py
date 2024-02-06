@@ -1,12 +1,14 @@
 #CGP 1 Point Crossover
 import numpy as np
 import matplotlib.pyplot as plt
+import warnings
 from numpy import random, sin, cos, tan, sqrt, exp, log, abs, floor, ceil
 from math import log, pi
 from sys import path
 from pathlib import Path
 from functions import *
 from sys import argv
+warnings.filterwarnings('ignore')
 print("started")
 def x(x,y):
 	return x
@@ -20,57 +22,8 @@ def mul(x,y):
 	return x*y
 def div(x,y):
 	if y == 0.0:
-		return 0
+		return np.PINF
 	return x/y
-def powe(x,y):
-	if(x <= 0):
-		return 0
-	if(y==1):
-		return 1
-	return x**y
-def sin_x(x,y):
-	return sin(x)
-def sin_y(x,y):
-	return sin(y)
-def cos_x(x,y):
-	return cos(x)
-def cos_y(x,y):
-	return cos(y)
-def exp_x(x,y):
-	return exp(x)
-def exp_y(x,y):
-	return exp(y)
-def loga(x,y):
-	if y < 0.001:
-		y=0.001
-	return np.emath.logn(x,y)
-
-def sqrt_x_y(x,y):
-	if x+y < 0:
-		return 0
-	else:
-		return(sqrt(x+y))
-def distance(x,y):
-	return sqrt(x**2+y**2)
-def abs_x(x,y):
-	return abs(x)
-def abs_y(x,y):
-	return abs(y)
-def floor_x(x,y):
-	return floor(x)
-def floor_y(x,y):
-	return floor(y)
-def ceil_x(x,y):
-	return ceil(x)
-def ceil_y(x,y):
-	return ceil(y)
-def max_f(x,y):
-	return max(x,y)
-def min_f(x,y):
-	return min(x,y)
-def midpoint(x,y):
-	return (x+y)/2
-
 #test_x = np.arange(11, 30.1, 1)
 #test_y = [func([y]) for y in test_x]
 #print(train_x)
@@ -92,6 +45,9 @@ biases = np.arange(0, 10, 1).astype(np.int32)
 bias = biases.shape[0] #number of biases
 print(f'biases {biases}')
 arity = 2
+p_mut = float(argv[8])
+p_xov = float(argv[9])
+
 
 #bank = (add, sub, mul, div, x, y, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, floor_x, floor_y, ceil_x, ceil_y, max_f, min_f, midpoint)
 #bank_string = ("+", "-", "*", "/", "x", "y", "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "$\lfloor{x}\rfloor$", "$\lfloor{y}\rfloor$", "$\lceil{x}\rceil$", "$\lceil{y}\rceil$", "max", "min", "avg")
@@ -111,12 +67,28 @@ def rmse(preds, reals):
 
 def corr(preds, reals, x=train_x):
 	if any(np.isnan(preds)) or any(np.isinf(preds)):
-		return -1
+		return np.PINF
 	r = pearsonr(preds, reals)[0]
 	if np.isnan(r):
 		r = 0
 	return (1-r**2)
-
+fit_bank = [rmse, corr]
+fit_names = ["RMSE", "1-R^2"]
+f = int(argv[7])
+fit = fit_bank[f]
+fit_name  = fit_names[f]
+print(fit_name)
+def align(ind, out, preds, reals, x = train_x):
+	if not all(np.isfinite(preds)):
+		return 1.0, 0.0
+	try:
+		align = np.round(np.polyfit(preds, reals, 1, rcond=1e-16), decimals = 14)
+	except:
+		return 1.0, 0.0
+	a = align[0]
+	b = align[1]
+	#print(f'align {align}')
+	return (a,b)
 def run(ind, cur_node, inp_nodes, arity = arity):
 	inp_size = inp_nodes.shape[0]
 	#print(f"inp_size: {inp_size}")
@@ -158,17 +130,35 @@ def fitness(data, targ, ind_base, output_nodes, opt = 0):
 			in_val = [data[x]]
 		else:
 			in_val = data[x, :]
-		out_x[x] = run_output(ind_base, output_nodes, in_val)
+		#out_x[x] = run_output(ind_base, output_nodes, in_val)
+		with np.errstate(invalid='raise'):
+			try:
+				out_x[x] = run_output(ind_base, output_nodes, in_val)
+			except (OverflowError, FloatingPointError):
+				out_x[x] = np.nan
+	with np.errstate(invalid='raise'):
+		try:
+			(a,b) = align(ind_base, output_nodes, out_x, train_y)
+		except (OverflowError, FloatingPointError):
+			return np.nan, 1.0, 0.0
+	#print('A, B')
+	#print(a)
+	#print(b)
+	new_x = out_x*a+b
 	if opt == 1:
-		return (out_x)
-	return rmse(out_x, targ)
+		return new_x, a, b
+	return fit(new_x, train_y), a, b
 
-def xover(parents):
+def xover(parents, p_xov = p_xov):
 	children = []
 	for i in range(0, len(parents), 2):
-		ind1, ind2, out1, out2 = xover_aux(parents[i][0], parents[i+1][0], parents[i][1], parents[i+1][1])
-		children.append((ind1, out1))
-		children.append((ind2, out2))
+		if random.random() < p_xov:
+			children.append(parents[i])
+			children.append(parents[i+1])
+		else:
+			ind1, ind2, out1, out2 = xover_aux(parents[i][0], parents[i+1][0], parents[i][1], parents[i+1][1])
+			children.append((ind1, out1))
+			children.append((ind2, out2))
 	return children
 
 def xover_aux(ind1, ind2, out1, out2):
@@ -197,10 +187,12 @@ def xover_aux(ind1, ind2, out1, out2):
 		out2 = np.concatenate((front_2, back_1))
 	return ind1.reshape(s), ind2.reshape(s), out1, out2
 	
-def mutate(subjects, arity = arity, in_size = inputs+bias):
+def mutate(subjects, arity = arity, in_size = inputs+bias, p_mut = p_mut):
 	mut_id = np.random.randint(0, len(subjects), (1,))
 	#mutants = parents[mut_id]
-	for m in mut_id:
+	for m in range(len(subjects)):
+		if random.random() >= p_mut:
+			continue
 		mutant = subjects[m]
 		ind = mutant[0]
 		out = mutant[1]
@@ -231,19 +223,16 @@ def select(pop, f_list, max_p = max_p, n_con = 4):
 		f_c = fitnesses[c_id]
 		winner = np.argmin(f_c)
 		w_id = c_id[winner]
-		#print(w_id)
-		#print(pop[w_id] in new_p)
-		#print((pop[w_id] not in new_p),)
-		#print(all(pop[w_id] not in new_p,))
-		#print(w_id, idxs)
-		#print(w_id not in idxs)
-		if w_id not in idxs:
-			idxs.append(w_id)
-			new_p.append(pop[w_id])
+		idxs.append(w_id)
+		new_p.append(pop[w_id])
 	return new_p, np.array(idxs)
 final_fit = []
 fit_track = []
 ind_base = np.zeros(((arity+1)*max_n,), np.int32)
+
+alignment = np.zeros((max_p+max_c, 2))
+alignment[:, 0] = 1.0
+
 ind_base = ind_base.reshape(-1, arity+1) #for my sanity
 train_x_bias = np.zeros((train_x.shape[0], biases.shape[0]+1))
 train_x_bias[:, 0] = train_x
@@ -264,11 +253,14 @@ for p in range(0, max_p):
 				ind_base[i,j] = random.randint(0, i+(inputs+bias))
 		ind_base[i, -1] = random.randint(0, len(bank))
 		output_nodes = random.randint(0, max_n+(inputs+bias), (outputs,), np.int32)
-	parents.append((ind_base, output_nodes))
+	parents.append((ind_base.copy(), output_nodes.copy()))
 
 #test = run_output(ind_base, output_nodes, np.array([10.0]))
 fitnesses = np.zeros((max_p+max_c,))
-fitnesses[:max_p] = np.array([fitness(train_x_bias, train_y, ind_base, output_nodes) for ind_base, output_nodes in parents])
+fit_temp = np.array([fitness(train_x_bias, train_y, ind_base, output_nodes) for ind_base, output_nodes in parents])
+fitnesses[:max_p] = fit_temp[:, 0].copy().flatten()
+alignment[:max_p, 0] = fit_temp[:, 1].copy() #a
+alignment[:max_p, 1] = fit_temp[:, 2].copy() #b
 print(np.round(fitnesses, 2))
 #fit_track.append(p_fit)
 #print(f"Pre-Run Parent Fitness: {p_fit}")
@@ -278,7 +270,10 @@ for g in range(1, max_g+1):
 	#print('\txover')
 	children = mutate(children)
 	#print('\tmutate')
-	fitnesses[max_p:] = np.array([fitness(train_x_bias, train_y, child[0], child[1]) for child in children])
+	fit_temp =  np.array([fitness(train_x_bias, train_y, child[0], child[1]) for child in children])
+	fitnesses[max_p:] = fit_temp[:, 0].copy().flatten()
+	alignment[max_p:, 0] = fit_temp[:, 1].copy()
+	alignment[max_p:, 1] = fit_temp[:, 2].copy()
 	#print('\teval children')
 	#print(p_fit)
 	#print(c_fit)
@@ -288,7 +283,7 @@ for g in range(1, max_g+1):
 	pop = parents+children
 	#print(len(pop))
 	parents, p_idxs = select(pop, fitnesses)
-	fitnesses[:max_p] = fitnesses[p_idxs]
+	fitnesses[:max_p] = fitnesses.copy()[p_idxs]
 	best_i = np.argmin(fitnesses)
 	best_fit = fitnesses[best_i]
 	if g % 100 == 0:
@@ -310,7 +305,7 @@ print(f"Trial {t}: Best Fitness = {best_fit}")
 print('best individual')
 print(pop[best_i])
 print('preds')
-preds = fitness(train_x_bias, train_y, pop[best_i][0], pop[best_i][1], opt = 1)
+preds, p_A, p_B = fitness(train_x_bias, train_y, pop[best_i][0], pop[best_i][1], opt = 1)
 print(preds)
 #print(list(train_y))
 Path(f"../output/cgp_1x/{func_name}/log/").mkdir(parents=True, exist_ok=True)
@@ -323,7 +318,7 @@ fig, ax = plt.subplots()
 ax.scatter(train_x, train_y, label = 'Ground Truth')
 ax.scatter(train_x, preds, label = 'Predicted')
 fig.suptitle(f"{func_name} Trial {t}")
-ax.set_title(f"RMSE = {np.round(best_fit, 2)}")
+ax.set_title(f"{fit_name} = {np.round(best_fit, 4)}")
 ax.legend()
 Path(f"../output/cgp_1x/{func_name}/scatter/").mkdir(parents=True, exist_ok=True)
 plt.savefig(f"../output/cgp_1x/{func_name}/scatter/plot_{t}.png")
@@ -362,12 +357,17 @@ for n in range(first_body_node, max_n+first_body_node):
 	dot.node(f'N_{n}', op)
 	for a in range(arity):
 		dot.edge(f'N_{node[a]}', f'N_{n}')
+
+dot.attr(rank = 'max')
+dot.node(f'A', f'*{p_A}', shape = 'diamond', fillcolor='green', style='filled')
+dot.node(f'B', f'+{p_B}', shape = 'diamond', fillcolor = 'green', style = 'filled')
+dot.edge(f'A', f'B')
 for o in range(outputs):
 	node = output_nodes[o]
 	dot.attr(rank='max')
 	dot.node(f'O_{o}', f'O_{o}', shape='square', fillcolor='lightblue', style='filled')
 	dot.edge(f'N_{node}', f'O_{o}')
-#	dot.edge(f"l_{total_layers-1}", f'O_{o}')
+	dot.edge(f'O_{o}', 'A')
 Path(f"../output/cgp_1x/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
 dot.render(f"../output/cgp_1x/{func_name}/full_graphs/graph_{t}", view=False)
 
@@ -394,6 +394,9 @@ def plot_active_nodes(name = "active_nodes", output_nodes = output_nodes, output
 			else:
 				plot_body_node(prev_node)
 				active_graph.edge(f'N_{prev_node}', f'N_{n_node}')
+	active_graph.node(f'A', f'*{np.round(p_A, 5)}', shape = 'diamond', fillcolor='green', style='filled')
+	active_graph.node(f'B', f'+{np.round(p_B, 5)}', shape = 'diamond', fillcolor = 'green', style = 'filled')
+	active_graph.edge(f'A', f'B')	
 	for o in range(outputs):
 		node = output_nodes[o]
 		active_graph.node(f'O_{o}', f'O_{o}', shape='square', fillcolor='lightblue', style='filled')
@@ -412,15 +415,7 @@ def plot_active_nodes(name = "active_nodes", output_nodes = output_nodes, output
 			active_graph.edge(f'N_{node}', f'O_{o}')
 			if node not in active_nodes:
 				active_nodes.append(node)
-
-	"""
-	for x in active_graph:
-		print(x)
-		print('label' in x)
-	print([1 if 'label' in x else 0 for x in active_graph])
-	size = sum([1 if 'label' in x else 0 for x in active_graph])
-	print(f'graph size = {size}')
-	"""
+		active_graph.edge(f'O_{o}', 'A')
 	Path(f"../output/cgp_1x/{func_name}/active_nodes/").mkdir(parents=True, exist_ok=True)
 	active_graph.render(f"../output/cgp_1x/{func_name}/active_nodes/active_{t}", view=False)
 	active_node_num = len(active_nodes)+outputs #all outputs are active by definition

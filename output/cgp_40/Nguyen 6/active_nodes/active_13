@@ -1,0 +1,62 @@
+// trial 13 active nodes
+strict digraph {
+	A [label="*0.07753" fillcolor=green shape=diamond style=filled]
+	B [label="+0.23258" fillcolor=green shape=diamond style=filled]
+	A -> B
+	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
+	N_57 [label="+"]
+	N_26 [label="*"]
+	N_1 [label=0 fillcolor=yellow rank=same shape=square style=filled]
+	N_1 -> N_26
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_26
+	N_26 -> N_57
+	N_34 [label="+"]
+	N_31 [label="-"]
+	N_22 [label="-"]
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_22
+	N_2 [label=1 fillcolor=yellow rank=same shape=square style=filled]
+	N_2 -> N_22
+	N_22 -> N_31
+	N_13 [label="+"]
+	N_3 [label=2 fillcolor=yellow rank=same shape=square style=filled]
+	N_3 -> N_13
+	N_12 [label="*"]
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_12
+	N_11 [label="*"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_11
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_11
+	N_11 -> N_12
+	N_12 -> N_13
+	N_13 -> N_31
+	N_31 -> N_34
+	N_32 [label="+"]
+	N_26 [label="*"]
+	N_1 [label=0 fillcolor=yellow rank=same shape=square style=filled]
+	N_1 -> N_26
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_26
+	N_26 -> N_32
+	N_13 [label="+"]
+	N_3 [label=2 fillcolor=yellow rank=same shape=square style=filled]
+	N_3 -> N_13
+	N_12 [label="*"]
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_12
+	N_11 [label="*"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_11
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_11
+	N_11 -> N_12
+	N_12 -> N_13
+	N_13 -> N_32
+	N_32 -> N_34
+	N_34 -> N_57
+	N_57 -> O_0
+	O_0 -> A
+}
