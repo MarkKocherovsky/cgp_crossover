@@ -21,9 +21,9 @@ g=$2
 n=$3
 c=$4
 f=$5
-
+ft=$6
 cd /mnt/home/kocherov/Documents/cgp/src/
 echo "trial $t"
-python3 -u cgp.py $t $g $n $c $f 
+python3 -u cgp.py $t $g $n $c $f $ft
 conda deactivate
 
