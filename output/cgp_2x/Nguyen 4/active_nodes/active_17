@@ -1,0 +1,138 @@
+// trial 17 active nodes
+strict digraph {
+	A [label="*-0.01098" fillcolor=green shape=diamond style=filled]
+	B [label="+0.76476" fillcolor=green shape=diamond style=filled]
+	A -> B
+	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
+	N_71 [label="-"]
+	N_57 [label="/"]
+	N_31 [label="/"]
+	N_2 [label=1 fillcolor=yellow rank=same shape=square style=filled]
+	N_2 -> N_31
+	N_23 [label="-"]
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_23
+	N_22 [label="/"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_22
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_22
+	N_22 -> N_23
+	N_23 -> N_31
+	N_31 -> N_57
+	N_37 [label="+"]
+	N_34 [label="/"]
+	N_22 [label="/"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_22
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_22
+	N_22 -> N_34
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_34
+	N_34 -> N_37
+	N_22 [label="/"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_22
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_22
+	N_22 -> N_37
+	N_37 -> N_57
+	N_57 -> N_71
+	N_70 [label="*"]
+	N_53 [label="/"]
+	N_25 [label="*"]
+	N_23 [label="-"]
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_23
+	N_22 [label="/"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_22
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_22
+	N_22 -> N_23
+	N_23 -> N_25
+	N_6 [label=5 fillcolor=yellow rank=same shape=square style=filled]
+	N_6 -> N_25
+	N_25 -> N_53
+	N_31 [label="/"]
+	N_2 [label=1 fillcolor=yellow rank=same shape=square style=filled]
+	N_2 -> N_31
+	N_23 [label="-"]
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_23
+	N_22 [label="/"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_22
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_22
+	N_22 -> N_23
+	N_23 -> N_31
+	N_31 -> N_53
+	N_53 -> N_70
+	N_64 [label="/"]
+	N_23 [label="-"]
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_23
+	N_22 [label="/"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_22
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_22
+	N_22 -> N_23
+	N_23 -> N_64
+	N_51 [label="/"]
+	N_35 [label="+"]
+	N_28 [label="+"]
+	N_10 [label=9 fillcolor=yellow rank=same shape=square style=filled]
+	N_10 -> N_28
+	N_19 [label="-"]
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_19
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_19
+	N_19 -> N_28
+	N_28 -> N_35
+	N_10 [label=9 fillcolor=yellow rank=same shape=square style=filled]
+	N_10 -> N_35
+	N_35 -> N_51
+	N_40 [label="/"]
+	N_37 [label="+"]
+	N_34 [label="/"]
+	N_22 [label="/"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_22
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_22
+	N_22 -> N_34
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_34
+	N_34 -> N_37
+	N_22 [label="/"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_22
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_22
+	N_22 -> N_37
+	N_37 -> N_40
+	N_31 [label="/"]
+	N_2 [label=1 fillcolor=yellow rank=same shape=square style=filled]
+	N_2 -> N_31
+	N_23 [label="-"]
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_23
+	N_22 [label="/"]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_22
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_22
+	N_22 -> N_23
+	N_23 -> N_31
+	N_31 -> N_40
+	N_40 -> N_51
+	N_51 -> N_64
+	N_64 -> N_70
+	N_70 -> N_71
+	N_71 -> O_0
+	O_0 -> A
+}

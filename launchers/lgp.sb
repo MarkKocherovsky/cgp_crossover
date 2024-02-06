@@ -2,11 +2,11 @@
 
 #Mark Kocherovsky
 
-#SBATCH --time=00:15:00
+#SBATCH --time=01:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 
-#SBATCH --job-name=kocherov_cgp_run
+#SBATCH --job-name=kocherov_lgp_run
 #SBATCH -o "logs\/%x-%j.txt"
 #SBATCH --mem=2G
 
@@ -23,8 +23,10 @@ d=$4
 p=$5
 c=$6
 f=$7
-
+ft=$8
+pm=$9
+px=$10
 cd /mnt/home/kocherov/Documents/cgp/launchers/
-python3 -u ../src/lgp.py $t $g $r $d $p $c $f
+python3 -u ../src/lgp.py $t $g $r $d $p $c $f $ft $pm $px
 conda deactivate
 

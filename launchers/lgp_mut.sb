@@ -1,0 +1,30 @@
+#!/bin/bash
+
+#Mark Kocherovsky
+
+#SBATCH --time=01:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+
+#SBATCH --job-name=kocherov_lgp_mut_run
+#SBATCH -o "logs\/%x-%j.txt"
+#SBATCH --mem=2G
+
+module purge
+cd $HOME
+module load Conda/3
+conda init bash
+conda activate cgp
+
+t=$1
+g=$2
+r=$3
+d=$4
+p=$5
+c=$6
+f=$7
+
+cd /mnt/home/kocherov/Documents/cgp/launchers/
+python3 -u ../src/lgp_mut.py $t $g $r $d $p $c $f
+conda deactivate
+

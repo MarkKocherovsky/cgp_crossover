@@ -3,17 +3,20 @@
 #dec 2023
 #launch cgp base
 
-g=120 #generations
-r=24 #rules
+g=10000 #generations
+r=64 #rules
 d=4 #destinations
 p=40 #parents
 c=40 #children
+ft=1
+pm=0.025
+px=0.5
 
-for f in {0..2}
+for f in {0..6}
 do
-	for t in {1..1}
+	for t in {1..50}
 	do
-		sbatch lgp.sb $t $g $r $d $p $c $f
+		sbatch lgp.sb $t $g $r $d $p $c $f $ft $pm $px
 		#python3 ../src/lgp.py $t $g $r $d $p $c $f &
 	done
 done

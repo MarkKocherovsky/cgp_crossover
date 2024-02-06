@@ -1,9 +1,12 @@
 import numpy as np
+import warnings
 import matplotlib.pyplot as plt
 from numpy import random, sin, exp, cos, sqrt, pi
 from sys import path, argv
 from pathlib import Path
 from functions import *
+from effProg import *
+warnings.filterwarnings('ignore')
 
 def first(x):
 	return x[0]
@@ -22,8 +25,8 @@ def mul(x):
 		y *= i
 	return y
 def div(x):
-	if any(x == 0.0):
-		return 0
+	if any(x[1:] == 0.0):
+		return np.PINF
 	y = x[0]
 	for i in x[1:]:
 		y /= i
@@ -53,10 +56,17 @@ max_p = int(argv[5]) #parents
 max_c = int(argv[6]) #children
 arity = 2 #sources
 n_inp = 1 #number of inputs
-bias = np.arange(0, 11, 1)
+bias = np.arange(0, 10, 1)
 n_bias = bias.shape[0] #number of bias inputs
 
-p_mut = 1/max_p #mutation probability
+try:
+	p_mut = float(argv[9])
+except:
+	p_mut = 1/max_p #mutation probability
+try:
+	p_xov = float(argv[10])
+except:
+	p_xov = 0.5
 
 func_bank = Collection()
 func = func_bank.func_list[int(argv[7])]
@@ -67,13 +77,42 @@ train_y = func.y_test
 output_index = 0
 input_indices = np.arange(1, n_inp+1, 1)
 #print(input_indices)
+with open(f"../output/lgp/{func_name}/best_program/best_{t}.txt", 'w') as f:
+	f.write(f"Problem {func_name}\n")
+	f.write(f'Trial {t}\n')
+	f.write(f'----------\n\n')
 
 #bank = (add, add)
-bank = (first, last, add, sub, mul, div, sin_x, sin_y, cos_x, cos_y, exp_x, exp_y)
-bank_string = ('first', 'last', '+', '-', '*', '/', 'sin(x)', 'sin(y)', 'cos(x)', 'cos(y)', 'exp(x)', 'exp(y)')
+bank = (add, sub, mul, div) #, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, midpoint)
+bank_string = ("+", "-", "*", "/") #, "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "avg")
+
 def rmse(preds, reals):
 	return np.sqrt(np.mean((preds-reals)**2)) #copied from stack overflow
+from scipy.stats import pearsonr
 
+def corr(preds, reals, x=train_x):
+	if any(np.isnan(preds)) or any(np.isinf(preds)):
+		return np.PINF
+	r = pearsonr(preds, reals)[0]
+	if np.isnan(r):
+		r = 0
+	return (1-r**2)
+fit_bank = [rmse, corr]
+fit_names = ["RMSE", "1-R^2"]
+f = int(argv[8])
+fit = fit_bank[f]
+fit_name  = fit_names[f]
+def align(preds, reals, x = train_x):
+	if not all(np.isfinite(preds)):
+		return 1.0, 0.0
+	try:
+		align = np.round(np.polyfit(preds, reals, 1, rcond=1e-16), decimals = 14)
+	except:
+		return 1.0, 0.0
+	a = align[0]
+	b = align[1]
+	#print(f'align {align}')
+	return (a,b)
 #, output_index = output_index, input_indices = input_indices
 def generate_instruction(sources, destinations, arity=arity, bank = bank):
 	instruction = np.zeros(((2+arity),), dtype=np.int32)
@@ -85,7 +124,7 @@ def generate_instruction(sources, destinations, arity=arity, bank = bank):
 def get_registers(arity = arity, max_d = max_d, n_bias = n_bias, inputs = n_inp):
 	possible_indices = np.arange(0, max_d+n_bias+inputs+1)
 	possible_destinations = np.delete(possible_indices, np.arange(1, n_bias+inputs+1)) #removes inputs for destination
-	possible_sources = possible_indices[1:]
+	possible_sources = possible_indices
 	return possible_destinations, possible_sources
 	
 
@@ -127,10 +166,12 @@ def run(individual, train_x = train_x, train_y = train_y, max_d = max_d, n_inp =
 			sources = operation[2:]
 			registers[destination] = operator(registers[sources])
 		preds[i] = registers[0]
-	#print(train_y)
-	return rmse(preds, train_y)
+	#print(train_y
+	(a,b) = align(preds, train_y)
+	preds = preds*a+b
+	return fit(preds, train_y), a, b
 	
-def predict(individual, test, max_d = max_d, n_inp = n_inp, n_bias = n_bias, bias = bias, bank = bank):
+def predict(individual, a, b, test, max_d = max_d, n_inp = n_inp, n_bias = n_bias, bias = bias, bank = bank):
 	preds = np.zeros((len(test),))
 	train_x_bias = np.zeros((test.shape[0], bias.shape[0]+1))
 	train_x_bias[:, 0] = test
@@ -146,32 +187,52 @@ def predict(individual, test, max_d = max_d, n_inp = n_inp, n_bias = n_bias, bia
 			sources = operation[2:]
 			registers[destination] = operator(registers[sources])
 		preds[i] = registers[0]
-	return preds
+	return preds*a+b
 			
 
 def mass_eval(pop, func = func):
 	fitnesses = []
+	A = []
+	B = []
 	for ind in pop:
-		fitnesses.append(run(ind))
-	return fitnesses
+		with np.errstate(invalid='raise'):
+			try:
+				f = run(ind)
+				v = f[0]
+				a = f[1]
+				b = f[2]
+				fitnesses.append(v)
+				A.append(a)
+				B.append(b)			
+			except (OverflowError, FloatingPointError):
+				fitnesses.append(np.nan)
+				A.append(1.0)
+				B.append(0.0)
+	return fitnesses, A, B
 
 import operator as opt
-def xover(parents, max_r = max_r):
+def xover(parents, max_r = max_r, p_xov = p_xov):
 	children = []
 	for i in range(0, len(parents), 2):
+		if random.random() >= p_xov:
+			continue
 		for j in [1,2]: #two children
 			p1 = parents[i].copy()
 			p2 = parents[i+1].copy()
 			
-			inst_counts = [len(p1), len(p2)]
-			samples = [random.choice(inst_counts[0], size = (int(len(p1)/2),), replace = False), random.choice(inst_counts[1], size = (int(len(p2)/2),), replace = False)]
+			inst_counts = [len(p1), len(p2)] #count instructions
+			samples = [random.choice(inst_counts[0], size = (int(len(p1)/2),), replace = False), random.choice(inst_counts[1], size = (int(len(p2)/2),), replace = False)] #get instruction indices
+			samples_norm = [samples[0]/inst_counts[0], samples[1]/inst_counts[1]] #normalize indices
+
 			p1_list = samples[0]
 			p2_list = samples[1]
 			fu_list = np.concatenate((p1_list,p2_list))
+			no_list = np.concatenate((samples_norm[0], samples_norm[1]))
+			
 			c1 = np.concatenate((p1[p1_list],p2[p2_list]), axis = 0)
 			#c2 = np.concatenate((p1[-p1_list], p2[-p2_list]), axis = 0)
 			#https://stackoverflow.com/questions/9007877/sort-arrays-rows-by-another-array-in-python
-			fu_list = fu_list.argsort()
+			fu_list = no_list.argsort()#sort by normalized order
 			c = c1[fu_list, :]
 			children.append(c)
 	return children
@@ -212,13 +273,22 @@ def mutate(parents, max_c = max_c, p_mut = p_mut, bank = bank):
 
 def fight(contestants, c_fitnesses):
 	winner = np.argmin(c_fitnesses)
-	return contestants[winner]
+	return contestants[winner], winner
 	
 def select(pop, fitnesses, max_p = max_p):
 	n_tour = int(len(pop)/10)
 	if n_tour <=1:
 		n_tour = 2
 	new_parents = []
+	idxs = []
+	#new_fitnesses = []
+	#print(fitnesses)
+	#print(np.argmin(fitnesses)
+	best_fit_id = np.argmin(fitnesses)
+	best_fit = np.argmin(fitnesses)
+	#print(pop[best_fit_id])
+	new_parents.append(pop[best_fit_id])
+	idxs.append(best_fit_id)
 	while len(new_parents) < max_p:
 		contestant_indices = random.choice(range(len(pop)), n_tour, replace = False)
 		#print(pop)
@@ -226,10 +296,11 @@ def select(pop, fitnesses, max_p = max_p):
 		for i in contestant_indices:
 			contestants.append(pop[i])
 		c_fitnesses = fitnesses[contestant_indices]
-		candidate = fight(contestants, c_fitnesses)
-		new_parents.append(candidate)
-	
-	return new_parents
+		candidate, winner = fight(contestants, c_fitnesses)
+		#if winner not in idxs:
+		idxs.append(contestant_indices[winner])
+		new_parents.append(candidate)	
+	return new_parents, idxs
 
 from numpy import unique
 def clean(pop): # remove consecutive duplicate rules
@@ -246,44 +317,68 @@ def clean(pop): # remove consecutive duplicate rules
 print(f"#####Trial {t}#####")
 parents = []
 fit_track = []
+alignment = np.zeros((max_p+max_c, 2))
+alignment[:, 0] = 1.0
 for i in range(0, max_p):
 	parents.append(generate_ind())
 fitnesses = np.zeros((max_p+max_c),)
+fitnesses[:max_p], alignment[:max_p, 0], alignment[:max_p, 1] = mass_eval(parents)
+print(f'starting fitnesses')
+print(fitnesses)
+print(f'starting scaling')
+print(alignment)
+#fitnesses[:max_p] = fit_temp[:, 0].copy().flatten()
+#alignment[:max_p, 0] = fit_temp[:, 1].copy() #a
+#alignment[:max_p, 1] = fit_temp[:, 2].copy() #b
+#fit_track.append(np.argmin(fitnesses))
 #sort parents before xover and mutation?
 #select before or after xover?
 for g in range(1, max_g+1):
-	fitnesses[0:max_p] = mass_eval(parents)
-	parents = xover(parents)
+	children = xover(parents)
 	#print(f'p[0] shape {parents[0].shape}')
 	#parents = clean(parents.copy())
 	#print(f'after cleaning: {parents[0].shape}')
-	children = mutate(parents.copy())
+	children = mutate(children.copy())
 	#children = clean(children.copy())
-	fitnesses[max_p:] = mass_eval(children)
+	fitnesses[max_p:], alignment[max_p:, 0], alignment[max_p:, 1] = mass_eval(children)
+	#fit_temp =  mass_eval(children)
+	#fitnesses[max_p:] = fit_temp[:, 0].copy().flatten()
+	#alignment[max_p:, 0] = fit_temp[:, 1].copy()
+	#alignment[max_p:, 1] = fit_temp[:, 2].copy()
 	pop = parents+children
-	
+	if any(np.isnan(fitnesses)): #screen out nan values
+		nans = np.isnan(fitnesses)
+		fitnesses[nans] = np.PINF	
+	parents, p_idxs = select(pop, fitnesses)
+	fitnesses[:max_p] = fitnesses.copy()[p_idxs]
+	alignment[:max_p, :] = alignment.copy()[p_idxs, :]
+	pop = parents+children
 	best_i = np.argmin(fitnesses)
-	best_pop = pop[i]
-	best_fit = fitnesses[i]
+	best_pop = pop[best_i]
+	best_a = alignment[best_i, 0]
+	best_b = alignment[best_i, 1]
+	best_fit = fitnesses[best_i]
 	fit_track.append(best_fit)
-	
-	parents = select(pop, fitnesses)
+	if g % 100 == 0:
+		print(f'Generation {g}: Best Fit {best_fit}')
 	
 #fig, ax = plt.subplots()
 #ax = plt.plot(fit_track)
 #print(fit_track)
 #plt.show()
-	
+print("Fitnesses")	
 print(np.round(fitnesses, 5))
+print("Alignment")
+print(alignment)
 print(f"Best Pop:\n{best_pop}")
 print(f"Best Fit: {np.round(best_fit, 4)}")
 #elif np.isnan(best_fit):
 #	print("Redoing Trial")
 #	t = t-1
-preds = predict(best_pop, train_x)
+preds = predict(best_pop, best_a, best_b, train_x)
 print('preds')
 print(preds)
-
+print(f"../output/lgp/{func_name}/log/") 
 Path(f"../output/lgp/{func_name}/log/").mkdir(parents=True, exist_ok=True)
 import pickle
 with open(f"../output/lgp/{func_name}/log/output_{t}.pkl", "wb") as f:
@@ -291,47 +386,88 @@ with open(f"../output/lgp/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump(best_pop, f)
 	pickle.dump(preds, f)
 	pickle.dump(np.round(best_fit, 4), f)
-
+	pickle.dump(best_pop.shape[0], f)
+	pickle.dump(fit_track, f)
 
 fig, ax = plt.subplots()
 ax.scatter(train_x, train_y, label = 'Ground Truth')
 ax.scatter(train_x, preds, label = 'Predicted')
 fig.suptitle(f"{func_name} Trial {t}")
-ax.set_title(f"RMSE = {np.round(best_fit, 2)}")
+ax.set_title(f"{fit_name} = {np.round(best_fit, 4)}")
 ax.legend()
 Path(f"../output/lgp/{func_name}/scatter/").mkdir(parents=True, exist_ok=True)
 plt.savefig(f"../output/lgp/{func_name}/scatter/comp_{t}.png")
 
-first_body_node = n_inp+n_bias
+fig, ax = plt.subplots()
+ax.plot(fit_track)
+ax.set_title(f"{func_name} Trial {t}")
+Path(f"../output/lgp/{func_name}/plot/").mkdir(parents=True, exist_ok=True)
+plt.savefig(f"../output/lgp/{func_name}/plot/plot_{t}.png")
+
+
+first_body_node = n_inp+n_bias+1
 print(first_body_node)
 
-def print_individual(ind, fb_node = first_body_node):
-	def put_r(reg, fb_node = first_body_node):
-		if reg == 0:
-			return f'R_0'
-		return f'R_{int(reg-fb_node)}'
-	registers = ind[:, 0].astype(np.int32)
-	operators = ind[:, 1].astype(np.int32)
-	operands = ind[:, 2:].astype(np.int32)
-	
-	registers = list(map(put_r, registers))
-	operators = [bank_string[i] for i in operators]
-	
-	print("R\tOp\tI")
-	for i in range(len(registers)):
-		reg = registers[i]
-		op = operators[i]
-		ops = operands[i, :]
-		nums = []
-		for n in ops:
-			print(n)
-			if n > 0 and n<n_inp:
-				nums.append(f'I_{n}')
-			elif n > n_inp and n < fb_node:
-				nums.append(bias[n-n_inp])
-			else:
-				nums.append(f'R_{n-fb_node+1}')
-		
-		print(f"{reg}\t{op}\t{nums}")
-print_individual(best_pop)
+Path(f"../output/lgp/{func_name}/best_program/").mkdir(parents=True, exist_ok=True)
+def print_individual(ind, a, b, fb_node = first_body_node):
+        def put_r(reg, fb_node = first_body_node):
+                if reg == 0:
+                        return f'R_0'
+                if reg > 0 and reg <= n_inp:
+                        return f'R_{reg}'
+                return f'R_{int(reg-fb_node+2)}'
+        registers = ind[:, 0].astype(np.int32)
+        operators = ind[:, 1].astype(np.int32)
+        operands = ind[:, 2:].astype(np.int32)
+
+        registers = list(map(put_r, registers))
+        operators = [bank_string[i] for i in operators]
+        with open(f"../output/lgp/{func_name}/best_program/best_{t}.txt", 'a') as f:
+                f.write('R\tOp\tI\n')
+        print("R\tOp\tI")
+        for i in range(len(registers)):
+                reg = registers[i]
+                op = operators[i]
+                ops = operands[i, :]
+                nums = []
+                for n in ops:
+                        #print(n)
+                        if n > 0 and n<=n_inp:
+                                nums.append(f'R_{n}')
+                        elif n == 0:
+                                nums.append(f'R_0')
+                        elif n > n_inp and n < fb_node:
+                                nums.append(bias[n-n_inp-1])
+                        else:
+                                nums.append(f'R_{n-fb_node+2}') 
+                with open(f"../output/lgp/{func_name}/best_program/best_{t}.txt", 'a') as f:
+                        f.write(f"{reg}\t{op}\t{nums}\n")       
+                print(f"{reg}\t{op}\t{nums}")
+        print("Scaling")
+        print(f"R_0 = {a}*R_0+{b}")
+        with open(f"../output/lgp/{func_name}/best_program/best_{t}.txt", 'a') as f:
+                f.write(f"R_0 = {a}*R_0+{b}\n\n")  
+                f.write(f'{ind}')
+
+import graphviz as gv
+dot = gv.Digraph(comment=f'trial {t}')
+print_individual(best_pop, best_a, best_b)
+p = effProg(max_d, best_pop, first_body_node)
+with open(f"../output/lgp/{func_name}/best_program/best_{t}.txt", 'a') as f:
+	f.write(f"\nEffective Instructions\n\n")  
+print(print_individual(p, best_a, best_b))
+
+print('effective program')
+print(p)
+with open(f"../output/lgp/{func_name}/log/output_{t}.pkl", "wb") as f:
+	pickle.dump(bias, f)
+	pickle.dump(best_pop, f)
+	pickle.dump(preds, f)
+	pickle.dump(np.round(best_fit, 4), f)
+	pickle.dump(len(p), f)
+	pickle.dump(fit_track, f)
+
+dot = draw_graph_thicc(p, best_a, best_b)
+Path(f"../output/lgp/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
+dot.render(f"../output/lgp/{func_name}/full_graphs/graph_{t}", view=False)
 

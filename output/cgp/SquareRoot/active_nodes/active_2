@@ -1,10 +1,14 @@
 // trial 2 active nodes
 strict digraph {
 	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
-	N_24 [label="$\sqrt{x+y}$"]
-	N_1 [label=0 fillcolor=yellow rank=same shape=square style=filled]
-	N_1 -> N_24
+	N_12 [label="$\sqrt{x+y}$"]
+	N_11 [label="|y|"]
 	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
-	N_0 -> N_24
-	N_24 -> O_0
+	N_0 -> N_11
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_11
+	N_11 -> N_12
+	N_1 [label=0 fillcolor=yellow rank=same shape=square style=filled]
+	N_1 -> N_12
+	N_12 -> O_0
 }

@@ -1,0 +1,10 @@
+// trial 38 active nodes
+strict digraph {
+	A [label="*-0.05407" fillcolor=green shape=diamond style=filled]
+	B [label="+-0.37852" fillcolor=green shape=diamond style=filled]
+	A -> B
+	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> O_0
+	O_0 -> A
+}
