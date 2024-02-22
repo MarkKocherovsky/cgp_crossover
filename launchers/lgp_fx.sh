@@ -1,7 +1,7 @@
 #!/bin/bash
 #mark kocherovsky
-#dec 2023
-#launch lgp one point crossover
+#feb 2023
+#launch lgp flattened one point crossover
 
 g=10000 #generations
 r=64 #rules
@@ -15,7 +15,7 @@ for f in {1..6}
 do
 	for t in {1..50}
 	do
-		sbatch lgp_1x.sb $t $g $r $d $p $c $f $ft $pm $px
+		sbatch lgp_fx.sb $t $g $r $d $p $c $f $ft $pm $px
 		#python3 ../src/lgp.py $t $g $r $d $p $c $f &
 	done
 done

@@ -45,7 +45,9 @@ cgp_sgx_path = "../output/cgp_sgx/"
 cgp_sgx = []
 cgp_sgx_p_fits = []
 
-method_names = ["CGP(1+4)", "CGP(16+64)", "CGP-1x(40+40)", "CGP-2x(40+40)", "CGP-SGx(40+40)", "LGP-Ux(40+40)", "LGP-1x(40+40)", "LGP-2x(40+40)"]
+color_order = ['blue', 'olive', 'orange', 'purple', 'green', 'brown', 'slategray', 'red']
+method_names = ["CGP(1+4)", "CGP(16+64)", "CGP-1x(40+40)","LGP-1x(40+40)", "CGP-2x(40+40)","LGP-2x(40+40)", "CGP-SGx(40+40)", "LGP-Ux(40+40)"]  
+method_names_long = ["CGP(1+4)", "CGP(16+64)", "CGP-OnePoint(40+40)","LGP-OnePoint(40+40)", "CGP-TwoPoint(40+40)","LGP-TwoPoint(40+40)", "CGP-Subgraph(40+40)", "LGP-Uniform(40+40)"]  
 
 max_e = 50
 def get_logs_cgp(base_path, max_e = max_e):
@@ -53,6 +55,7 @@ def get_logs_cgp(base_path, max_e = max_e):
 	full_fits = []
 	fit_tracks = []
 	active_nodes = []
+	node_prop = []
 	#max_e = 10 #number of trials
 	for name in f_name:
 		print(f"Loading {base_path}{name}")
@@ -60,6 +63,7 @@ def get_logs_cgp(base_path, max_e = max_e):
 		p_log = []
 		track_log = []
 		node_log = []
+		prop_log = []
 		for e in range(1, max_e+1):
 			p = f'{base_path}{name}/log/output_{e}.pkl'
 			with open(p, "rb") as f:
@@ -76,29 +80,33 @@ def get_logs_cgp(base_path, max_e = max_e):
 			p_log.append(p_fit)
 			track_log.append(fit_track)
 			node_log.append(n)
+			prop_log.append(n/len(ind))
 		full_logs.append(logs)
 		full_fits.append(p_log)
 		fit_tracks.append(track_log)
+		node_prop.append(prop_log)
 		#print(len(track_log))
 		#print(track_log)
 		#print(len(track_log), len(track_log[0]))
 		#print(track_log[4])
 		active_nodes.append(node_log)
 	#print(fit_tracks[4][0])
-	return logs, np.array(full_fits), np.array(fit_tracks), np.array(active_nodes)
+	return logs, np.array(full_fits), np.array(fit_tracks), np.array(active_nodes), np.array(node_prop)
 	
 def get_logs_lgp(base_path, max_e = max_e):
 	full_logs = [] #full logs
 	full_fits = []
 	prog_length = []
 	fit_tracks = []
+	node_prop = []
 	#max_e = 10 #number of trials
 	for name in f_name:
-		print(f"Loading {base_path} {name}")
+		print(f"Loading {base_path}{name}")
 		logs = [] #idk what to call it, I just want everything easily accessible from a few lists
 		p_log = []
 		track_log = []
 		node_log = []
+		prop_log = []
 		for e in range(1, max_e+1):
 			p = f'{base_path}{name}/log/output_{e}.pkl'
 			with open(p, "rb") as f:
@@ -115,23 +123,25 @@ def get_logs_lgp(base_path, max_e = max_e):
 			p_log.append(best_fit)
 			track_log.append(fit_track)
 			node_log.append(n)
+			prop_log.append(n/len(ind))
 		full_logs.append(logs)
 		full_fits.append(p_log)
 		fit_tracks.append(track_log)
 		#print(len(fit_tracks))
 		prog_length.append(node_log)
-	return logs, np.array(full_fits), np.array(fit_tracks), np.array(prog_length)
+		node_prop.append(prop_log)
+	return logs, np.array(full_fits), np.array(fit_tracks), np.array(prog_length), np.array(node_prop)
 
 
 #plot boxes
-_ , cgp_base_p_fits, cgp_base_fit_tracks, cgp_base_nodes = get_logs_cgp(cgp_base_path)
-_ , cgp_1x_p_fits, cgp_1x_fit_tracks, cgp_1x_nodes = get_logs_cgp(cgp_1x_path)
-_ , cgp_2x_p_fits, cgp_2x_fit_tracks, cgp_2x_nodes = get_logs_cgp(cgp_2x_path)
-_ , cgp_40_p_fits, cgp_40_fit_tracks, cgp_40_nodes = get_logs_cgp(cgp_40_path)
-_ , cgp_sgx_p_fits, cgp_sgx_fit_tracks, cgp_sgx_nodes = get_logs_cgp(cgp_sgx_path)
-_ , lgp_base_p_fits, lgp_base_fit_tracks, lgp_base_nodes = get_logs_lgp(lgp_base_path) #I use nodes for LGP just for standards
-_ , lgp_1x_p_fits, lgp_1x_fit_tracks, lgp_1x_nodes = get_logs_lgp(lgp_1x_path)
-_ , lgp_2x_p_fits, lgp_2x_fit_tracks, lgp_2x_nodes = get_logs_lgp(lgp_2x_path)
+_ , cgp_base_p_fits, cgp_base_fit_tracks, cgp_base_nodes, cgp_base_prop = get_logs_cgp(cgp_base_path)
+_ , cgp_1x_p_fits, cgp_1x_fit_tracks, cgp_1x_nodes, cgp_1x_prop = get_logs_cgp(cgp_1x_path)
+_ , cgp_2x_p_fits, cgp_2x_fit_tracks, cgp_2x_nodes, cgp_2x_prop = get_logs_cgp(cgp_2x_path)
+_ , cgp_40_p_fits, cgp_40_fit_tracks, cgp_40_nodes, cgp_40_prop = get_logs_cgp(cgp_40_path)
+_ , cgp_sgx_p_fits, cgp_sgx_fit_tracks, cgp_sgx_nodes, cgp_sgx_prop = get_logs_cgp(cgp_sgx_path)
+_ , lgp_base_p_fits, lgp_base_fit_tracks, lgp_base_nodes, lgp_base_prop = get_logs_lgp(lgp_base_path) #I use nodes for LGP just for standards
+_ , lgp_1x_p_fits, lgp_1x_fit_tracks, lgp_1x_nodes, lgp_1x_prop = get_logs_lgp(lgp_1x_path)
+_ , lgp_2x_p_fits, lgp_2x_fit_tracks, lgp_2x_nodes, lgp_2x_prop = get_logs_lgp(lgp_2x_path)
 #_ , lgp_mut_p_fits, lgp_mut_fit_tracks, lgp_mut_nodes = get_logs_lgp(lgp_mut_path)
 print(len(lgp_mut_p_fits))
 print(list(range(1, len(method_names)+1)))
@@ -139,19 +149,48 @@ print(method_names)
 #print(cgp_base_p_fits)
 fig, axs = plt.subplots(len(f_name), 1, figsize = (12, 20))
 fig.subplots_adjust(hspace=0)
+from copy import deepcopy
 for n in range(len(f_name)):
 	#print(n)
-	axs[n].boxplot([cgp_base_p_fits[n], cgp_40_p_fits[n], cgp_1x_p_fits[n], cgp_2x_p_fits[n], cgp_sgx_p_fits[n], lgp_base_p_fits[n], lgp_1x_p_fits[n], lgp_2x_p_fits[n]], showfliers = False)
+	boxes = axs[n].boxplot([cgp_base_p_fits[n], cgp_40_p_fits[n], cgp_1x_p_fits[n], lgp_1x_p_fits[n], cgp_2x_p_fits[n], lgp_2x_p_fits[n], cgp_sgx_p_fits[n], lgp_base_p_fits[n]], showfliers = False, patch_artist = True)
+	box_list = boxes['boxes']
+	axs[n].set_yscale('log')
+	for box, color in zip(box_list, color_order):
+        	box.set_facecolor(color)
 	axs[n].set_xticks(list(range(1, len(method_names)+1)),method_names)
 	axs[n].set_title(f"{f_name[n]}", fontsize=18)
 	axs[n].set_ylabel("1-r^2", fontsize=12)
+	axs[n].set_ylim(bottom=1e-6)
 fig.suptitle("Fitness Evaluation on SR Problems", fontsize=24)
-fig.tight_layout(rect=[0, 0, 1, 0.985])
+legend_objects = [box for box in box_list]
+fig.legend(legend_objects, method_names)
+fig.tight_layout(rect=[0, 0, 1, 0.95])
 plt.show()
 plt.savefig("../output/rmse.png")
+"""
 print('fitness')
-
+print('lgp_2x koza 1 best fitnesses')
+print(np.round(lgp_2x_p_fits[0], 4))
+print('lgp_2x koza 1 box')
+print(boxes['boxes'][4])
+print('lgp_2x koza 1 median according to the box')
+print(boxes['medians'][4])
+print('lgp_2x koza 1 statistics according to numpy')
+print(np.quantile(lgp_2x_p_fits[0], [0.25, 0.5, 0.75]))
+print('lgp_2x koza 1 median according to numpy')
+print(np.median(lgp_2x_p_fits[0]))
+"""
 #program size, I'll do the averaging at home
+fig, axs = plt.subplots(len(f_name), 1, figsize = (10,20))
+for n in range(len(f_name)):
+	axs[n].boxplot([cgp_base_prop[n], cgp_40_prop[n], cgp_1x_prop[n], cgp_2x_prop[n], cgp_sgx_prop[n], lgp_base_prop[n], lgp_1x_prop[n], lgp_2x_prop[n]], showfliers = False)
+	axs[n].set_xticks(list(range(1,len(method_names)+1)), method_names)
+	axs[n].set_title(f"{f_name[n]}")
+fig.suptitle("Proportion of active nodes for SR problems")
+fig.tight_layout()
+plt.show()
+plt.savefig("../output/prog_prop.png")
+
 fig, axs = plt.subplots(len(f_name), 1, figsize = (10,20))
 for n in range(len(f_name)):
 	axs[n].boxplot([cgp_base_nodes[n], cgp_40_nodes[n], cgp_1x_nodes[n], cgp_2x_nodes[n], cgp_sgx_nodes[n], lgp_base_nodes[n], lgp_1x_nodes[n], lgp_2x_nodes[n]], showfliers = False)
@@ -161,8 +200,9 @@ fig.suptitle("Program Size for SR problems")
 fig.tight_layout()
 plt.show()
 plt.savefig("../output/prog_size.png")
+
 print('prog size')
-#rmse vs size
+#fit vs size
 fig, axs = plt.subplots(1, len(f_name), figsize = (25, 6), sharey=False)
 fig.subplots_adjust(hspace=0)
 for n in range(len(f_name)):
@@ -183,6 +223,28 @@ axs[0].legend()
 plt.tight_layout()
 plt.show()
 plt.savefig('../output/fit_size.png')
+
+fig, axs = plt.subplots(1, len(f_name), figsize = (25, 6), sharey=False)
+fig.subplots_adjust(hspace=0)
+for n in range(len(f_name)):
+	axs[n].set_yscale('log')
+	axs[n].scatter(cgp_base_prop[n], cgp_base_p_fits[n], label='CGP(1+4)', c = 'blue', marker = 'o', s = 8)
+	axs[n].scatter(cgp_1x_prop[n], cgp_1x_p_fits[n], label='CGP-1x(40+40)', c = 'orange', marker = 'v',s = 8)
+	axs[n].scatter(cgp_2x_prop[n], cgp_2x_p_fits[n], label='CGP-2x(40+40)', c = 'green', marker = 's', s = 8)
+	axs[n].scatter(cgp_40_prop[n], cgp_40_p_fits[n], label='CGP(16+64)', c = 'olive', marker = 'P', s = 8)
+	axs[n].scatter(cgp_sgx_prop[n], cgp_sgx_p_fits[n], label='CGP-SGx(40+40)', c = 'slategray', marker = '*', s = 8)
+	axs[n].scatter(lgp_base_prop[n], lgp_base_p_fits[n], label='LGP-Ux(40+40)', c = 'red', marker = '^', s = 8)
+	axs[n].scatter(lgp_1x_prop[n], lgp_1x_p_fits[n], label = 'LGP-1x(40+40)', c = 'purple', marker = 'X', s = 8)
+	axs[n].scatter(lgp_2x_prop[n], lgp_2x_p_fits[n], label = 'LGP-2x(40+40)', c = 'brown', marker = 'P', s = 8)
+	axs[n].set_title(f'{f_name[n]}')
+	axs[n].set_xlabel('Proportion of Active Instructions')
+axs[0].set_ylabel('1-R^2')
+fig.suptitle('Fitness vs Active Node Proportions')
+axs[0].legend()
+plt.tight_layout()
+plt.show()
+plt.savefig('../output/fit_prop.png')
+
 print('fit size')
 #perform averaging
 def get_avg_gens(f):
