@@ -1,5 +1,6 @@
 import numpy as np
-
+from sys import path
+from pathlib import Path
 def effProg(n_calc, prog_long, fb_node = 12): #Wolfgang gave this to me
 	n_calc = n_calc + fb_node
 	prog = prog_long.copy().astype(np.int32)
@@ -43,6 +44,48 @@ def effProg(n_calc, prog_long, fb_node = 12): #Wolfgang gave this to me
 	return np.array(eff_prog).astype(np.int32)
 
 import graphviz as gv
+def lgp_print_individual(ind, a, b, run_name, func_name, bank_string, t, bias, n_inp = 1, fb_node = 12):
+        Path(f"../output/{run_name}/{func_name}/best_program/").mkdir(parents=True, exist_ok=True)
+        def put_r(reg, fb_node = fb_node, n_inp = 1):
+                if reg == 0:
+                        return f'R_0'
+                if reg > 0 and reg <= n_inp:
+                        return f'R_{reg}'
+                return f'R_{int(reg-fb_node+2)}'
+        ind = np.array(ind)
+        registers = ind[:, 0].astype(np.int32)
+        operators = ind[:, 1].astype(np.int32)
+        operands = ind[:, 2:].astype(np.int32)
+
+        registers = list(map(put_r, registers))
+        operators = [bank_string[i] for i in operators]
+        with open(f"../output/{run_name}/{func_name}/best_program/best_{t}.txt", 'a') as f:
+                f.write('R\tOp\tI\n')
+        print("R\tOp\tI")
+        for i in range(len(registers)):
+                reg = registers[i]
+                op = operators[i]
+                ops = operands[i, :]
+                nums = []
+                for n in ops:
+                        #print(n)
+                        if n > 0 and n<=n_inp:
+                                nums.append(f'R_{n}')
+                        elif n == 0:
+                                nums.append(f'R_0')
+                        elif n > n_inp and n < fb_node:
+                                nums.append(bias[n-n_inp-1])
+                        else:
+                                nums.append(f'R_{n-fb_node+2}')
+                with open(f"../output/{run_name}/{func_name}/best_program/best_{t}.txt", 'a') as f:
+                        f.write(f"{reg}\t{op}\t{nums}\n")
+                print(f"{reg}\t{op}\t{nums}")
+        print("Scaling")
+        print(f"R_0 = {a}*R_0+{b}")
+        with open(f"../output/{run_name}/{func_name}/best_program/best_{t}.txt", 'a') as f:
+                f.write(f"R_0 = {a}*R_0+{b}\n\n")
+                f.write(f'{ind}')
+
 def draw_graph(ind, i_a, i_b, fb_node = 12, n_inp = 1, max_d = 4, n_bias = 10, bias = np.arange(0, 10, 1).astype(np.int32), bank_string = ("+", "-", "*", "/")):
 	dot = gv.Digraph()
 	#print(a)
@@ -114,8 +157,6 @@ def get_thiccness(ind, fb_node = 12, max_d = 4, operators = 4):
 			op = ind[i, a]
 			#print(op)
 			to_operator[operator, op] += 1 #goes from operand to operator
-	print(from_operator)
-	print(to_operator)
 	return from_operator, to_operator
 
 def draw_graph_thicc(ind, i_a, i_b, fb_node = 12, n_inp = 1, max_d = 4, n_bias = 10, bias = np.arange(0, 10, 1).astype(np.int32), bank_string = ("+", "-", "*", "/")):
@@ -163,3 +204,118 @@ def draw_graph_thicc(ind, i_a, i_b, fb_node = 12, n_inp = 1, max_d = 4, n_bias =
 	dot.edge(f'A', f'B')
 	dot.edge(f'N_0', f'A')
 	return dot
+
+def percent_change(new, old):
+        if np.isfinite(new) and np.isfinite(old):
+               return new-old
+        else:
+               return np.nan
+
+
+def cgp_active_nodes(ind_base, output_nodes, outputs=1, first_body_node = 11, opt = 0):
+        active_nodes = []
+        def plot_body_node(n_node, arity = 2):
+                node = ind_base[n_node-first_body_node]
+                for a in range(arity):
+                        prev_node = node[a]
+                        if prev_node not in active_nodes:
+                                active_nodes.append(prev_node) #count active nodes
+                        if prev_node >= first_body_node: #inputs
+                                plot_body_node(prev_node)
+        for o in range(outputs):
+                node = output_nodes[o]
+                if node not in active_nodes:
+                        active_nodes.append(node)
+                if node >=  first_body_node: #bias:
+                        plot_body_node(node)
+        active_node_num = len(active_nodes)+outputs #all outputs are active by definition
+        if opt == 0:
+                return active_node_num
+        elif opt == 1:
+                return active_nodes
+        elif opt == 2:
+                return active_node_num/(ind_base.shape[0]+outputs+first_body_node)
+        elif opt == 3: #return indices, not node number
+                active_nodes = np.array(active_nodes)
+                return (active_nodes[active_nodes < first_body_node] - first_body_node)
+
+def cgp_graph(inputs, bias, ind_base, output_nodes, p_A, p_B, func_name, run_name, t,  max_n = 64, first_body_node = 11, arity = 2, biases = list(range(0, 10)), bank_string = ['+', '-', '*', '/']):
+	dot = gv.Digraph()
+	for i in range(inputs):
+		dot.node(f'N_{i}', f'I_{i}', shape='square', rank='same', fillcolor = 'orange', style='filled')
+	#       dot.edge("l_0", f"N_{i}", style='invisible')
+	for b in range(bias):
+		dot.node(f'N_{b+inputs}', f"{biases[b]}", shape='square', rank='same', fillcolor='yellow', style='filled')
+	#       dot.edge("l_0", f"N_{b}", style='invisible')
+	dot.attr(rank='same')
+	for n in range(first_body_node, max_n+first_body_node):
+
+		node = ind_base[n-first_body_node]
+		op = bank_string[node[-1]]
+		dot.node(f'N_{n}', op)
+		for a in range(arity):
+			dot.edge(f'N_{node[a]}', f'N_{n}')
+
+	dot.attr(rank = 'max')
+	dot.node(f'A', f'*{p_A}', shape = 'diamond', fillcolor='green', style='filled')
+	dot.node(f'B', f'+{p_B}', shape = 'diamond', fillcolor = 'green', style = 'filled')
+	dot.edge(f'A', f'B')
+	outputs = len(output_nodes)
+	for o in range(outputs):
+		node = output_nodes[o]
+		dot.attr(rank='max')
+		dot.node(f'O_{o}', f'O_{o}', shape='square', fillcolor='lightblue', style='filled')
+		dot.edge(f'N_{node}', f'O_{o}')
+		dot.edge(f'O_{o}', 'A')
+
+	Path(f"../output/{run_name}/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
+	dot.render(f"../output/{run_name}/{func_name}/full_graphs/graph_{t}", view=False)
+
+def plot_active_nodes(ind_base, output_nodes, first_body_node, bank_string, biases, inputs, p_A, p_B, func_name, run_name, t, arity = 2):
+        outputs = len(output_nodes)
+        active_graph = gv.Digraph(strict = True)
+        active_nodes = []
+        size = 0
+        def plot_body_node(n_node):
+                node = ind_base[n_node-first_body_node]
+                op = bank_string[node[-1]]
+                active_graph.node(f'N_{n_node}', op)
+                for a in range(arity):
+                        prev_node = node[a]
+                        if prev_node not in active_nodes:
+                                active_nodes.append(prev_node) #count active nodes
+                        if prev_node < inputs: #inputs
+                                active_graph.node(f'N_{prev_node}', f'I_{prev_node}', shape='square', rank='same', fillcolor = 'orange', style='filled')
+                                active_graph.edge(f'N_{prev_node}', f'N_{n_node}')
+                        elif prev_node >= inputs and prev_node < first_body_node: #bias:
+                                active_graph.node(f'N_{prev_node}', f"{biases[prev_node-inputs]}", shape='square', rank='same', fillcolor='yellow', style='filled')
+                                active_graph.edge(f'N_{prev_node}', f'N_{n_node}')
+                        else:
+                                plot_body_node(prev_node)
+                                active_graph.edge(f'N_{prev_node}', f'N_{n_node}')
+        active_graph.node(f'A', f'*{np.round(p_A, 5)}', shape = 'diamond', fillcolor='green', style='filled')
+        active_graph.node(f'B', f'+{np.round(p_B, 5)}', shape = 'diamond', fillcolor = 'green', style = 'filled')
+        active_graph.edge(f'A', f'B')   
+        for o in range(outputs):
+                node = output_nodes[o]
+                active_graph.node(f'O_{o}', f'O_{o}', shape='square', fillcolor='lightblue', style='filled')
+                if node < inputs: #inputs
+                        active_graph.node(f'N_{node}', f'I_{node}', shape='square', rank='same', fillcolor = 'orange', style='filled')
+                        active_graph.edge(f'N_{node}', f'O_{o}')
+                        if node not in active_nodes:
+                                active_nodes.append(node)
+                elif node >= inputs and node < first_body_node: #bias:
+                        active_graph.node(f'N_{node}', f"{biases[node-inputs]}", shape='square', rank='same', fillcolor='yellow', style='filled')
+                        active_graph.edge(f'N_{node}', f'O_{o}')
+                        if node not in active_nodes:
+                                active_nodes.append(node)
+                else:
+                        plot_body_node(node)
+                        active_graph.edge(f'N_{node}', f'O_{o}')
+                        if node not in active_nodes:
+                                active_nodes.append(node)
+                active_graph.edge(f'O_{o}', 'A')
+        Path(f"../output/{run_name}/{func_name}/active_nodes/").mkdir(parents=True, exist_ok=True)
+        active_graph.render(f"../output/{run_name}/{func_name}/active_nodes/active_{t}", view=False)
+        active_node_num = len(active_nodes)+outputs #all outputs are active by definition
+        return active_node_num
