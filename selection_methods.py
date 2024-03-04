@@ -30,14 +30,7 @@ def lexicase_selection(population, testcase_scores):
         
     random.shuffle(survivors)
     return survivors[0]
-            
-pop = ['a', 'b', 'c', 'd']
-tests = \
-    [
-        [4, 2, 1, 1],
-        [2, 2, 2, 2],
-        [1, 2, 2, 3],
-        [1, 2, 4, 1]
-    ]
 
-print(lexicase_selection(pop, tests))
+
+def double_tournament_selection(population, fitness_scores, n1, n2):
+    pass
