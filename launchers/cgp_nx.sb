@@ -2,13 +2,13 @@
 
 #Mark Kocherovsky
 
-#SBATCH --time=04:00:00
+#SBATCH --time=02:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 
-#SBATCH --job-name=kocherov_cgp_40_run
+#SBATCH --job-name=kocherov_cgp_nx_run
 #SBATCH -o "logs\/%x-%j.txt"
-#SBATCH --mem=2G
+#SBATCH --mem=8G
 
 module purge
 cd $HOME
@@ -23,8 +23,10 @@ p=$4
 c=$5
 f=$6
 ft=$7
+pm=$8
+pc=$9
 cd /mnt/home/kocherov/Documents/cgp/src/
 echo "trial $t"
-python3 -u cgp_40.py $t $g $n $p $c $f $ft
+python3 -u cgp_nx.py $t $g $n $p $c $f $ft $pm $pc
 conda deactivate
 
