@@ -5,17 +5,21 @@
 
 g=10000 #generations
 r=64 #rules
-d=4 #destinations
+d=0 #destinations
 p=40 #parents
 c=40 #children
 ft=1 #fitness function
 pm=0.025 #mutation probability
 px=0.5 #xover probability
-for f in {1..6}
+rn='_0_regs_var'
+echo $rn
+fl=2 #Fixed length - 1 = True
+echo $fl
+for f in {2..2}
 do
 	for t in {1..50}
 	do
-		sbatch lgp_1x.sb $t $g $r $d $p $c $f $ft $pm $px
+		sbatch lgp_1x.sb $t $g $r $d $p $c $f $ft $pm $px $rn $fl
 		#python3 ../src/lgp.py $t $g $r $d $p $c $f &
 	done
 done

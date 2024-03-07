@@ -10,7 +10,7 @@ def xover_1x(p1, p2): #one point crossover
 	s = ind1.shape #preserve real shape
 	ind1 = ind1.flatten()
 	ind2 = ind2.flatten()
-	i = random.randint(0, ind1.shape[0])
+	i = random.randint(1, ind1.shape[0]-1)
 	front_1 = ind1[:i].copy()
 	back_1 = ind1[i:].copy()
 	front_2 = ind2[:i].copy()
@@ -37,7 +37,7 @@ def xover_nodex(p1, p2): #one point crossover
 	out1 = p1[1]
 	out2 = p2[1]
 	s = ind1.shape #preserve real shape
-	i = random.randint(0, ind1.shape[0])
+	i = random.randint(1, ind1.shape[0]-1)
 	front_1 = ind1[:i, :].copy()
 	back_1 = ind1[i:, :].copy()
 	front_2 = ind2[:i, :].copy()
@@ -68,7 +68,7 @@ def xover_2x(p1, p2): #two point crossover
 	s = ind1.shape #preserve real shape
 	ind1 = ind1.flatten()
 	ind2 = ind2.flatten()
-	i = random.randint(0, ind1.shape[0]-1)
+	i = random.randint(1, ind1.shape[0]-1)
 	j = random.randint(i, ind1.shape[0]-1)
 	front_1 = ind1[:i].copy()
 	mid_1 = ind1[i:j].copy()
