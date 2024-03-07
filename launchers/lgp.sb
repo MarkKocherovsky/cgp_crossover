@@ -25,7 +25,8 @@ c=$6
 f=$7
 ft=$8
 pm=$9
-px=$10
+shift
+px=$9
 cd /mnt/home/kocherov/Documents/cgp/launchers/
 python3 -u ../src/lgp.py $t $g $r $d $p $c $f $ft $pm $px
 conda deactivate

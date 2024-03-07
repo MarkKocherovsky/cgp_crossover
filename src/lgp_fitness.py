@@ -1,5 +1,6 @@
 import numpy as np
 from numpy import random
+from copy import copy, deepcopy
 def rmse(preds, reals):
 	return np.sqrt(np.mean((preds-reals)**2)) #copied from stack overflow
 from scipy.stats import pearsonr
@@ -53,7 +54,7 @@ class Fitness:
 				destination = operation[0]
 				operator = self.bank[operation[1]]
 				sources = operation[2:]
-				registers[destination] = operator(registers[sources[0]], registers[sources[1]])
+				registers[destination] = operator(copy(registers[sources[0]]), copy(registers[sources[1]]))
 			preds[i] = registers[0]
 		#print(train_y
 		(a,b) = align(preds, self.target)
