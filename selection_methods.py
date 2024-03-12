@@ -19,7 +19,7 @@ def tournament_elitism(pop, f_list, max_p, n_con=4):
         new_p.append(pop[w_id])
     return new_p
 
-# Population is a list of solutions.
+
 # Fitness_scores is a list of scores where fitness[i] corresponds to pop[i].
 def elitism_selection(population, fitness_scores, num_parents):
     combined = list(zip(fitness_scores, population))
@@ -28,10 +28,9 @@ def elitism_selection(population, fitness_scores, num_parents):
     return parents[:num_parents]
 
 
-# Population is a list of solutions.
 # Testcase_scores is a 2-layered list of scores where test[i][j] corresponds
 # to the score of pop[j] on test[i].
-def lexicase_selection(population, testcase_scores):
+def lexicase_selection(population, testcase_scores, epsilon=0):
     # Assemble test cases in random order
     testing_order = list(range(len(testcase_scores)))
     random.shuffle(testing_order)
@@ -42,7 +41,7 @@ def lexicase_selection(population, testcase_scores):
     for i in testing_order:
         # Find ids of best individuals for the test case
         winner_ids = list(np.flatnonzero(
-            survivor_scores[i] == np.max(survivor_scores[i])))
+            survivor_scores[i] == np.max(survivor_scores[i]) - epsilon))
         loser_ids = list(range(len(survivors))) - winner_ids
 
         # Assemble remaining individuals and scores based on winning ids
@@ -75,11 +74,39 @@ def double_tournament_selection(population, scores1, scores2, n1, n2, num_parent
 def roulette_wheel_selection(population, fitness_scores):
     parents = []
     total_fitness = sum(fitness_scores)
-    for i in range(len(population)):
+    for n in range(len(population)):
         spin = random.random_sample() * total_fitness
         points = 0
-        for j in range(len(population)):
-            points += fitness_scores[j]
+        for i in range(len(population)):
+            points += fitness_scores[i]
             if points >= spin:
-                parents.append(population[j])
+                parents.append(population[i])
                 break
+
+
+# 1 <= Pressure <= 2
+def linear_ranked_selection(population, fitness_scores, pressure = 1.5):
+    # Sort by rank in ascending order
+    ranked_pop = list(zip(population, fitness_scores))
+    ranked_pop, _ = zip(*sorted(ranked_pop, key= lambda p: p[1]))
+
+    # Generate selection probabilities
+    ranking_scores = []
+    N = len(population)
+    for i in range(len(population)):
+        prob = (1/N) * (pressure - (2*pressure - 2) * (i / (N-1)))
+        ranking_scores.append(prob)
+
+    # Selection
+    parents = []
+    for n in range(len(population)):
+        spin = random.random_sample() # Total probability is 1
+        points = 0
+        for i in range(len(population)):
+            points += ranking_scores[i]
+            if points >= spin:
+                parents.append(ranked_pop[i])
+                break
+    return parents    
+
+print(linear_ranked_selection(['hello', 'there', 'buddy'], [3, 2, 5]))
