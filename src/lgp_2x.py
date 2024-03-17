@@ -168,7 +168,7 @@ preds = fitness_evaluator.predict(best_pop, p_A, p_B, train_x)
 print(preds)
 
 run_name = 'lgp_2x'
-print(f"../output/{run_name}{func_name}/log/output_{t}") 
+print(f"../output/{run_name}/{func_name}/log/output_{t}") 
 Path(f"../output/{run_name}/{func_name}/log/").mkdir(parents=True, exist_ok=True)
 import pickle
 from cgp_plots import *

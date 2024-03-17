@@ -2,7 +2,7 @@ import numpy as np
 from numpy import random
 
 class lgpParentGenerator:
-	def __init__(self, max_p, max_r, max_d, bank, inputs = 1, n_bias = 10, arity = 2):
+	def __init__(self, max_p, max_r, max_d, bank, inputs = 1, n_bias = 10, arity = 2, fixed_length = False):
 		self.max_p = max_p #number of parents
 		self.max_r = max_r #number of instructions
 		self.inputs = inputs #number of inputs
@@ -10,6 +10,7 @@ class lgpParentGenerator:
 		self.max_d = max_d #number of destinations
 		self.arity = arity #number of sources per instructions
 		self.bank = bank #operators
+		self.fixed_length = fixed_length
 		self.destinations, self.sources = self.get_registers()
 
 	def generate_instruction(self):
@@ -28,7 +29,10 @@ class lgpParentGenerator:
 
 	def generate_ind(self):
 		#instruction_count = 5
-		instruction_count = random.randint(2, self.max_r)
+		if self.fixed_length:
+			instruction_count = self.max_r
+		else:
+			instruction_count = random.randint(2, self.max_r)
 		#print(instruction_count)
 		instructions = np.zeros((instruction_count, 2+self.arity))
 		for i in range(instruction_count):

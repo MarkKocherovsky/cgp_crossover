@@ -17,11 +17,17 @@ from lgp_select import *
 from scipy.signal import savgol_filter
 warnings.filterwarnings('ignore')
 
-
+print(argv)
 t = int(argv[1]) #trials
+print(f"Trial {t}")
 max_g = int(argv[2]) #generations
+print(f'Generations {max_g}')
 max_r = int(argv[3]) #rules
+print(f'# of instructions {max_r}')
+fixed_length = True if int(argv[12]) == 1 else False
+print(f'Fixed Length? {fixed_length}')
 max_d = int(argv[4]) #destinations (other than output)
+print(f'Calculation Registerts {max_d}')
 if max_r < 1:
 	print("Number of rules too small, setting to 10")
 	max_r = 10
@@ -40,6 +46,13 @@ try:
 	p_xov = float(argv[10])
 except:
 	p_xov = 0.5
+
+try:
+	run_name = f'lgp_1x{str(argv[11])}'
+	print(run_name)
+except:
+	run_name = 'lgp_1x'
+
 
 func_bank = Collection()
 func = func_bank.func_list[int(argv[7])]
@@ -60,7 +73,8 @@ print(fit_name)
 output_index = 0
 input_indices = np.arange(1, n_inp+1, 1)
 #print(input_indices)
-with open(f"../output/lgp_1x/{func_name}/best_program/best_{t}.txt", 'w') as f:
+Path(f"../output/{run_name}/{func_name}/best_program").mkdir(parents=True, exist_ok=True)
+with open(f"../output/{run_name}/{func_name}/best_program/best_{t}.txt", 'w') as f:
 	f.write(f"Problem {func_name}\n")
 	f.write(f'Trial {t}\n')
 	f.write(f'----------\n\n')
@@ -77,7 +91,7 @@ fit_track = []
 alignment = np.zeros((max_p+max_c, 2))
 alignment[:, 0] = 1.0
 
-parent_generator = lgpParentGenerator(max_p, max_r, max_d, bank, n_inp, n_bias, arity)
+parent_generator = lgpParentGenerator(max_p, max_r, max_d, bank, n_inp, n_bias, arity, fixed_length)
 parents = parent_generator()
 
 fitnesses = np.zeros((max_p+max_c),)
@@ -97,7 +111,7 @@ best_i = np.argmin(fitnesses[:max_p])
 p_size = [len(effProg(4, parents[best_i]))/len(parents[best_i])]
 
 for g in range(1, max_g+1):
-	children, retention = xover(deepcopy(parents), max_r, p_xov, 'OnePoint')
+	children, retention = xover(deepcopy(parents), max_r, p_xov, 'OnePoint', fixed_length = fixed_length)
 	children = mutate(deepcopy(children), max_c, max_r, max_d, bank, inputs = 1, n_bias = 10, arity = 2)
 	pop = parents+children
 	fitness_evaluator = Fitness(train_x, bias, train_y, pop, func, bank, n_inp, max_d, fit, arity)
@@ -167,14 +181,13 @@ print('preds')
 preds = fitness_evaluator.predict(best_pop, p_A, p_B, train_x)
 print(preds)
 
-print(f"../output/lgp_1x/{func_name}/log/output_{t}") 
-Path(f"../output/lgp_1x/{func_name}/log/").mkdir(parents=True, exist_ok=True)
+print(f"../output/{run_name}/{func_name}/log/output_{t}") 
+Path(f"../output/{run_name}/{func_name}/log/").mkdir(parents=True, exist_ok=True)
 import pickle
 from cgp_plots import *
 
 first_body_node = n_inp+n_bias+1
 print(first_body_node)
-run_name = 'lgp_1x'
 win_length = 100
 #Write Plots
 from scipy.signal import savgol_filter
@@ -207,6 +220,6 @@ with open(f"../output/{run_name}/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump([bin_centers, hist_gens, avg_hist_list], f)
 	pickle.dump(p_size, f)
 
-dot = draw_graph_thicc(p, p_A, p_B)
+dot = draw_graph_thicc(p, p_A, p_B, max_d = max_d)
 Path(f"../output/{run_name}/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
 dot.render(f"../output/{run_name}/{func_name}/full_graphs/graph_{t}", view=False)

@@ -11,7 +11,7 @@ c=40 #children
 ft=1 #fitness function
 pm=0.025 #mutation probability
 px=0.5 #xover probability
-for f in {1..6}
+for f in {0..0}
 do
 	for t in {1..50}
 	do

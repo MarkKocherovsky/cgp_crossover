@@ -28,7 +28,7 @@ def uniform_xover(parents, max_r, p_xov):
 			retention.append(i)
 			children.append(c)
 	return children, np.array(retention).astype(np.int32)
-def onepoint_xover(parents, max_r, p_xov): # 1 point crossover
+def onepoint_xover(parents, max_r, p_xov, fixed_length): # 1 point crossover
 	children = []
 	retention = []
 	for i in range(0, len(parents), 2):
@@ -40,7 +40,24 @@ def onepoint_xover(parents, max_r, p_xov): # 1 point crossover
 			continue
 		retention.append(i)
 		inst_counts = [len(p1), len(p2)]
-		s = [random.randint(0, p1.shape[0]), random.randint(0, p2.shape[0])]
+		if not fixed_length: #Normal LGP
+			try:
+				if p1.shape[0] > 2 and p2.shape[0] > 2:
+					s = [random.randint(1, p1.shape[0]-1), random.randint(1, p2.shape[0]-1)]
+				elif p1.shape[0] == 2:
+					s = [1, random.randint(1, p2.shape[0]-1)]
+				elif p2.shape[0] == 2:
+					s = [random.randint(1, p1.shape[0]-1), 1]
+				else:
+					s = [0, 0]
+
+			except:
+				s = [0, 0]
+				print(p1, p2)
+		else:
+			s_temp = random.randint(1, max_r)
+			s = [s_temp, s_temp]
+
 
 		p1_list_front = p1[:s[0]].copy()
 		p1_list_back = p1[s[0]:].copy()
@@ -80,7 +97,15 @@ def flatten_xover(parents, max_r, p_xov, bank_length): # 1 point flattened cross
 		retention.append(i)
 		inst_counts = [len(p1), len(p2)]
 		try:
-			s = [random.randint(1, p1.shape[0]-1), random.randint(1, p2.shape[0]-1)]
+			if p1.shape[0] > 2 and p2.shape[0] > 2:
+				s = [random.randint(1, p1.shape[0]-1), random.randint(1, p2.shape[0]-1)]
+			elif p1.shape[0] == 2:
+				s = [1, random.randint(1, p2.shape[0]-1)]
+			elif p2.shape[0] == 2:
+				s = [random.randint(1, p1.shape[0]-1), 1]
+			else:
+				s = [0, 0]
+
 		except:
 			s = [0, 0]
 			print(p1, p2)
@@ -141,17 +166,21 @@ def twopoint_xover(parents, max_r, p_xov): # 2 point crossover
 	children = []
 	retention = []
 	for i in range(0, len(parents), 2):
-		if random.random() > p_xov:
+		if random.random() < p_xov:
 			c1 = parents[i].copy()
 			c2 = parents[i+1].copy()
 		else:	
 			retention.append(i)
 			p1 = parents[i].copy()
 			p2 = parents[i+1].copy()
-			
-			cp1 = np.sort(random.randint(0, p1.shape[0], (2,))) #crossover points p1
-			cp2 = np.sort(random.randint(0, p2.shape[0], (2,))) #crossover points p2
-
+			try:	
+				cp1 = np.sort(random.randint(1, p1.shape[0]-1, (2,))) #crossover points p1
+			except:
+				cp1 = (1, 1)
+			try:
+				cp2 = np.sort(random.randint(1, p2.shape[0]-1, (2,))) #crossover points p2
+			except:
+				cp2 = (1, 1)
 			p1_list_front = p1[:cp1[0]]
 			p1_list_mid = p1[cp1[0]:cp1[1]]
 			p1_list_end = p1[cp1[1]:]
@@ -175,11 +204,11 @@ def twopoint_xover(parents, max_r, p_xov): # 2 point crossover
 	return children, np.array(retention).astype(np.int32)
 
 
-def xover(parents, max_r, p_xov = 0.5, mode = 'uniform', bank_length = 4):
+def xover(parents, max_r, p_xov = 0.5, mode = 'uniform', bank_length = 4, fixed_length = False):
 	if mode == 'uniform':
 		return uniform_xover(parents, max_r, p_xov)
 	elif mode == 'OnePoint':
-		return onepoint_xover(parents, max_r, p_xov)
+		return onepoint_xover(parents, max_r, p_xov, fixed_length)
 	elif mode == 'TwoPoint':
 		return twopoint_xover(parents, max_r, p_xov)
 	elif mode == 'Flatten':

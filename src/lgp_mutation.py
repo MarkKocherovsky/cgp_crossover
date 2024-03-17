@@ -8,7 +8,7 @@ def macromicro_mutation(individuals, max_c, max_r, max_d, bank, inputs = 1, n_bi
 		for p in range(0, len(individuals)): #go through each parent
 			parent = individuals[p].copy()
 			if random.random() <= p_mut:
-				if len(parent < 2):
+				if len(parent) < 2:
 					mutation = random.randint(1, 3)
 				else:
 					mutation = random.randint(0, 3)
@@ -22,6 +22,11 @@ def macromicro_mutation(individuals, max_c, max_r, max_d, bank, inputs = 1, n_bi
 						part = random.randint(0, len(parent[inst]))
 					except:
 						print(parent)
+						inst = 0
+						try:
+							part = random.randint(0, len(parent[0]))
+						except:
+							part = 0
 					possible_destinations, possible_sources = newInstructionGenerator.get_registers()
 					if part == 0: #destination
 						parent[inst, part] = random.choice(possible_destinations) #destination index
