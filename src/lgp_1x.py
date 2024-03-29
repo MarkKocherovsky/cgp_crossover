@@ -15,6 +15,7 @@ from lgp_xover import *
 from lgp_mutation import *
 from lgp_select import *
 from scipy.signal import savgol_filter
+import selection_methods
 warnings.filterwarnings('ignore')
 
 print(argv)
@@ -84,7 +85,8 @@ bank_string = ("+", "-", "*", "/") #, "cos(x)","cos(y)", "sin(x)", "sin(y)", "^"
 
 mutate = macromicro_mutation
 
-select = lgp_tournament_elitism_selection
+# select = lgp_tournament_elitism_selection
+select = selection_methods.truncation_elitism_selection;
 n_tour = 4
 print(f"#####Trial {t}#####")
 fit_track = []

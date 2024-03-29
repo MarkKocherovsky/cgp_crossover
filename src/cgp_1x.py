@@ -18,6 +18,7 @@ from cgp_parents import *
 from copy import deepcopy
 from scipy.signal import savgol_filter
 from sys import argv
+import selection_methods;
 warnings.filterwarnings('ignore')
 print("started")
 t = int(argv[1]) #trial
@@ -72,6 +73,7 @@ print(train_x_bias)
 #instantiate parents
 #test = run_output(ind_base, output_nodes, np.array([10.0]))
 
+# select = selection_methods.linear_ranked_selection;
 mutate = basic_mutation
 select = tournament_elitism
 parents = generate_parents(max_p, max_n, bank, first_body_node = 11, outputs = 1, arity = 2)

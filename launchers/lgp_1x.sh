@@ -15,7 +15,7 @@ rn='_0_regs_var'
 echo $rn
 fl=2 #Fixed length - 1 = True
 echo $fl
-for f in {2..2}
+for f in {2..2} #lgp_1x.py 1 100 64 0 40 40 2 1 0.025 0.5 '_0_regs_var' 2
 do
 	for t in {1..50}
 	do
