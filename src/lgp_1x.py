@@ -85,8 +85,8 @@ bank_string = ("+", "-", "*", "/") #, "cos(x)","cos(y)", "sin(x)", "sin(y)", "^"
 
 mutate = macromicro_mutation
 
-# select = lgp_tournament_elitism_selection
-select = selection_methods.truncation_elitism_selection;
+select = lgp_tournament_elitism_selection
+# select = selection_methods.truncation_elitism_selection;
 n_tour = 4
 print(f"#####Trial {t}#####")
 fit_track = []

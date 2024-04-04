@@ -74,8 +74,9 @@ print(train_x_bias)
 #test = run_output(ind_base, output_nodes, np.array([10.0]))
 
 # select = selection_methods.linear_ranked_selection;
+select = selection_methods.cgp_double_tournament_selection;
 mutate = basic_mutation
-select = tournament_elitism
+# select = tournament_elitism
 parents = generate_parents(max_p, max_n, bank, first_body_node = 11, outputs = 1, arity = 2)
 
 fitness_objects = [Fitness() for i in range(0, max_p+max_c)]

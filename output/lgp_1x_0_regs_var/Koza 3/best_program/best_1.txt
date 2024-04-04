@@ -5,4 +5,4 @@ Trial 1
 
 Effective Instructions
 
-[[0 2 8 6]]
+[[0 3 1 3]]

@@ -16,12 +16,12 @@ digraph {
 	Op_1 [label="-"]
 	Op_2 [label="*"]
 	Op_3 [label="/"]
-	Op_2 -> N_0 [penwidth=1.0]
-	N_6 -> Op_2 [penwidth=1.0]
-	N_8 -> Op_2 [penwidth=1.0]
+	Op_3 -> N_0 [penwidth=1.0]
+	N_1 -> Op_3 [penwidth=1.0]
+	N_3 -> Op_3 [penwidth=1.0]
 	rank=max
-	A [label="*0.0021" fillcolor=green shape=diamond style=filled]
-	B [label="+(0.05034)" fillcolor=green shape=diamond style=filled]
+	A [label="*-0.01657" fillcolor=green shape=diamond style=filled]
+	B [label="+(0.06099)" fillcolor=green shape=diamond style=filled]
 	A -> B
 	N_0 -> A
 }
