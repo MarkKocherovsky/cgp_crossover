@@ -18,6 +18,7 @@ from cgp_parents import *
 from copy import deepcopy
 from scipy.signal import savgol_filter
 from sys import argv
+import selection_methods
 warnings.filterwarnings('ignore')
 print("started")
 t = int(argv[1]) #trial
@@ -68,7 +69,7 @@ train_x_bias[:, 1:] = biases
 print(train_x_bias)
 
 mutate = basic_mutation
-select = tournament_elitism
+select = selection_methods.lexicase # IMPORTANT
 parents = generate_parents(max_p, max_n, bank, first_body_node = 11, outputs = 1, arity = 2)
 
 fitness_objects = [Fitness() for i in range(0, max_p+max_c)]
@@ -96,13 +97,16 @@ for g in range(1, max_g+1):
 	children = mutate(deepcopy(children))
 	pop = parents+children
 	fit_temp = np.array([fitness_objects[i](train_x_bias, train_y, ind) for i, ind in zip(list(range(0, max_p+max_c)), pop)])
+	
+	# IMPORTANT LEXICASE
+	testcase_scores = np.array([fitness_objects[i].testcases(train_x_bias, train_y, ind) for i, ind in zip(list(range(0, max_p+max_c)), pop)])
 
 	fitnesses = fit_temp[:, 0].copy().flatten()
 	alignment = fit_temp[:, 1].copy()
 	alignment = fit_temp[:, 2].copy()
 	if any(np.isnan(fitnesses)): #Replace nans with positive infinity to screen them out
 		nans = np.isnan(fitnesses)
-		fitnesses[nans] = np.PINF 
+		fitnesses[nans] = np.PINF
 
 	change_list = []
 	full_change_list = []
@@ -135,7 +139,8 @@ for g in range(1, max_g+1):
 		print(f"Gen {g} Best Fitness: {best_fit}")
 	fit_track.append(best_fit)
 	p_size.append(cgp_active_nodes(pop[best_i][0], pop[best_i][1], opt = 2))
-	parents = select(pop, fitnesses, max_p)
+	# parents = select(pop, fitnesses, max_p)
+	parents = select(pop, testcase_scores, max_p) #IMPORTANT LEXICASE
 
 pop = parents+children
 fit_temp =  np.array([fitness_objects[i](train_x_bias, train_y, ind) for i, ind in zip(range(0, max_p+max_c), pop)])

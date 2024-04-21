@@ -6,8 +6,8 @@ from effProg import effProg
 
 
 # Fitness_scores is a list of scores where fitness[i] corresponds to pop[i].
-# Takes the {proportion} of the population that is most fit and duplicates it reach {max_parents}
-def truncation_elitism_selection(population, fitness_scores, max_parents, proportion=0.33, minimize=True):
+# Takes the {proportion} of the population that is most fit and duplicates it to reach {max_parents}
+def truncation_elitism(population, fitness_scores, max_parents, proportion=0.4, minimize=True):
     if (minimize):
         fitness_scores = np.array([i * -1 for i in fitness_scores])
 
@@ -22,36 +22,13 @@ def truncation_elitism_selection(population, fitness_scores, max_parents, propor
     return parents
 
 
-# Testcase_scores is a 2-layered list of scores where test[i][j] corresponds
-# to the score of pop[j] on test[i].
-def lexicase_selection(population, testcase_scores, epsilon=0):
-    # Assemble test cases in random order
-    testing_order = list(range(len(testcase_scores)))
-    random.shuffle(testing_order)
-
-    # Selection
-    survivors = list(population)
-    survivor_scores = np.array(testcase_scores)
-    for i in testing_order:
-        # Find ids of best individuals for the test case
-        winner_ids = list(np.flatnonzero(
-            survivor_scores[i] == np.max(survivor_scores[i]) - epsilon))
-        loser_ids = list(range(len(survivors))) - winner_ids
-
-        # Assemble remaining individuals and scores based on winning ids
-        survivors = [survivors[j] for j in winner_ids]
-        survivor_scores = np.delete(survivor_scores, loser_ids, 1)
-        if (len(survivors) == 1):
-            return survivors[0]
-    return random.choice(survivors)
-
-
 # The best two out of the three contestants are chosen in layer two
-def cgp_double_tournament_selection(population, fitness_scores, max_parents, t1_size=4, t2_size=3, minimize=True):
+def cgp_double_tournament(population, fitness_scores, max_parents, t1_size=4, t2_size=3, minimize=True):
     size_scores = np.zeros(len(population))
     for i in range(len(population)):
-        size_scores[i] = cgp_active_nodes(population[i][0], population[i][1], opt = 0)
-    
+        size_scores[i] = cgp_active_nodes(
+            population[i][0], population[i][1], opt=0)
+
     if (minimize):
         fitness_scores = np.array([i * -1 for i in fitness_scores])
         size_scores = np.array([i * -1 for i in size_scores])
@@ -77,11 +54,11 @@ def cgp_double_tournament_selection(population, fitness_scores, max_parents, t1_
     return parents
 
 
-def lgp_double_tournament_selection(population, fitness_scores, max_parents, t1_size=4, t2_size=3, minimize=True):
+def lgp_double_tournament(population, fitness_scores, max_parents, t1_size=4, t2_size=3, minimize=True):
     size_scores = np.zeros(len(population))
     for i in range(len(population)):
         size_scores[i] = len(effProg(4, population[i]))
-    
+
     if (minimize):
         fitness_scores = np.array([i * -1 for i in fitness_scores])
         size_scores = np.array([i * -1 for i in size_scores])
@@ -107,9 +84,9 @@ def lgp_double_tournament_selection(population, fitness_scores, max_parents, t1_
     return parents
 
 
-def roulette_wheel_selection(population, fitness_scores, max_parents, minimize=True):
+def roulette_wheel(population, fitness_scores, max_parents, minimize=True):
     if (minimize):
-        fitness_scores = np.array([i * -1 for i in fitness_scores])
+        fitness_scores = np.array([1/(i+1) for i in fitness_scores])
 
     parents = []
     total_fitness = sum(fitness_scores)
@@ -125,7 +102,7 @@ def roulette_wheel_selection(population, fitness_scores, max_parents, minimize=T
 
 
 # 1 <= Pressure <= 2
-def linear_ranked_selection(population, fitness_scores, max_parents, pressure=1.5, minimize=True):
+def linear_ranked(population, fitness_scores, max_parents, pressure=1.5, minimize=True):
     if (minimize):
         fitness_scores = np.array([i * -1 for i in fitness_scores])
 
@@ -151,3 +128,93 @@ def linear_ranked_selection(population, fitness_scores, max_parents, pressure=1.
                 parents.append(ranked_pop[i])
                 break
     return parents
+
+
+# Testcase_scores is a 2-layered list of scores where test[i][j] corresponds
+# to the score of pop[i] on test[j].
+def lexicase(population, testcase_scores, max_parents, epsilon=0.1, minimize=True):
+    if (minimize):
+        temp = np.zeros((len(testcase_scores), len(testcase_scores[0])))
+        for i in range(len(testcase_scores)):
+            for j in range(len(testcase_scores[0])):
+                temp[i][j] = testcase_scores[i][j] * -1
+        testcase_scores = temp
+
+    parents = []
+    testcase_scores = testcase_scores.T  # Convert to pop[j] on test[i]
+    print(testcase_scores)
+    while (len(parents) < max_parents):
+        # Assemble test cases in random order
+        testing_order = list(range(len(testcase_scores)))
+        random.shuffle(testing_order)
+
+        # Selection
+        survivors = list(population)
+        survivor_scores = np.array(testcase_scores)
+        pick_random = True
+        for i in testing_order:
+            # Find ids of best individuals for the test case
+            winner_ids = list(np.flatnonzero(
+                survivor_scores[i] >= np.max(survivor_scores[i]) - epsilon))
+            loser_ids = list(np.flatnonzero(
+                survivor_scores[i] < np.max(survivor_scores[i]) - epsilon))
+
+            # Assemble remaining individuals and scores based on winning ids
+            survivors = [survivors[j] for j in winner_ids]
+            survivor_scores = np.delete(survivor_scores, loser_ids, 1)
+            if (len(survivors) == 1):
+                parents.append(survivors[0])
+                pick_random = False
+                break
+
+        if (pick_random):
+            r = random.randint(len(survivors))
+            parents.append(survivors[r])
+    return parents
+
+#Selection
+#pop: population
+#f_list: fitnesses
+#n_con: number of contestants
+def cgp_tournament_elitism(pop, f_list, max_p, n_con = 8):
+	new_p = []
+	idx = np.array(range(0, len(pop)))
+	#keep best ind
+	best_f_i = np.argmin(f_list)
+	new_p.append(pop[best_f_i])
+	while len(new_p) < max_p:
+		c_id = random.choice(idx, (n_con,), replace = False) #get contestants id
+		f_c = f_list[c_id]
+		winner = np.argmin(f_c)
+		w_id = c_id[winner]
+		new_p.append(pop[w_id])
+	return new_p
+
+def fight(contestants, c_fitnesses):
+    winner = np.argmin(c_fitnesses)
+    return contestants[winner], winner
+
+def lgp_tournament_elitism(pop, fitnesses, max_p, n_tour = 8):
+	n_tour = int(len(pop)/10)
+	if n_tour <=1:
+		n_tour = 2
+	new_parents = []
+	idxs = []
+	#new_fitnesses = []
+	#print(fitnesses)
+	#print(np.argmin(fitnesses)
+	best_fit_id = np.argmin(fitnesses)
+	best_fit = np.argmin(fitnesses)
+	#print(pop[best_fit_id])
+	new_parents.append(pop[best_fit_id])
+	while len(new_parents) < max_p:
+		contestant_indices = random.choice(range(len(pop)), n_tour, replace = False)
+		#print(pop)
+		contestants = []
+		for i in contestant_indices:
+			contestants.append(pop[i])
+		c_fitnesses = fitnesses[contestant_indices]
+		candidate, winner = fight(contestants, c_fitnesses)
+		#if winner not in idxs:
+		new_parents.append(candidate)
+	return new_parents

@@ -17,9 +17,12 @@ fl=2 #Fixed length - 1 = True
 echo $fl
 for f in {2..2} #lgp_1x.py 1 10 64 0 40 40 2 1 0.025 0.5 '_0_regs_var' 2
 do
+	echo $f
 	for t in {1..50}
 	do
 		sbatch lgp_1x.sb $t $g $r $d $p $c $f $ft $pm $px $rn $fl
 		#python3 ../src/lgp.py $t $g $r $d $p $c $f &
 	done
 done
+
+echo lgp_1x finished

@@ -73,10 +73,8 @@ print(train_x_bias)
 #instantiate parents
 #test = run_output(ind_base, output_nodes, np.array([10.0]))
 
-# select = selection_methods.linear_ranked_selection;
-select = selection_methods.cgp_double_tournament_selection;
 mutate = basic_mutation
-# select = tournament_elitism
+select = selection_methods.lexicase # IMPORTANT
 parents = generate_parents(max_p, max_n, bank, first_body_node = 11, outputs = 1, arity = 2)
 
 fitness_objects = [Fitness() for i in range(0, max_p+max_c)]
@@ -113,7 +111,10 @@ for g in range(1, max_g+1):
 	alignment = fit_temp[:, 2].copy()
 	if any(np.isnan(fitnesses)): #Replace nans with positive infinity to screen them out
 		nans = np.isnan(fitnesses)
-		fitnesses[nans] = np.PINF 
+		fitnesses[nans] = np.PINF
+
+	# IMPORTANT LEXICASE
+	testcase_scores = np.array([fitness_objects[i].testcases(train_x_bias, train_y, ind) for i, ind in zip(list(range(0, max_p+max_c)), pop)])
 
 	change_list = []
 	full_change_list = []
@@ -158,7 +159,10 @@ for g in range(1, max_g+1):
 	#print(p_fit)
 	fit_track.append(best_fit)
 	p_size.append(cgp_active_nodes(pop[best_i][0], pop[best_i][1], opt = 2))
-	parents = select(pop, fitnesses, max_p)
+	# parents = select(pop, fitnesses, max_p)
+	parents = select(pop, testcase_scores, max_p) #IMPORTANT LEXICASE
+
+	
 	#print("Fitnesses at end of generation, should not have changed")
 	#print(np.round(fitnesses, 4))
 	#print('----')

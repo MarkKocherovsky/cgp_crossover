@@ -15,6 +15,7 @@ from lgp_xover import *
 from lgp_mutation import *
 from lgp_select import *
 from scipy.signal import savgol_filter
+import selection_methods
 warnings.filterwarnings('ignore')
 
 
@@ -57,9 +58,17 @@ print('Fitness Function')
 print(fit)
 print(fit_name)
 
+
+n_tour = 4
+print(f"#####Trial {t}#####")
+fit_track = []
+alignment = np.zeros((max_p+max_c, 2))
+alignment[:, 0] = 1.0
+
 output_index = 0
 input_indices = np.arange(1, n_inp+1, 1)
 #print(input_indices)
+Path(f"../output/lgp_2x/{func_name}/best_program").mkdir(parents=True, exist_ok=True)
 with open(f"../output/lgp_2x/{func_name}/best_program/best_{t}.txt", 'w') as f:
 	f.write(f"Problem {func_name}\n")
 	f.write(f'Trial {t}\n')
@@ -69,14 +78,7 @@ bank = get_functions()
 bank_string = ("+", "-", "*", "/") #, "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "avg")
 
 mutate = macromicro_mutation
-
-select = lgp_tournament_elitism_selection
-n_tour = 4
-print(f"#####Trial {t}#####")
-fit_track = []
-alignment = np.zeros((max_p+max_c, 2))
-alignment[:, 0] = 1.0
-
+select = selection_methods.lexicase # IMPORTANT
 parent_generator = lgpParentGenerator(max_p, max_r, max_d, bank, n_inp, n_bias, arity)
 parents = parent_generator()
 
@@ -106,6 +108,8 @@ for g in range(1, max_g+1):
 	if any(np.isnan(fitnesses)): #screen out nan values
 		nans = np.isnan(fitnesses)
 		fitnesses[nans] = np.PINF
+
+	testcase_scores = fitness_evaluator.get_testcases() # IMPORTANT LEXICASE
 	
 	change_list = []
 	full_change_list = []
@@ -139,7 +143,9 @@ for g in range(1, max_g+1):
 	best_fit = fitnesses[best_i]
 	fit_track.append(best_fit)
 	p_size.append(len(effProg(4, pop[best_i]))/len(pop[best_i]))
-	parents = select(pop, fitnesses, max_p, n_tour)
+	
+	# parents = select(pop, fitnesses, max_p, n_tour)
+	parents = select(pop, testcase_scores, max_p) # IMPORTANT LEXICASE
 
 	if g % 100 == 0:
 		print(f'Generation {g}: Best Fit {best_fit}')

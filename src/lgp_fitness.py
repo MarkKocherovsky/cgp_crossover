@@ -13,6 +13,12 @@ def corr(preds, reals):
 		r = 0
 	return (1-r**2)
 
+def lexicase(preds, golds):
+	test_cases = np.zeros(len(preds));
+	for i in range(len(preds)):
+		test_cases[i] = (preds[i]-golds[i])**2
+	return test_cases
+
 def align(preds, reals):
 	if not all(np.isfinite(preds)):
 		return 1.0, 0.0
@@ -101,6 +107,31 @@ class Fitness:
 					A.append(1.0)
 					B.append(0.0)
 		return np.array(fitnesses), np.array(A), np.array(B)
+	
+	def get_testcases(self, pop = None):
+		testcases = []
+		for ind in self.pop:
+			testcases.append(self.lexifitness(ind))
+		return np.array(testcases)
+
+	def lexifitness(self, individual):
+		preds = np.zeros((len(self.target),))
+		for i in range(len(self.data)):
+			registers = np.zeros((1+self.n_inp+self.n_bias+self.max_d,))
+			registers[1:self.n_inp+self.n_bias+1] = self.data_bias[i, :]
+			#registers[n_inp+1, n_bias+1] = bias
+			for j in range(len(individual)):
+				operation = individual[j].astype(int)
+				destination = operation[0]
+				operator = self.bank[operation[1]]
+				sources = operation[2:]
+				registers[destination] = operator(copy(registers[sources[0]]), copy(registers[sources[1]]))
+			preds[i] = registers[0]
+		#print(train_y
+		(a,b) = align(preds, self.target)
+		preds = preds*a+b
+		return lexicase(preds, self.target)
+
 
 
 class FitCollection():

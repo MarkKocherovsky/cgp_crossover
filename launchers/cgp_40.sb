@@ -23,7 +23,7 @@ p=$4
 c=$5
 f=$6
 ft=$7
-cd /mnt/home/kocherov/Documents/cgp/src/
+cd /mnt/home/smit3805/Documents/cgp/src/
 echo "trial $t"
 python3 -u cgp_40.py $t $g $n $p $c $f $ft
 conda deactivate

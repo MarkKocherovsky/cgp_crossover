@@ -24,7 +24,7 @@ p=$5
 c=$6
 f=$7
 
-cd /mnt/home/kocherov/Documents/cgp/launchers/
+cd /mnt/home/smit3805/Documents/cgp/launchers/
 python3 -u ../src/lgp_mut.py $t $g $r $d $p $c $f
 conda deactivate
 

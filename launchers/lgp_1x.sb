@@ -39,7 +39,7 @@ fl=$9
 echo $fl
 echo $rn
 echo "$rn"
-cd /mnt/home/kocherov/Documents/cgp/launchers/
+cd /mnt/home/smit3805/Documents/cgp/launchers/
 python3 -u ../src/lgp_1x.py $t $g $r $d $p $c $f $ft $pm $px $rn $fl
 conda deactivate
 

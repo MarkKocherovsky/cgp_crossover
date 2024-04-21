@@ -11,6 +11,12 @@ from numpy import random
 #fit_name  = fit_names[f]
 #print(fit_name)
 
+def lexicase(preds, golds):
+	test_cases = np.zeros(len(preds));
+	for i in range(len(preds)):
+		test_cases[i] = (preds[i]-golds[i])**2
+	return test_cases
+
 def rmse(preds, reals):
 	return np.sqrt(np.mean((preds-reals)**2)) #copied from stack overflow
 
@@ -21,6 +27,7 @@ def corr(preds, reals):
 	if np.isnan(r):
 		r = 0
 	return (1-r**2)
+
 def align(ind, out, preds, reals):
 	if not all(np.isfinite(preds)):
 		return 1.0, 0.0
@@ -48,6 +55,9 @@ class Fitness:
 		self.bank = bank
 		self.arity = arity
 		return self.fitness(data, target, opt)
+	
+	def testcases(self, data, target, individual):
+		return self.lexifitness(data, target, 0)
 
 	def run(self, cur_node, inp_nodes):
 		inp_size = inp_nodes.shape[0]
@@ -100,6 +110,34 @@ class Fitness:
 		if opt == 1:
 			return new_x, a, b
 		return self.fit(new_x, self.target), a, b
+	
+	def lexifitness(self, data, targ, opt = 0):
+		ind_base = self.individual[0]
+		output_nodes = self.individual[1]
+		data = np.array(data)
+		out_x = np.zeros(data.shape[0])
+		for x in range(data.shape[0]):
+			if len(data.shape) <= 1:
+				in_val = [data[x]]
+			else:
+				in_val = data[x, :]
+			with np.errstate(invalid='raise'):
+				try:
+					out_x[x] = self.run_output(in_val)
+				except (OverflowError, FloatingPointError):
+					out_x[x] = np.nan	
+				#except ValueError:
+				#	print('ValueError')
+				#	print(self.run_output(in_val))
+		with np.errstate(invalid='raise'):
+			try:
+				(a,b) = align(ind_base, output_nodes, out_x, targ)
+			except (OverflowError, FloatingPointError):
+				return np.nan, 1.0, 0.0
+		new_x = out_x*a+b
+		if opt == 1:
+			return new_x, a, b
+		return lexicase(new_x, self.target)	
 
 class FitCollection():
 	def __init__(self):

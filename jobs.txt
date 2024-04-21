@@ -1,0 +1,15 @@
+ranked		
+
+roulette	
+
+1-tourn     
+
+4-tourn
+
+8-tourn     
+
+0.1-lexicase	lgp1, lgp2, cgp1
+
+1-lexicase      lgp1, lgp2, cgp1, cgp2
+
+10-lexicase     lgp1, lgp2, cgp1, cgp2

@@ -25,7 +25,7 @@ f=$6
 ft=$7
 pm=$8
 pc=$9
-cd /mnt/home/kocherov/Documents/cgp/src/
+cd /mnt/home/smit3805/Documents/cgp/src/
 echo "trial $t"
 python3 -u cgp_nx.py $t $g $n $p $c $f $ft $pm $pc
 conda deactivate

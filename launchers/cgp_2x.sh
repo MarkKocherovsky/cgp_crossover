@@ -12,9 +12,12 @@ pm=0.025
 pc=0.5
 for f in {0..6}
 do
+	echo $f
 	for t in {1..50}
 	do
-		sbatch cgp_2x.sb $t $g $n $p $c $f $ft $pm $pc &
+		sbatch cgp_2x.sb $t $g $n $p $c $f $ft $pm $pc
 		#python3 ../src/cgp.py $t $g $n $c $f &
 	done
 done
+
+echo cgp_2x finished

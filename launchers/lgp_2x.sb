@@ -28,7 +28,7 @@ pm=$9
 shift
 pc=$9
 echo $pc
-cd /mnt/home/kocherov/Documents/cgp/launchers/
+cd /mnt/home/smit3805/Documents/cgp/launchers/
 python3 -u ../src/lgp_2x.py $t $g $r $d $p $c $f $ft $pm $pc
 conda deactivate
 

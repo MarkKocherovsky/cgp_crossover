@@ -11,11 +11,14 @@ c=40 #children
 ft=1
 pm=0.025
 pc=0.5
-for f in {0..6}
+for f in {0..6} #lgp_2x.py 1 10 64 4 40 40 0 1 0.025 0.5
 do
-	for t in {1..50}
+	echo $f
+	for t in {1..50} 
 	do
 		sbatch lgp_2x.sb $t $g $r $d $p $c $f $ft $pm $pc
 		#python3 ../src/lgp.py $t $g $r $d $p $c $f &
 	done
 done
+
+echo lgp_2x finished
