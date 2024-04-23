@@ -1,8 +1,0 @@
-Problem Koza 3
-Trial 1
-----------
-
-
-Effective Instructions
-
-[[0 3 1 3]]
