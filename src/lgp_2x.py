@@ -78,7 +78,7 @@ bank = get_functions()
 bank_string = ("+", "-", "*", "/") #, "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "avg")
 
 mutate = macromicro_mutation
-select = selection_methods.lexicase # IMPORTANT
+select = selection_methods.lgp_tournament_elitism # IMPORTANT
 parent_generator = lgpParentGenerator(max_p, max_r, max_d, bank, n_inp, n_bias, arity)
 parents = parent_generator()
 
@@ -109,7 +109,7 @@ for g in range(1, max_g+1):
 		nans = np.isnan(fitnesses)
 		fitnesses[nans] = np.PINF
 
-	testcase_scores = fitness_evaluator.get_testcases() # IMPORTANT LEXICASE
+	# testcase_scores = fitness_evaluator.get_testcases() # IMPORTANT LEXICASE
 	
 	change_list = []
 	full_change_list = []
@@ -144,8 +144,8 @@ for g in range(1, max_g+1):
 	fit_track.append(best_fit)
 	p_size.append(len(effProg(4, pop[best_i]))/len(pop[best_i]))
 	
-	# parents = select(pop, fitnesses, max_p, n_tour)
-	parents = select(pop, testcase_scores, max_p) # IMPORTANT LEXICASE
+	parents = select(pop, fitnesses, max_p, n_tour)
+	# parents = select(pop, testcase_scores, max_p) # IMPORTANT LEXICASE
 
 	if g % 100 == 0:
 		print(f'Generation {g}: Best Fit {best_fit}')

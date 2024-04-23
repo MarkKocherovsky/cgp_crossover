@@ -74,7 +74,7 @@ print(train_x_bias)
 #test = run_output(ind_base, output_nodes, np.array([10.0]))
 
 mutate = basic_mutation
-select = selection_methods.lexicase # IMPORTANT
+select = selection_methods.roulette_wheel # IMPORTANT
 parents = generate_parents(max_p, max_n, bank, first_body_node = 11, outputs = 1, arity = 2)
 
 fitness_objects = [Fitness() for i in range(0, max_p+max_c)]
@@ -114,7 +114,7 @@ for g in range(1, max_g+1):
 		fitnesses[nans] = np.PINF
 
 	# IMPORTANT LEXICASE
-	testcase_scores = np.array([fitness_objects[i].testcases(train_x_bias, train_y, ind) for i, ind in zip(list(range(0, max_p+max_c)), pop)])
+	# testcase_scores = np.array([fitness_objects[i].testcases(train_x_bias, train_y, ind) for i, ind in zip(list(range(0, max_p+max_c)), pop)])
 
 	change_list = []
 	full_change_list = []
@@ -159,8 +159,9 @@ for g in range(1, max_g+1):
 	#print(p_fit)
 	fit_track.append(best_fit)
 	p_size.append(cgp_active_nodes(pop[best_i][0], pop[best_i][1], opt = 2))
-	# parents = select(pop, fitnesses, max_p)
-	parents = select(pop, testcase_scores, max_p) #IMPORTANT LEXICASE
+	
+	parents = select(pop, fitnesses, max_p)
+	# parents = select(pop, testcase_scores, max_p) # IMPORTANT LEXICASE
 
 	
 	#print("Fitnesses at end of generation, should not have changed")
@@ -218,13 +219,13 @@ print(f'Active Nodes = {n}')
 print(f"../output/cgp_1x/{func_name}/log/output_{t}.pkl")
 with open(f"../output/cgp_1x/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump(biases, f)
-	pickle.dump(best_pop[0], f)
-	pickle.dump(best_pop[1], f)
-	pickle.dump(preds, f)
-	pickle.dump(best_fit, f)
-	pickle.dump(n, f)
+	pickle.dump(best_pop[0], f) # ind_base
+	pickle.dump(best_pop[1], f) # output_nodes
+	pickle.dump(preds, f)		# y predictions by best pop
+	pickle.dump(best_fit, f)	# best fitness
+	pickle.dump(n, f)			# active_nodes
 	pickle.dump(fit_track, f)
-	pickle.dump([avg_change_list], f)
+	pickle.dump([avg_change_list], f) 
 	pickle.dump([ret_avg_list], f)
 	pickle.dump(p_size, f)
 	pickle.dump([bin_centers, hist_gens, avg_hist_list], f)

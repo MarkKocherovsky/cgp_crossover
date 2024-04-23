@@ -72,7 +72,7 @@ print(fit)
 print(fit_name)
 
 mutate = macromicro_mutation
-select = selection_methods.lexicase # IMPORTANT
+select = selection_methods.lgp_tournament_elitism # IMPORTANT
 n_tour = 4
 print(f"#####Trial {t}#####")
 fit_track = []
@@ -123,7 +123,7 @@ for g in range(1, max_g+1):
 		nans = np.isnan(fitnesses)
 		fitnesses[nans] = np.PINF
 
-	testcase_scores = fitness_evaluator.get_testcases() # IMPORTANT LEXICASE		
+	# testcase_scores = fitness_evaluator.get_testcases() # IMPORTANT LEXICASE		
 	
 	change_list = []
 	full_change_list = []
@@ -158,8 +158,8 @@ for g in range(1, max_g+1):
 	fit_track.append(best_fit)
 	p_size.append(len(effProg(4, pop[best_i]))/len(pop[best_i]))
 	
-	# parents = select(pop, fitnesses, max_p)
-	parents = select(pop, testcase_scores, max_p) # IMPORTANT
+	parents = select(pop, fitnesses, max_p)
+	# parents = select(pop, testcase_scores, max_p) # IMPORTANT
 
 	if g % 100 == 0:
 		print(f'Generation {g}: Best Fit {best_fit}')

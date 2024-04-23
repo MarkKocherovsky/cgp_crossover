@@ -22,66 +22,66 @@ def truncation_elitism(population, fitness_scores, max_parents, proportion=0.4, 
     return parents
 
 
-# The best two out of the three contestants are chosen in layer two
-def cgp_double_tournament(population, fitness_scores, max_parents, t1_size=4, t2_size=3, minimize=True):
-    size_scores = np.zeros(len(population))
-    for i in range(len(population)):
-        size_scores[i] = cgp_active_nodes(
-            population[i][0], population[i][1], opt=0)
+# # The best two out of the three contestants are chosen in layer two
+# def cgp_double_tournament(population, fitness_scores, max_parents, t1_size=4, t2_size=3, minimize=True):
+#     size_scores = np.zeros(len(population))
+#     for i in range(len(population)):
+#         size_scores[i] = cgp_active_nodes(
+#             population[i][0], population[i][1], opt=0)
 
-    if (minimize):
-        fitness_scores = np.array([i * -1 for i in fitness_scores])
-        size_scores = np.array([i * -1 for i in size_scores])
+#     if (minimize):
+#         fitness_scores = np.array([i * -1 for i in fitness_scores])
+#         size_scores = np.array([i * -1 for i in size_scores])
 
-    parents = []
-    pop_ids = np.array(range(len(population)))
-    while len(parents) < max_parents:
-        # Layer 1
-        finalist_ids = []
-        for i in range(t2_size):
-            contestant_ids = random.choice(pop_ids, (t1_size,), replace=False)
-            temp = np.argmin(fitness_scores[contestant_ids])
-            winner_id = contestant_ids[temp]
-            finalist_ids.append(winner_id)
+#     parents = []
+#     pop_ids = np.array(range(len(population)))
+#     while len(parents) < max_parents:
+#         # Layer 1
+#         finalist_ids = []
+#         for i in range(t2_size):
+#             contestant_ids = random.choice(pop_ids, (t1_size,), replace=False)
+#             temp = np.argmin(fitness_scores[contestant_ids])
+#             winner_id = contestant_ids[temp]
+#             finalist_ids.append(winner_id)
 
-        # Layer 2
-        firstplace = np.argmin(size_scores[finalist_ids])
-        del finalist_ids[firstplace]
-        secondplace = np.argmin(size_scores[finalist_ids])
-        parents.append(population[firstplace])
-        if len(parents) < max_parents:
-            parents.append(population[secondplace])
-    return parents
+#         # Layer 2
+#         firstplace = np.argmin(size_scores[finalist_ids])
+#         del finalist_ids[firstplace]
+#         secondplace = np.argmin(size_scores[finalist_ids])
+#         parents.append(population[firstplace])
+#         if len(parents) < max_parents:
+#             parents.append(population[secondplace])
+#     return parents
 
 
-def lgp_double_tournament(population, fitness_scores, max_parents, t1_size=4, t2_size=3, minimize=True):
-    size_scores = np.zeros(len(population))
-    for i in range(len(population)):
-        size_scores[i] = len(effProg(4, population[i]))
+# def lgp_double_tournament(population, fitness_scores, max_parents, t1_size=4, t2_size=3, minimize=True):
+#     size_scores = np.zeros(len(population))
+#     for i in range(len(population)):
+#         size_scores[i] = len(effProg(4, population[i]))
 
-    if (minimize):
-        fitness_scores = np.array([i * -1 for i in fitness_scores])
-        size_scores = np.array([i * -1 for i in size_scores])
+#     if (minimize):
+#         fitness_scores = np.array([i * -1 for i in fitness_scores])
+#         size_scores = np.array([i * -1 for i in size_scores])
 
-    parents = []
-    pop_ids = np.array(range(len(population)))
-    while len(parents) < max_parents:
-        # Layer 1
-        finalist_ids = []
-        for i in range(t2_size):
-            contestant_ids = random.choice(pop_ids, (t1_size,), replace=False)
-            temp = np.argmin(fitness_scores[contestant_ids])
-            winner_id = contestant_ids[temp]
-            finalist_ids.append(winner_id)
+#     parents = []
+#     pop_ids = np.array(range(len(population)))
+#     while len(parents) < max_parents:
+#         # Layer 1
+#         finalist_ids = []
+#         for i in range(t2_size):
+#             contestant_ids = random.choice(pop_ids, (t1_size,), replace=False)
+#             temp = np.argmin(fitness_scores[contestant_ids])
+#             winner_id = contestant_ids[temp]
+#             finalist_ids.append(winner_id)
 
-        # Layer 2
-        firstplace = np.argmin(size_scores[finalist_ids])
-        del finalist_ids[firstplace]
-        secondplace = np.argmin(size_scores[finalist_ids])
-        parents.append(population[firstplace])
-        if len(parents) < max_parents:
-            parents.append(population[secondplace])
-    return parents
+#         # Layer 2
+#         firstplace = np.argmin(size_scores[finalist_ids])
+#         del finalist_ids[firstplace]
+#         secondplace = np.argmin(size_scores[finalist_ids])
+#         parents.append(population[firstplace])
+#         if len(parents) < max_parents:
+#             parents.append(population[secondplace])
+#     return parents
 
 
 def roulette_wheel(population, fitness_scores, max_parents, minimize=True):
@@ -176,7 +176,7 @@ def lexicase(population, testcase_scores, max_parents, epsilon=0.1, minimize=Tru
 #pop: population
 #f_list: fitnesses
 #n_con: number of contestants
-def cgp_tournament_elitism(pop, f_list, max_p, n_con = 8):
+def cgp_tournament_elitism(pop, f_list, max_p, n_con = 4):
 	new_p = []
 	idx = np.array(range(0, len(pop)))
 	#keep best ind
@@ -194,7 +194,7 @@ def fight(contestants, c_fitnesses):
     winner = np.argmin(c_fitnesses)
     return contestants[winner], winner
 
-def lgp_tournament_elitism(pop, fitnesses, max_p, n_tour = 8):
+def lgp_tournament_elitism(pop, fitnesses, max_p, n_tour = 4):
 	n_tour = int(len(pop)/10)
 	if n_tour <=1:
 		n_tour = 2

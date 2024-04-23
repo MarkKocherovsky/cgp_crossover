@@ -8,7 +8,7 @@ roulette
 
 8-tourn     
 
-0.1-lexicase	lgp1, lgp2, cgp1
+0.1-lexicase	lgp1
 
 1-lexicase      lgp1, lgp2, cgp1, cgp2
 
