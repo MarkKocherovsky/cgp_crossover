@@ -74,7 +74,7 @@ print(train_x_bias)
 #test = run_output(ind_base, output_nodes, np.array([10.0]))
 
 mutate = basic_mutation
-select = selection_methods.roulette_wheel # IMPORTANT
+select = selection_methods.linear_ranked # IMPORTANT
 parents = generate_parents(max_p, max_n, bank, first_body_node = 11, outputs = 1, arity = 2)
 
 fitness_objects = [Fitness() for i in range(0, max_p+max_c)]

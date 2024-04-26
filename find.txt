@@ -1,0 +1,1 @@
+find . \( -name active_nodes -o -name change_hists -o -name change_plot -o -name full_graphs -o -name plot -o -name proportion_plot -o -name retention -o -name scatter \) -exec rm -r {} \;

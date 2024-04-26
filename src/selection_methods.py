@@ -101,31 +101,26 @@ def roulette_wheel(population, fitness_scores, max_parents, minimize=True):
     return parents
 
 
-# 1 <= Pressure <= 2
-def linear_ranked(population, fitness_scores, max_parents, pressure=1.5, minimize=True):
+# Jebari, Khalid. (2013). Selection Methods for Genetic Algorithms. International Journal of Emerging Sciences. 3. 333-344. 
+def linear_ranked(population, fitness_scores, max_parents, minimize=True):
     if (minimize):
-        fitness_scores = np.array([i * -1 for i in fitness_scores])
+        fitness_scores = np.array([1/(i+1) for i in fitness_scores])
 
     # Sort by rank in ascending order
     ranked_pop = list(zip(population, fitness_scores))
     ranked_pop, _ = zip(*sorted(ranked_pop, key=lambda p: p[1]))
 
-    # Generate selection probabilities
-    ranking_scores = []
-    N = len(population)
-    for i in range(len(population)):
-        prob = (1/N) * (pressure - (2*pressure - 2) * (i / (N-1)))
-        ranking_scores.append(prob)
-
     # Selection
     parents = []
-    for n in range(max_parents):
-        spin = random.random_sample()  # Total probability is 1
+    max_rank = len(ranked_pop) + 1
+    v = 1 / (max_rank - 2.001)
+    for i in range(max_parents):
+        spin = random.random_sample() * v
         points = 0
-        for i in range(len(population)):
-            points += ranking_scores[i]
+        for j in range(1, max_rank):
+            points += j / (max_rank * (max_rank - 1))
             if points >= spin:
-                parents.append(ranked_pop[i])
+                parents.append(ranked_pop[j - 1])
                 break
     return parents
 
@@ -172,10 +167,7 @@ def lexicase(population, testcase_scores, max_parents, epsilon=0.1, minimize=Tru
             parents.append(survivors[r])
     return parents
 
-#Selection
-#pop: population
-#f_list: fitnesses
-#n_con: number of contestants
+
 def cgp_tournament_elitism(pop, f_list, max_p, n_con = 4):
 	new_p = []
 	idx = np.array(range(0, len(pop)))
