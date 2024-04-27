@@ -19,4 +19,4 @@ Running the various selection operators requires switching to the selection bran
 
 # Mutation
 
-Mutation code is contained in the mutation.rar file
+Switch to the mutation branch
