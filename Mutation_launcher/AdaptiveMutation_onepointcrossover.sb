@@ -1,0 +1,22 @@
+#!/bin/bash
+
+#SBATCH --time=3:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+
+#SBATCH --job-name=adaptive_one_run
+#SBATCH -o "logs\/%x-%j.txt"
+#SBATCH --mem=8G
+
+module purge
+cd $HOME
+module load Conda/3
+conda init bash
+conda activate cgp
+t=$1
+f=$2
+cd /mnt/home/kianinej/ondemand/data
+echo "trial $t"
+python3 -u AdaptiveMutation_onepointcrossover.py $t $f 
+conda deactivate
+
