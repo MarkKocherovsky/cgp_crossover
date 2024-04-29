@@ -503,7 +503,7 @@ lgp_1x_0regs_data = dataDict(get_logs_lgp(lgp_1x_0regs_path, f_name = regs_f_nam
 lgp_1x_0regv_data = dataDict(get_logs_lgp(lgp_1x_0regv_path, f_name = regs_f_name ))
 
 regs_method_names = ['CGP(1+4)', 'CGP-1x', 'LGP-1x\n4 Registers\nFixed Length', 'LGP-1x\n4 Registers', 'LGP-1x\n2 Registers\nFixed Length', 'LGP-1x\n2 Registers', 'LGP-1x\n0 Registers\nFixed Length', 'LGP-1x\n0 Registers']
-regs_color_order = ['blue', 'skyblue', 'lightseagreen', 'lightgreen', 'chartreuse', 'springgreen', 'mediumseagreen', 'limegreen']#, 'cadetblue', 'olive']
+regs_color_order = ['blue', 'skyblue', 'crimson', 'lightgreen', 'coral', 'saddlebrown', 'orange', 'olive']#, 'cadetblue', 'olive']
 
 fig, axs = plt.subplots(1, 2, figsize=(6.5, 5))
 fig.subplots_adjust(hspace=0)

@@ -29,7 +29,7 @@ class lgpParentGenerator:
 
 	def generate_ind(self):
 		#instruction_count = 5
-		if self.fixed_length:
+		if self.fixed_length or self.max_r <=2:
 			instruction_count = self.max_r
 		else:
 			instruction_count = random.randint(2, self.max_r)

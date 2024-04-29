@@ -55,9 +55,10 @@ class Fitness:
 		ind = self.individual[0]
 		for j in range(self.arity):
 			if cur_node[j] < inp_size:
+				#print(inp_nodes)
 				args.append(inp_nodes[cur_node[j]])
 			else:
-				args.append(self.run(ind[cur_node[j]-inp_nodes.shape[0]], inp_nodes))
+				args.append(self.run(ind[cur_node[j]-inp_size], inp_nodes))
 		function = self.bank[cur_node[-1]]
 		return function(args[0], args[1]) # so far 2d only
 				
