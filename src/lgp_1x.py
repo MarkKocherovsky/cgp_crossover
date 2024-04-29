@@ -24,7 +24,10 @@ max_g = int(argv[2]) #generations
 print(f'Generations {max_g}')
 max_r = int(argv[3]) #rules
 print(f'# of instructions {max_r}')
-fixed_length = True if int(argv[12]) == 1 else False
+try:
+	fixed_length = True if int(argv[12]) == 1 else False
+except:
+	fixed_length = False
 print(f'Fixed Length? {fixed_length}')
 max_d = int(argv[4]) #destinations (other than output)
 print(f'Calculation Registerts {max_d}')
