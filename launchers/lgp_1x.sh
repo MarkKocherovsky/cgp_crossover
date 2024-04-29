@@ -5,15 +5,15 @@
 
 g=10000 #generations
 r=64 #rules
-d=0 #destinations
+d=4 #destinations
 p=40 #parents
 c=40 #children
 ft=1 #fitness function
 pm=0.025 #mutation probability
 px=0.5 #xover probability
-rn='_0_regs_var'
+rn="_4_regs"
 echo $rn
-fl=2 #Fixed length - 1 = True
+fl=1 #Fixed length - 1 = True
 echo $fl
 for f in {2..2}
 do
