@@ -15,7 +15,6 @@ from cgp_fitness import *
 from cgp_operators import *
 from cgp_parents import *
 from cgp_impact import *
-from sharpness import *
 from sys import argv
 from math import isnan
 from copy import deepcopy
@@ -67,32 +66,15 @@ final_fit = []
 fit_track = []
 ind_base = np.zeros(((arity+1)*max_n,), np.int32)
 ind_base = ind_base.reshape(-1, arity+1) #for my sanity - Mark
-print(train_x)
-def createInputVector(x, c, inputs = inputs):
-	vec = np.zeros((x.shape[0], c.shape[0]+1))
-	x = x.reshape(-1, inputs)
-	vec[:, :inputs] = x
-	vec[:, inputs:] = c
-	return vec
-train_x_bias = createInputVector(train_x, biases)
+train_x_bias = np.zeros((train_x.shape[0], biases.shape[0]+1)) #attach constants to input
+train_x_bias[:, 0] = train_x
+train_x_bias[:, 1:] = biases
 print("instantiating parent")
 #instantiate parent
 parent = generate_parents(1, max_n, bank, first_body_node = 11, outputs = 1, arity = 2)
 
 fitness = Fitness()
-sharp_manager = SAM_IN(train_x_bias)
 p_fit, p_A, p_B = fitness(train_x_bias, train_y, parent)
-
-def getNoise(shape, inputs = inputs, func = func):
-	noisy_x = np.zeros((shape))
-	noisy_x[:, :inputs] = sharp_manager.perturb_data()[:, :inputs]
-	noisy_x[:, inputs:] = sharp_manager.perturb_constants()[:, inputs:]
-	noisy_y = np.fromiter(map(func.func, list(noisy_x[:, :inputs].flatten())), dtype=np.float32)
-	return noisy_x, noisy_y
-
-noisy_x, noisy_y = getNoise(train_x_bias.shape)
-p_sharp, _, _ = fitness(noisy_x, noisy_y, parent)
-sharp_list = [p_sharp]
 
 f_change = np.zeros((max_c,)) # % difference from p_fit
 avg_change_list = []
@@ -106,7 +88,6 @@ fitness_objects = [Fitness() for i in range(0, max_c)]
 drift_list = []
 #deleterious, drift, beneficial
 drift_cum = np.array([0, 0, 0])
-
 
 #N1 = 1
 #N2 = max_c
@@ -149,7 +130,7 @@ for g in range(1, max_g+1):
 	drift_cum += np.copy(drift)
 	drift_list.append(np.copy(drift_cum))
 	#parent_distro = np.zeros((N1,))
-	if any(c_fit <= p_fit) and random.rand() > 1/max_c:
+	if any(c_fit <= p_fit):
 		best = np.argmin(c_fit)
 		parent = deepcopy(children[best])
 		p_fi = np.argmin(c_fit)
@@ -157,15 +138,12 @@ for g in range(1, max_g+1):
 		p_fit = np.min(c_fit)
 		p_A = a[p_fi]
 		p_B = b[p_fi]
-		noisy_x, noisy_y = getNoise(train_x_bias.shape)
-		p_sharp, _, _ = fitness(noisy_x, noisy_y, parent)
 	#selection_impact = s_impact(parent_distro)
 	#impact_list.append(selection_impact)
 	if g % 100 == 0:
 		print(f"Gen {g} Best Fitness: {p_fit}")
 	#print(p_fit)
 	fit_track.append(p_fit)
-	sharp_list.append(np.abs(p_fit-p_sharp))
 	p_size.append(cgp_active_nodes(parent[0], parent[1], opt = 2))#/ind_base.shape[0])
 	#if(p_fit > 0.96):
 	#	break
@@ -177,7 +155,6 @@ print(cgp_active_nodes(parent[0], parent[1]))
 print(f"Trial {t}: Best Fitness = {p_fit}")
 print(f"Mutations:\tDeleterious\tNeutral\tBeneficial")
 print(f"\t{drift_cum[0]}\t{drift_cum[1]}\t{drift_cum[2]}")
-print(f'Sharpness: {p_sharp}')
 print('biases')
 print(biases)
 print('best individual')
@@ -196,7 +173,6 @@ from cgp_plots import *
 run_name = 'cgp'
 scatter(train_x, train_y, preds, func_name, run_name, t, fit_name, p_fit)
 fit_plot(fit_track, func_name, run_name, t)
-sharp_plot(sharp_list, func_name, run_name, t)
 proportion_plot(p_size, func_name, run_name, t)
 bin_centers, hist_gens, avg_hist_list = change_histogram_plot(avg_hist_list, func_name, run_name, t, max_g)
 change_avg_plot(avg_change_list, std_change_list, func_name, run_name, t, win_length = 100, order = 4)
@@ -229,7 +205,6 @@ with open(f"../output/cgp/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump([bin_centers, hist_gens, avg_hist_list], f)
 	pickle.dump(drift_list, f)
 	pickle.dump(drift_cum, f)
-	pickle.dump(sharp_list, f)
 	#pickle.dump(impact_list, f)
 	#pickle.dump(e, f)
 #expressions = get_expression()

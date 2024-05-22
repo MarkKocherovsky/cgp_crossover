@@ -38,6 +38,8 @@ print(f'biases {biases}')
 arity = 2
 p_mut = float(argv[8])
 p_xov = float(argv[9])
+random.seed(t+250)
+
 
 bank = (add, sub, mul, div) #, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, midpoint)
 bank_string = ("+", "-", "*", "/") #, "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "avg")
@@ -96,6 +98,8 @@ std_change_list = []
 best_i = np.argmin(fitnesses[:max_p])
 p_size = [cgp_active_nodes(parents[best_i][0], parents[best_i][1], opt = 2)]
 
+mut_impact = MutationImpact(neutral_limit = 0.1)
+
 for g in range(1, max_g+1):
 	children, retention = xover(deepcopy(parents), method = 'Subgraph') 
 	children = mutate(deepcopy(children))
@@ -111,6 +115,7 @@ for g in range(1, max_g+1):
 	if any(np.isnan(fitnesses)): #Replace nans with positive infinity to screen them out
 		nans = np.isnan(fitnesses)
 		fitnesses[nans] = np.PINF 
+	mut_impact(fitnesses, max_p)
 
 	change_list = []
 	full_change_list = []
@@ -167,6 +172,9 @@ best_i = np.argmin(fitnesses)
 best_fit = fitnesses[best_i]
 best_pop = pop[best_i]
 print(f"Trial {t}: Best Fitness = {best_fit}")
+drift_cum, drift_list = mut_impact.return_lists(option = 1)
+print(f"Operators:\tDeleterious\tNeutral\tBeneficial")
+print(f"\t{drift_cum[0]}\t{drift_cum[1]}\t{drift_cum[2]}")
 #final_fit.append(p_fit)
 #fig, ax = plt.subplots()
 #ax = plt.plot(fit_track)
@@ -198,6 +206,7 @@ proportion_plot(p_size, func_name, run_name, t)
 bin_centers, hist_gens, avg_hist_list = change_histogram_plot(avg_hist_list, func_name, run_name, t, max_g)
 change_avg_plot(avg_change_list, std_change_list, func_name, run_name, t, win_length = 100, order = 4)
 retention_plot(ret_avg_list, ret_std_list, func_name, run_name, t, win_length = 100, order = 2)
+drift_plot(drift_list, drift_cum, func_name, run_name, t, win_length = 100)
 
 #export graph
 first_body_node = inputs+bias
@@ -221,6 +230,8 @@ with open(f"../output/cgp_sgx/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump([ret_avg_list], f)
 	pickle.dump(p_size, f)
 	pickle.dump([bin_centers, hist_gens, avg_hist_list], f)
+	pickle.dump(drift_list, f)
+	pickle.dump(drift_cum, f)
 #expressions = get_expression()
 #for expression in expressions:
 #	print(expression)

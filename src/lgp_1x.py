@@ -14,6 +14,7 @@ from lgp_functions import *
 from lgp_xover import *
 from lgp_mutation import *
 from lgp_select import *
+from cgp_fitness import MutationImpact
 from scipy.signal import savgol_filter
 warnings.filterwarnings('ignore')
 
@@ -40,7 +41,7 @@ arity = 2 #sources
 n_inp = 1 #number of inputs
 bias = np.arange(0, 10, 1)
 n_bias = bias.shape[0] #number of bias inputs
-
+random.seed(t+350)
 try:
 	p_mut = float(argv[9])
 except:
@@ -112,6 +113,8 @@ avg_hist_list = []
 std_change_list = []
 best_i = np.argmin(fitnesses[:max_p])
 p_size = [len(effProg(4, parents[best_i]))/len(parents[best_i])]
+mut_impact = MutationImpact(neutral_limit = 0.1)
+
 
 for g in range(1, max_g+1):
 	children, retention = xover(deepcopy(parents), max_r, p_xov, 'OnePoint', fixed_length = fixed_length)
@@ -123,7 +126,7 @@ for g in range(1, max_g+1):
 	if any(np.isnan(fitnesses)): #screen out nan values
 		nans = np.isnan(fitnesses)
 		fitnesses[nans] = np.PINF
-	
+	mut_impact(fitnesses, max_p)	
 	change_list = []
 	full_change_list = []
 	ret_list = []
@@ -170,6 +173,9 @@ best_pop = pop[best_i]
 p_A = alignment[best_i, 0]
 p_B = alignment[best_i, 1]
 print(f"Trial {t}: Best Fitness = {best_fit}")
+drift_cum, drift_list = mut_impact.return_lists(option = 1)
+print(f"Operators:\tDeleterious\tNeutral\tBeneficial")
+print(f"\t{drift_cum[0]}\t{drift_cum[1]}\t{drift_cum[2]}")
 #final_fit.append(p_fit)
 #fig, ax = plt.subplots()
 #ax = plt.plot(fit_track)
@@ -201,6 +207,7 @@ proportion_plot(p_size, func_name, run_name, t)
 bin_centers, hist_gens, avg_hist_list = change_histogram_plot(avg_hist_list, func_name, run_name, t, max_g)
 change_avg_plot(avg_change_list, std_change_list, func_name, run_name, t, win_length = 100, order = 4)
 retention_plot(ret_avg_list, ret_std_list, func_name, run_name, t, win_length = 100, order = 2)
+drift_plot(drift_list, drift_cum, func_name, run_name, t, win_length = 100)
 
 import graphviz as gv
 p = effProg(max_d, best_pop, first_body_node)
@@ -222,7 +229,8 @@ with open(f"../output/{run_name}/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump(p_size, f)
 	pickle.dump([bin_centers, hist_gens, avg_hist_list], f)
 	pickle.dump(p_size, f)
-
+	pickle.dump(drift_list, f)
+	pickle.dump(drift_cum, f)
 dot = draw_graph_thicc(p, p_A, p_B, max_d = max_d)
 Path(f"../output/{run_name}/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
 dot.render(f"../output/{run_name}/{func_name}/full_graphs/graph_{t}", view=False)

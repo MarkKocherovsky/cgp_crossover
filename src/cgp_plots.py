@@ -24,6 +24,16 @@ def fit_plot(fit_track, func_name, run_name, t):
 	Path(f"../output/{run_name}/{func_name}/plot/").mkdir(parents=True, exist_ok=True)
 	plt.savefig(f"../output/{run_name}/{func_name}/plot/plot_{t}.png")
 
+def sharp_plot(sharp_list, func_name, run_name, t):
+	fig, ax = plt.subplots()
+	ax.plot(sharp_list)
+	ax.set_yscale('log')
+	ax.set_title(f'{func_name} Trial {t}')
+	ax.set_ylabel("SAM-In")
+	ax.set_xlabel("Generations")
+	Path(f"../output/{run_name}/{func_name}/sharpness/").mkdir(parents=True, exist_ok=True)
+	plt.savefig(f"../output/{run_name}/{func_name}/sharpness/sharpness_{t}.png")
+
 def proportion_plot(p_size, func_name, run_name, t):
 	fig, ax = plt.subplots()
 	ax.plot(p_size)
@@ -96,3 +106,29 @@ def retention_plot(ret_avg_list, ret_std_list, func_name, run_name, t, win_lengt
 	ax.set_xlabel('Generations')
 	Path(f"../output/{run_name}/{func_name}/retention/").mkdir(parents=True, exist_ok=True)
 	plt.savefig(f"../output/{run_name}/{func_name}/retention/retention_{t}.png")
+
+def drift_plot(drift_list, drift_cum, func_name, run_name, t, win_length = 100, order = 4):
+	drift_list = np.array(drift_list)
+	drift_cum = np.round(drift_cum, 5)
+	fig, ax = plt.subplots()
+	#plt.yscale('log')
+	ax.plot(drift_list[:, 0], label=f"Deleterious, Total {drift_cum[0]}", color = 'red')
+	ax.plot(drift_list[:, 1], label=f'Near-Neutral, Total {drift_cum[1]}', color = 'blue')
+	ax.plot(drift_list[:, 2], label=f'Beneficial, Total {drift_cum[2]}', color = 'green')
+	ax.set_title(f'{func_name} Trial {t}')
+	ax.set_ylabel('Proportion of Cumulative')
+	ax.set_xlabel('Generations')
+	ax.legend()
+	Path(f"../output/{run_name}/{func_name}/mutations/").mkdir(parents=True, exist_ok=True)
+	plt.savefig(f"../output/{run_name}/{func_name}/mutations/mutations_{t}.png")
+
+def impact_plot(impact_list, func_name, run_name, t, win_length = 100, order = 4):
+	impact_list = np.array(impact_list)
+	fig, ax = plt.subplots()
+	ax.plot(impact_list)
+	ax.set_title(f'{func_name} Trial {t}')
+	ax.set_ylabel('Selection Impact')
+	ax.set_xlabel('Generations')
+	Path(f"../output/{run_name}/{func_name}/selection_impact/").mkdir(parents=True, exist_ok=True)
+	plt.savefig(f"../output/{run_name}/{func_name}/selection_impact/selection_impact_{t}.png")
+

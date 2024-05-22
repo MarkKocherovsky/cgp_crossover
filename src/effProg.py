@@ -239,7 +239,8 @@ def cgp_active_nodes(ind_base, output_nodes, outputs=1, first_body_node = 11, op
                 active_nodes = np.array(active_nodes)
                 return (active_nodes[active_nodes < first_body_node] - first_body_node)
 
-def cgp_graph(inputs, bias, ind_base, output_nodes, p_A, p_B, func_name, run_name, t,  max_n = 64, first_body_node = 11, arity = 2, biases = list(range(0, 10)), bank_string = ['+', '-', '*', '/']):
+def cgp_graph(inputs, bias, ind_base, output_nodes, p_A, p_B, func_name, run_name, t, max_n = 64, first_body_node = 11, arity = 2, biases = list(range(0, 10)), bank_string = ['+', '-', '*', '/']):
+	max_n = ind_base.shape[0]
 	dot = gv.Digraph()
 	for i in range(inputs):
 		dot.node(f'N_{i}', f'I_{i}', shape='square', rank='same', fillcolor = 'orange', style='filled')
