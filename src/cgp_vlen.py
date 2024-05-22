@@ -1,4 +1,4 @@
-#CGP 1 Point Crossover
+#CGP 1 Point Crossover - variable length individuals
 import numpy as np
 import matplotlib.pyplot as plt
 import warnings
@@ -15,10 +15,11 @@ from cgp_xover import *
 from cgp_fitness import *
 from cgp_operators import *
 from cgp_parents import *
-from cgp_impact import *
 from copy import deepcopy
 from scipy.signal import savgol_filter
 from sys import argv
+
+
 warnings.filterwarnings('ignore')
 print("started")
 t = int(argv[1]) #trial
@@ -39,9 +40,8 @@ print(f'biases {biases}')
 arity = 2
 p_mut = float(argv[8])
 p_xov = float(argv[9])
-random.seed(t+100)
-print(f'Seed = {t+100}')
 
+random.seed(t)
 
 bank = (add, sub, mul, div) #, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, midpoint)
 bank_string = ("+", "-", "*", "/") #, "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "avg")
@@ -76,9 +76,9 @@ print(train_x_bias)
 #instantiate parents
 #test = run_output(ind_base, output_nodes, np.array([10.0]))
 
-mutate = basic_mutation
+mutate = macromicro_mutation
 select = tournament_elitism
-parents = generate_parents(max_p, max_n, bank, first_body_node = 11, outputs = 1, arity = 2)
+parents = generate_parents(max_p, max_n, bank, first_body_node = 11, outputs = 1, arity = 2, fixed_length = False)
 
 fitness_objects = [Fitness() for i in range(0, max_p+max_c)]
 fitnesses = np.zeros((max_p+max_c),)
@@ -101,16 +101,13 @@ best_i = np.argmin(fitnesses[:max_p])
 p_size = [cgp_active_nodes(parents[best_i][0], parents[best_i][1], opt = 2)]
 
 mut_impact = MutationImpact(neutral_limit = 0.1)
-#N1 = max_p
-#N2 = max_c
-#P = 2
-#sel_impact = SelectionImpact(N1, N2, P)
-impact_list = []
+
 for g in range(1, max_g+1):
-	children, retention = xover(deepcopy(parents), method = 'OnePoint') 
+	children, retention = xover(deepcopy(parents), method = 'OnePoint', fixed_length = False) 
 	children = mutate(deepcopy(children))
 	pop = parents+children
 	fit_temp = np.array([fitness_objects[i](train_x_bias, train_y, ind) for i, ind in zip(list(range(0, max_p+max_c)), pop)])
+
 	#fit_temp = np.array([fitness_objects[i](train_x_bias, train_y, ind) for i, ind in zip(list(range(0, max_p+max_c)), pop)])
 	fitnesses = fit_temp[:, 0].copy().flatten()
 	#print(f"Fitnesses after mutation")
@@ -145,14 +142,29 @@ for g in range(1, max_g+1):
 	std_change_list.append(np.nanstd(change_list))
 	ret_avg_list.append(np.nanmean(ret_list))
 	ret_std_list.append(np.nanstd(ret_list))	
+
+	#print('Fitnesses before movement')
+	#print(np.round(fitnesses, 4))
+	#print(p_idxs)
+	#print(fitnesses[p_idxs])
+	#print(fitnesses.shape)
+	#print('\n')
+	#fitnesses[:max_p] = fitnesses.copy()[p_idxs]
+	#print('Fitnesses after movement')
+	#print(np.round(fitnesses, 4))
+	#print(fitnesses.shape)
+	#print('----')
 	best_i = np.argmin(fitnesses)
 	best_fit = fitnesses[best_i]
 	if g % 100 == 0:
 		print(f"Gen {g} Best Fitness: {best_fit}")
+	#print(p_fit)
 	fit_track.append(best_fit)
 	p_size.append(cgp_active_nodes(pop[best_i][0], pop[best_i][1], opt = 2))
 	parents = select(pop, fitnesses, max_p)
-	#impact_list.append(deepcopy(sel_impact(p_distro)))
+	#print("Fitnesses at end of generation, should not have changed")
+	#print(np.round(fitnesses, 4))
+	#print('----')
 
 pop = parents+children
 fit_temp =  np.array([fitness_objects[i](train_x_bias, train_y, ind) for i, ind in zip(range(0, max_p+max_c), pop)])
@@ -164,6 +176,14 @@ print(f"Trial {t}: Best Fitness = {best_fit}")
 drift_cum, drift_list = mut_impact.return_lists(option = 1)
 print(f"Operators:\tDeleterious\tNeutral\tBeneficial")
 print(f"\t{drift_cum[0]}\t{drift_cum[1]}\t{drift_cum[2]}")
+#final_fit.append(p_fit)
+#fig, ax = plt.subplots()
+#ax = plt.plot(fit_track)
+#print(fit_track)
+#plt.show()
+#print(final_fit)
+#print('biases')
+#print(biases)
 print('best individual')
 print(pop[best_i])
 print('preds')
@@ -173,24 +193,22 @@ print(preds)
 print(pred_fitness(train_x_bias, train_y, best_pop, opt = 0))
 
 #print(list(train_y))
-Path(f"../output/cgp_1x/{func_name}/log/").mkdir(parents=True, exist_ok=True)
+Path(f"../output/cgp_vlen/{func_name}/log/").mkdir(parents=True, exist_ok=True)
 import pickle
 
 win_length = 100
 #Write Plots
 from scipy.signal import savgol_filter
 from cgp_plots import *
-run_name = 'cgp_1x'
+run_name = 'cgp_vlen'
 scatter(train_x, train_y, preds, func_name, run_name, t, fit_name, best_fit)
 fit_plot(fit_track, func_name, run_name, t)
 proportion_plot(p_size, func_name, run_name, t)
 bin_centers, hist_gens, avg_hist_list = change_histogram_plot(avg_hist_list, func_name, run_name, t, max_g)
 change_avg_plot(avg_change_list, std_change_list, func_name, run_name, t, win_length = 100, order = 4)
-drift_list = np.array(drift_list)
-print(drift_list.shape)
 retention_plot(ret_avg_list, ret_std_list, func_name, run_name, t, win_length = 100, order = 2)
 drift_plot(drift_list, drift_cum, func_name, run_name, t, win_length = 100)
-#impact_plot(impact_list, func_name, run_name, t)
+
 #export graph
 first_body_node = inputs+bias
 cgp_graph(inputs, bias, best_pop[0], best_pop[1], p_A, p_B, func_name, run_name, t,  max_n = max_n, first_body_node = first_body_node, arity = arity)
@@ -200,8 +218,8 @@ cgp_graph(inputs, bias, best_pop[0], best_pop[1], p_A, p_B, func_name, run_name,
 n = plot_active_nodes(best_pop[0], best_pop[1], first_body_node, bank_string, biases, inputs, p_A, p_B, func_name, run_name, t)
 
 print(f'Active Nodes = {n}')
-print(f"../output/cgp_1x/{func_name}/log/output_{t}.pkl")
-with open(f"../output/cgp_1x/{func_name}/log/output_{t}.pkl", "wb") as f:
+print(f"../output/{run_name}/{func_name}/log/output_{t}.pkl")
+with open(f"../output/{run_name}/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump(biases, f)
 	pickle.dump(best_pop[0], f)
 	pickle.dump(best_pop[1], f)
@@ -215,7 +233,6 @@ with open(f"../output/cgp_1x/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump([bin_centers, hist_gens, avg_hist_list], f)
 	pickle.dump(drift_list, f)
 	pickle.dump(drift_cum, f)
-#	pickle.dump(impact_list, f)
 #expressions = get_expression()
 #for expression in expressions:
 #	print(expression)
