@@ -1,9 +1,9 @@
 ,['CGP(1+4)',CGP-1x',LGP-1x\n4 Registers\nFixed Length',LGP-1x\n4 Registers',LGP-1x\n2 Registers\nFixed Length',LGP-1x\n2 Registers',LGP-1x\n0 Registers\nFixed Length',LGP-1x\n0 Registers']
-CGP(1+4),-,0.00000,0.00000,0.57893,0.00000,0.00000,0.00000,0.00000
-CGP-1x,-,-,0.00000,0.00006,0.00000,0.00000,0.00000,0.00000
-LGP-1x\n4 Registers\nFixed Length',-,-,-,0.00000,0.02963,0.00000,0.00000,0.00000
-LGP-1x\n4 Registers',-,-,-,-,0.00000,0.00000,0.00000,0.00000
-LGP-1x\n2 Registers\nFixed Length',-,-,-,-,-,0.00051,0.00446,0.00213
-LGP-1x\n2 Registers',-,-,-,-,-,-,0.88489,0.86045
-LGP-1x\n0 Registers\nFixed Length',-,-,-,-,-,-,-,0.97525
+CGP(1+4),-,6.00E-05,0,0.65367,0,0,0,0
+CGP-1x,-,-,0,0.27632,0,0,0,0
+LGP-1x\n4 Registers\nFixed Length',-,-,-,0,0.79067,9.00E-05,0.01118,0.00026
+LGP-1x\n4 Registers',-,-,-,-,0,0,0,0
+LGP-1x\n2 Registers\nFixed Length',-,-,-,-,-,3.00E-05,0.01582,0.00026
+LGP-1x\n2 Registers',-,-,-,-,-,-,0,0
+LGP-1x\n0 Registers\nFixed Length',-,-,-,-,-,-,1,0.47551
 LGP-1x\n0 Registers'],-,-,-,-,-,-,-,-
