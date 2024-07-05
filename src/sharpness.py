@@ -5,11 +5,11 @@ from copy import copy, deepcopy
 #epsilon: noise
 #choice_prop: proportion to perturb
 class SAM:
-	def __init__(self, epsilon = 0.1, choice_prop = 0.25):
+	def __init__(self, epsilon = 0.2, choice_prop = 1.00):
 		self.epsilon = np.abs(epsilon)
 		self.choice_prop = choice_prop
 class SAM_IN(SAM):
-	def __init__(self, dataset, n_inp = 1, epsilon = 0.1, choice_prop = 0.25):
+	def __init__(self, dataset, n_inp = 1, epsilon = 0.2, choice_prop = 1.00):
 		self.n_inp = n_inp
 		self.dataset = dataset
 		super().__init__(epsilon, choice_prop)
@@ -55,4 +55,17 @@ class SAM_IN(SAM):
 		if reshaped:
 			vec = vec.reshape(old_shape)
 		return vec
+class SAM_OUT(SAM):
+	def __init__(self, epsilon = 1.0):
+		super().__init__(epsilon)
+	def get_std(self, predictions, low_bound = 1e-2):
+		return max(np.std(predictions), low_bound)
+	def perturb(self, predictions, num_neighbors = 25):
+		std = self.get_std(predictions)
+		neighborhood = random.normal(0, self.epsilon*std, (num_neighbors, predictions.shape[-1]))
+		#print('Generated Perturbations')
+		#print(neighborhood)
+		for n in range(num_neighbors):
+		        neighborhood[n] += predictions
+		return neighborhood
 

@@ -81,7 +81,13 @@ class Fitness:
 			if out_nodes[i] < (len(inp_nodes)):
 				outs[i] = inp_nodes[out_nodes[i]]
 			else:
-				outs[i] = self.run(ind[out_nodes[i]-inp_nodes.shape[0]], inp_nodes)
+				try:
+					outs[i] = self.run(ind[out_nodes[i]-inp_nodes.shape[0]], inp_nodes)
+				except IndexError:
+					print(inp_nodes)
+					print(ind)
+					print(inp_nodes.shape)
+					raise IndexError(f'Asked for ind[{out_nodes[i]-inp_nodes.shape[0]}], len(ind) = {ind.shape}\ni = {i}, out_nodes = {out_nodes}')
 		return outs
 
 	def fitness(self, data, targ, opt = 0):

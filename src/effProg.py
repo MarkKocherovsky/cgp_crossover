@@ -237,7 +237,7 @@ def cgp_active_nodes(ind_base, output_nodes, outputs=1, first_body_node = 11, op
                 return active_node_num/(ind_base.shape[0]+outputs+first_body_node)
         elif opt == 3: #return indices, not node number
                 active_nodes = np.array(active_nodes)
-                return (active_nodes[active_nodes < first_body_node] - first_body_node)
+                return (active_nodes[active_nodes >= first_body_node] - first_body_node)
 
 def cgp_graph(inputs, bias, ind_base, output_nodes, p_A, p_B, func_name, run_name, t, max_n = 64, first_body_node = 11, arity = 2, biases = list(range(0, 10)), bank_string = ['+', '-', '*', '/']):
 	max_n = ind_base.shape[0]
@@ -272,7 +272,7 @@ def cgp_graph(inputs, bias, ind_base, output_nodes, p_A, p_B, func_name, run_nam
 	Path(f"../output/{run_name}/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
 	dot.render(f"../output/{run_name}/{func_name}/full_graphs/graph_{t}", view=False)
 
-def plot_active_nodes(ind_base, output_nodes, first_body_node, bank_string, biases, inputs, p_A, p_B, func_name, run_name, t, arity = 2):
+def plot_active_nodes(ind_base, output_nodes, first_body_node, bank_string, biases, inputs, p_A, p_B, func_name, run_name, t, arity = 2, opt = 0):
         outputs = len(output_nodes)
         active_graph = gv.Digraph(strict = True)
         active_nodes = []
@@ -316,7 +316,8 @@ def plot_active_nodes(ind_base, output_nodes, first_body_node, bank_string, bias
                         if node not in active_nodes:
                                 active_nodes.append(node)
                 active_graph.edge(f'O_{o}', 'A')
-        Path(f"../output/{run_name}/{func_name}/active_nodes/").mkdir(parents=True, exist_ok=True)
-        active_graph.render(f"../output/{run_name}/{func_name}/active_nodes/active_{t}", view=False)
+        if opt == 0:
+                Path(f"../output/{run_name}/{func_name}/active_nodes/").mkdir(parents=True, exist_ok=True)
+                active_graph.render(f"../output/{run_name}/{func_name}/active_nodes/active_{t}", view=False)
         active_node_num = len(active_nodes)+outputs #all outputs are active by definition
         return active_node_num

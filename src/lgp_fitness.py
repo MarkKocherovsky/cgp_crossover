@@ -27,8 +27,8 @@ def align(preds, reals):
 
 class Fitness:
 	def __init__(self, data, bias, target, pop, func, bank, n_inp = 1, max_d = 4, fit_function = corr, arity = 2):
-		self.data = data
-		self.bias = bias
+		self.data = data.reshape((-1, n_inp))
+		self.bias = np.array(bias)
 		self.target = target
 		self.pop = pop
 		self.func = func
@@ -37,11 +37,10 @@ class Fitness:
 		self.arity = arity
 		self.max_d = max_d
 		self.n_inp = n_inp
-		self.n_bias = len(bias)
-		self.data_bias = np.zeros((self.data.shape[0], self.bias.shape[0]+1))
-		self.data_bias[:, 0] = self.data
-		self.data_bias[:, 1:] = self.bias
-
+		self.n_bias = self.bias.shape[-1]
+		self.data_bias = np.zeros((self.data.shape[0], self.bias.shape[-1]+n_inp))
+		self.data_bias[:, :n_inp] = self.data
+		self.data_bias[:, n_inp:] = self.bias
 
 	def run(self, individual):
 		preds = np.zeros((len(self.target),))
