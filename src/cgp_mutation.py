@@ -64,10 +64,17 @@ def macromicro_mutation(subjects, arity = 2, in_size = 11, p_mut = 0.025, bank_l
 			if mutation == 0: #remove instruction, TODO 7 May: deleting instructions without changing other instructions causes recursion error
 				j = random.randint(0, len(ind))
 				ind = np.delete(ind, j, axis = 0)
+				whr = np.array(np.where(ind >= ind.shape[0]))
+				if len(whr) > 0:
+					for instance in range(len(whr)):
+						ind[whr[instance]] = random.randint(0, ind.shape[0])
+				for o in range(len(out)):
+					if out[o] >= ind.shape[0]:
+						out[o] = random.randint(0, ind.shape[0])
 				#print(f'Instruction Deleted at {j}')
 			elif mutation == 1: #point mutation
 				j = int(ind.shape[1]*random.random_sample())
-				#print(i,j)
+				#print(i,j)i
 				if j < arity:
 					#print(f'{i} {j} {i+in_size}')
 					ind[i, j] = random.randint(0, i+in_size)

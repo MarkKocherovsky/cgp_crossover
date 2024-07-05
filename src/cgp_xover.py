@@ -2,7 +2,7 @@ import numpy as np
 from numpy import random
 from subgraph import *
 
-def xover_1x(p1, p2, max_n = 64, fixed_length = True): #one point crossover
+def xover_1x(p1, p2, max_n = 64, first_body_node = 11, fixed_length = True, bank_len = 4): #one point crossover
 	ind1 = p1[0]
 	ind2 = p2[0]
 	out1 = p1[1]
@@ -46,12 +46,20 @@ def xover_1x(p1, p2, max_n = 64, fixed_length = True): #one point crossover
 			j = i
 		else:
 			j = random.randint(0, out2.shape[0])
+			print(i, j)
 		front_1 = out1[:i].copy()
 		back_1 = out1[i:].copy()
 		front_2 = out2[:j].copy()
 		back_2 = out2[j:].copy()
 		out1 = np.concatenate((front_1, back_2))
 		out2 = np.concatenate((front_2, back_1))
+	whr_o1 = np.where(out1 >= ind1.shape[0])
+	whr_o2 = np.where(out2 >= ind2.shape[0])
+	for w in whr_o1:
+		out1[w] = ind1.shape[0]+first_body_node-1
+	for w in whr_o2:
+		out2[w] = ind2.shape[0]+first_body_node-1
+	
 	ind1 = ind1.reshape(-1, s1)
 	ind2 = ind2.reshape(-1, s2)
 	if ind1.shape[0] > max_n: #keep to maximimum rule size!
@@ -62,6 +70,24 @@ def xover_1x(p1, p2, max_n = 64, fixed_length = True): #one point crossover
 		idxs = np.array(range(0, max_n))
 		to_del = random.choice(idxs, ((ind2.shape[0]-max_n),), replace=False)
 		ind2 = np.delete(ind2, to_del, axis = 0)
+	whr1 = np.array(list(zip(*np.where(ind1[:, :-1] >= ind1.shape[0]))))
+	whr2 = np.array(list(zip(*np.where(ind2[:, :-1] >= ind2.shape[0]))))
+	for w in whr1:
+		try:
+			ind1[w, w.shape[0]] = random.randint(0, w[0], (w.shape[0],))
+		except:
+			ind1[w, w.shape[0]] = 0
+	for w in whr2:
+		try:
+			ind2[w, w.shape[0]] = random.randint(0, w[0], (w.shape[0],))
+		except:
+			ind2[w, w.shape[0]] = 0
+	ar1 = np.array(list(zip(*np.where(ind1[:, -1] >= bank_len))))
+	ar2 = np.array(list(zip(*np.where(ind2[:, -1] >= bank_len))))
+	for a in ar1:
+		ind1[a[0], -1] = random.randint(0, bank_len)
+	for a in ar2:
+		ind2[a[0], -1] = random.randint(0, bank_len)
 	return [(ind1, out1), (ind2, out2)]
 def xover_nodex(p1, p2): #one point crossover
 	ind1 = p1[0]
@@ -133,7 +159,7 @@ def xover_sgx(P1, P2, inputs = 1):
 	children.append(SubgraphCrossover(P2, P1, inputs))
 	return children
 
-def xover(parents, method = 'None', p_xov = 0.5, max_n = 64, fixed_length = True):
+def xover(parents, method = 'None', p_xov = 0.5, max_n = 64, first_body_node = 11, fixed_length = True, bank_len = 4):
 	children = []
 	methods = {'None': 'None', 'OnePoint': xover_1x, 'TwoPoint': xover_2x, 'Subgraph': xover_sgx, 'Node': xover_nodex}
 	try:
@@ -147,7 +173,7 @@ def xover(parents, method = 'None', p_xov = 0.5, max_n = 64, fixed_length = True
 			children.append(parents[i])
 			children.append(parents[i+1])
 		elif method == 'OnePoint':
-			c1, c2 = xover_method(parents[i], parents[i+1], max_n = max_n, fixed_length = fixed_length)
+			c1, c2 = xover_method(parents[i], parents[i+1], max_n = max_n, fixed_length = fixed_length, first_body_node = first_body_node, bank_len = bank_len)
 			children.append(c1)
 			children.append(c2)
 			retention.append(i)

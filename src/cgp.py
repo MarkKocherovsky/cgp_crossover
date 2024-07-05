@@ -15,6 +15,7 @@ from cgp_fitness import *
 from cgp_operators import *
 from cgp_parents import *
 from cgp_impact import *
+from cgp_plots import *
 from sharpness import *
 from sys import argv
 from math import isnan
@@ -80,19 +81,31 @@ print("instantiating parent")
 parent = generate_parents(1, max_n, bank, first_body_node = 11, outputs = 1, arity = 2)
 
 fitness = Fitness()
-sharp_manager = SAM_IN(train_x_bias)
+sharp_in_manager = SAM_IN(train_x_bias)
+sharp_out_manager = SAM_OUT()
 p_fit, p_A, p_B = fitness(train_x_bias, train_y, parent)
 
 def getNoise(shape, inputs = inputs, func = func):
 	noisy_x = np.zeros((shape))
-	noisy_x[:, :inputs] = sharp_manager.perturb_data()[:, :inputs]
-	noisy_x[:, inputs:] = sharp_manager.perturb_constants()[:, inputs:]
+	noisy_x[:, :inputs] = sharp_in_manager.perturb_data()[:, :inputs]
+	noisy_x[:, inputs:] = sharp_in_manager.perturb_constants()[:, inputs:]
 	noisy_y = np.fromiter(map(func.func, list(noisy_x[:, :inputs].flatten())), dtype=np.float32)
 	return noisy_x, noisy_y
-
+#SAM-In
 noisy_x, noisy_y = getNoise(train_x_bias.shape)
 p_sharp, _, _ = fitness(noisy_x, noisy_y, parent)
-sharp_list = [p_sharp]
+sharp_list = [np.abs(p_fit-p_sharp)]
+sharp_std = [0]
+
+#SAM-Out
+preds, _, _ = fitness(train_x_bias, train_y, parent, opt = 1)
+sharp_out_manager = SAM_OUT()
+def get_neighbor_map(preds, sharp_out_manager, fitness, train_y = train_y):
+	neighborhood = sharp_out_manager.perturb(preds)
+	return [fitness.fit(neighbor, train_y) for neighbor in neighborhood]
+neighbor_map = get_neighbor_map(preds, sharp_out_manager, fitness)
+sharp_out_list = [np.std(neighbor_map)**2] #variance
+sharp_out_std = [0]
 
 f_change = np.zeros((max_c,)) # % difference from p_fit
 avg_change_list = []
@@ -107,13 +120,13 @@ drift_list = []
 #deleterious, drift, beneficial
 drift_cum = np.array([0, 0, 0])
 
+run_name = 'cgp'
 
 #N1 = 1
 #N2 = max_c
 #P = 1
 #s_impact = SelectionImpact(N1, N2, P)
 #impact_list = []
-
 for g in range(1, max_g+1):
 	children = [mutate(deepcopy(parent)) for x in range(0, max_c)]
 	#print(children)
@@ -148,6 +161,30 @@ for g in range(1, max_g+1):
 			drift[1] += 1
 	drift_cum += np.copy(drift)
 	drift_list.append(np.copy(drift_cum))
+	#get average sharpness
+	##SAM-In
+	noisy_x[:, :inputs] = sharp_in_manager.perturb_data()[:, :inputs]
+	noisy_y = np.fromiter(map(func.func, list(noisy_x[:, :inputs].flatten())), dtype=np.float32)
+	preds, _, _ = fitness(train_x_bias, train_y, parent, opt = 1)
+	neighbor_map = get_neighbor_map(preds, sharp_out_manager, fitness)
+	c_sharp = [np.abs(p_fit-fitness(noisy_x, noisy_y, parent)[0])]
+	o_sharp = [np.std(neighbor_map)**2]
+	for i in range(max_c):
+		c = children[i]
+		noisy_x[:, inputs:] = sharp_in_manager.perturb_constants()[:, inputs:]
+		noisy_y = np.fromiter(map(func.func, list(noisy_x[:, :inputs].flatten())), dtype=np.float32)
+		c_sharp.append(np.abs(c_fit[i]-fitness(noisy_x, noisy_y, c)[0]))
+		#sam out
+		preds, _, _ = fitness(train_x_bias, train_y, c, opt = 1)
+		neighbor_map = get_neighbor_map(preds, sharp_out_manager, fitness)
+		o_sharp.append(np.std(neighbor_map)**2)
+	sharp_list.append(np.mean(c_sharp))
+	sharp_std.append(np.std(c_sharp))
+	##SAM-Out
+	neighbor_map = get_neighbor_map(preds, sharp_out_manager, fitness)
+	sharp_out_list.append(np.mean(o_sharp)) #variance
+	sharp_out_std.append(np.std(o_sharp))
+
 	#parent_distro = np.zeros((N1,))
 	if any(c_fit <= p_fit) and random.rand() > 1/max_c:
 		best = np.argmin(c_fit)
@@ -157,15 +194,26 @@ for g in range(1, max_g+1):
 		p_fit = np.min(c_fit)
 		p_A = a[p_fi]
 		p_B = b[p_fi]
-		noisy_x, noisy_y = getNoise(train_x_bias.shape)
-		p_sharp, _, _ = fitness(noisy_x, noisy_y, parent)
+		#noisy_x, noisy_y = getNoise(train_x_bias.shape)
+		#p_sharp, _, _ = fitness(noisy_x, noisy_y, parent)
 	#selection_impact = s_impact(parent_distro)
 	#impact_list.append(selection_impact)
 	if g % 100 == 0:
-		print(f"Gen {g} Best Fitness: {p_fit}")
+		print(f"Gen {g} Best Fitness: {p_fit}\tMean SAM-In: {np.round(np.mean(c_sharp), 5)}\tMean SAM-Out: {np.round(np.mean(o_sharp), 5)}")
+		#sort sharpness
+		full_fit = np.insert(c_fit, 0, p_fit)
+		indices = np.argsort(full_fit)
+		all_pop = [parent]+children
+		elites = [all_pop[i] for i in indices]
+		c_sharp = np.array(c_sharp)
+		o_sharp = np.array(o_sharp)
+		c_sharp = c_sharp[indices]
+		o_sharp = o_sharp[indices]
+		#sharp_bar_plot(c_sharp, o_sharp, func_name, run_name, t, g)
+		#scatter_elites(elites, func, func_name, run_name, t, g, fit_name, p_fit)
 	#print(p_fit)
 	fit_track.append(p_fit)
-	sharp_list.append(np.abs(p_fit-p_sharp))
+	#sharp_list.append(np.abs(p_fit-p_sharp))
 	p_size.append(cgp_active_nodes(parent[0], parent[1], opt = 2))#/ind_base.shape[0])
 	#if(p_fit > 0.96):
 	#	break
@@ -177,7 +225,7 @@ print(cgp_active_nodes(parent[0], parent[1]))
 print(f"Trial {t}: Best Fitness = {p_fit}")
 print(f"Mutations:\tDeleterious\tNeutral\tBeneficial")
 print(f"\t{drift_cum[0]}\t{drift_cum[1]}\t{drift_cum[2]}")
-print(f'Sharpness: {p_sharp}')
+print(f'Sharpness: {sharp_list[-1]}')
 print('biases')
 print(biases)
 print('best individual')
@@ -192,25 +240,26 @@ import pickle
 
 #Write Plots
 from scipy.signal import savgol_filter
-from cgp_plots import *
-run_name = 'cgp'
+"""
 scatter(train_x, train_y, preds, func_name, run_name, t, fit_name, p_fit)
 fit_plot(fit_track, func_name, run_name, t)
-sharp_plot(sharp_list, func_name, run_name, t)
+sharp_plot(sharp_list, sharp_std, sharp_out_list, sharp_out_std, func_name, run_name, t)
 proportion_plot(p_size, func_name, run_name, t)
-bin_centers, hist_gens, avg_hist_list = change_histogram_plot(avg_hist_list, func_name, run_name, t, max_g)
 change_avg_plot(avg_change_list, std_change_list, func_name, run_name, t, win_length = 100, order = 4)
 retention_plot(ret_avg_list, ret_std_list, func_name, run_name, t, win_length = 100, order = 2)
-drift_list_sum = np.sum(drift_list, axis = 1).flatten()
-drift_list = np.divide(drift_list, drift_list_sum[:, np.newaxis])
 drift_plot(drift_list, drift_cum/np.sum(drift_cum), func_name, run_name, t, win_length=100, order = 4)
+sharp_bar_plot(c_sharp, o_sharp, func_name, run_name, t)
 #impact_plot(impact_list, func_name, run_name, t)
 #export graph
-first_body_node = inputs+bias
 cgp_graph(inputs, bias, parent[0], parent[1], p_A, p_B, func_name, run_name, t,  max_n = max_n, first_body_node = first_body_node, arity = arity)
 
 #active nodes only
 
+"""
+bin_centers, hist_gens, avg_hist_list = change_histogram_plot(avg_hist_list, func_name, run_name, t, max_g, opt = 1)
+drift_list_sum = np.sum(drift_list, axis = 1).flatten()
+drift_list = np.divide(drift_list, drift_list_sum[:, np.newaxis])
+first_body_node = inputs+bias
 n = plot_active_nodes(parent[0], parent[1], first_body_node, bank_string, biases, inputs, p_A, p_B, func_name, run_name, t)
 print(f'Active Nodes = {n}')
 print(f"../output/cgp/{func_name}/log/output_{t}.pkl")
@@ -230,6 +279,7 @@ with open(f"../output/cgp/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump(drift_list, f)
 	pickle.dump(drift_cum, f)
 	pickle.dump(sharp_list, f)
+	pickle.dump(sharp_std, f)
 	#pickle.dump(impact_list, f)
 	#pickle.dump(e, f)
 #expressions = get_expression()

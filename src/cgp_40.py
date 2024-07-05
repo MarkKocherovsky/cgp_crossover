@@ -14,6 +14,8 @@ from cgp_mutation import *
 from cgp_xover import *
 from cgp_fitness import *
 from cgp_operators import *
+from cgp_plots import *
+from sharpness import *
 from cgp_parents import *
 from copy import deepcopy
 from scipy.signal import savgol_filter
@@ -36,7 +38,8 @@ biases = np.arange(0, 10, 1).astype(np.int32)
 bias = biases.shape[0] #number of biases
 print(f'biases {biases}')
 arity = 2
-
+run_name = "cgp_40"
+num_elites = 7
 bank = (add, sub, mul, div) #, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, midpoint)
 bank_string = ("+", "-", "*", "/") #, "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "avg")
 
@@ -82,6 +85,47 @@ fitnesses[:max_p] = fit_temp[:, 0].copy().flatten()
 alignment[:max_p, 0] = fit_temp[:, 1].copy() #a
 alignment[:max_p, 1] = fit_temp[:, 2].copy() #b
 print(np.round(fitnesses, 4))
+
+sharp_in_manager = SAM_IN(train_x_bias)
+sharp_out_manager = SAM_OUT()
+
+def getNoise(shape, pop_size = max_p+max_p*max_c, inputs = inputs, func = func, opt = 0):
+	x = []
+	y = []
+	if opt == 1:
+		fixed_inputs = sharp_in_manager.perturb_data()[:, :inputs]
+	for p in range(pop_size):
+		noisy_x = np.zeros((shape))
+		if opt == 1:
+			noisy_x[:, :inputs] = deepcopy(fixed_inputs)
+		else:
+			noisy_x[:, :inputs] = sharp_in_manager.perturb_data()[:, :inputs]
+		noisy_x[:, inputs:] = sharp_in_manager.perturb_constants()[:, inputs:]
+		noisy_y = np.fromiter(map(func.func, list(noisy_x[:, :inputs].flatten())), dtype=np.float32)
+		x.append(noisy_x)
+		y.append(noisy_y)
+	return np.array(x), np.array(y)
+
+#SAM-IN
+noisy_x, noisy_y = getNoise(train_x_bias.shape)
+sharpness = np.array([fitness_objects[i](noisy_x[i], noisy_y[i], parent)[0] for i, parent in zip(range(0, max_p), parents)])
+sharp_in_list = [np.mean(sharpness)]
+sharp_in_std = [np.std(sharpness)]
+
+#SAM-OUT
+
+preds = [fitness_objects[i](train_x_bias, train_y, parent, opt = 1)[0] for i, parent in zip(range(0, max_p), parents)]
+sharp_out_manager = SAM_OUT()
+def get_neighbor_map(preds, sharp_out_manager, fitness, train_y = train_y):
+	neighborhood = sharp_out_manager.perturb(preds)
+	return [fitness.fit(neighbor, train_y) for neighbor in neighborhood]
+neighbor_map = np.array([get_neighbor_map(pred, sharp_out_manager, fitness_objects[i]) for i, pred in zip(range(0, max_p), preds)])
+print(neighbor_map.shape)
+sharp_out_list = [np.mean(np.std(neighbor_map, axis = 1)**2)] #variance
+sharp_out_std = [np.std(np.std(neighbor_map, axis = 1))]
+
+print(np.round(sharpness, 4))
+print(np.round(np.std(neighbor_map, axis = 1)**2, 4))
 
 fit_track = []
 ret_avg_list = [] #best parent best child
@@ -141,13 +185,35 @@ for g in range(1, max_g+1):
 	if not all(cl == 0.0 for cl in full_change_list):
 		avg_hist_list.append((g, np.histogram(full_change_list, bins = 10, range=(cl_std*-2, cl_std*2))))
 	#print(len(pop))
+	noisy_x, noisy_y = getNoise(train_x_bias.shape, opt = 1)
+	sharpness = np.array([fitness_objects[i](noisy_x[i], noisy_y[i], individual)[0] for i, individual in zip(range(0, max_p+max_p*max_c), pop)])
+	sharp_in_list.append(np.mean(sharpness))
+	sharp_in_std.append(np.std(sharpness))
+
+	#SAM-OUT
+
+	preds = [fitness_objects[i](train_x_bias, train_y, individual, opt = 1)[0] for i, individual in zip(range(0, max_p+max_p*max_c), pop)]
+	neighbor_map = np.array([get_neighbor_map(pred, sharp_out_manager, fitness_objects[i]) for i, pred in zip(range(0, max_p+max_p*max_c), preds)])
+	out_sharpness = np.std(neighbor_map, axis = 1)**2
+	sharp_out_list.append(np.mean(out_sharpness)) #variance
+	sharp_out_std.append(np.std(out_sharpness))
+
 	best_i = np.argmin(fitnesses)
 	best_fit = fitnesses[best_i]
 	#print(f'best_fit {best_fit}')
 	fit_track.append(best_fit)
 	p_size.append(cgp_active_nodes(pop[best_i][0], pop[best_i][1], opt = 2))
 	if g % 100 == 0:
-		print(f"Gen {g} Best Fitness: {best_fit}")
+		print(f"Gen {g} Best Fitness: {best_fit}\tMean SAM-In: {sharp_in_list[-1]}\tMean SAM-Out: {sharp_out_list[-1]}")
+		#sort sharpness
+		indices = np.argsort(fitnesses)[:num_elites]
+		elites = [pop[i] for i in indices]
+		sharpness = np.array(sharpness)
+		out_sharpness = np.array(out_sharpness)
+		in_sharp = sharpness[indices]
+		out_sharp = out_sharpness[indices]
+		#sharp_bar_plot(in_sharp, out_sharp, func_name, run_name, t, g)
+		#scatter_elites(elites, func, func_name, run_name, t, g, fit_name, best_fit)
 	parents = select(pop, fitnesses, max_p)
 	#print("Fitnesses at end of generation, should not have changed")
 	#print(np.round(fitnesses, 4))
@@ -179,6 +245,8 @@ win_length = 100
 from scipy.signal import savgol_filter
 from cgp_plots import *
 run_name = 'cgp_40'
+
+"""
 scatter(train_x, train_y, preds, func_name, run_name, t, fit_name, best_fit)
 fit_plot(fit_track, func_name, run_name, t)
 proportion_plot(p_size, func_name, run_name, t)
@@ -186,17 +254,27 @@ bin_centers, hist_gens, avg_hist_list = change_histogram_plot(avg_hist_list, fun
 change_avg_plot(avg_change_list, std_change_list, func_name, run_name, t, win_length = 100, order = 4)
 retention_plot(ret_avg_list, ret_std_list, func_name, run_name, t, win_length = 100, order = 2)
 drift_plot(drift_list, drift_cum, func_name, run_name, t, win_length = 100)
+indices = np.argsort(fitnesses)[:num_elites]
+elites = [pop[i] for i in indices]
+sharpness = np.array(sharpness)
+out_sharpness = np.array(out_sharpness)
+in_sharp = sharpness[indices]
+out_sharp = out_sharpness[indices]
 
+sharp_bar_plot(in_sharp, out_sharp, func_name, run_name, t)
+sharp_plot(sharp_in_list, sharp_in_std, sharp_out_list, sharp_out_std, func_name, run_name, t)
 #export graph
 first_body_node = inputs+bias
 cgp_graph(inputs, bias, best_pop[0], best_pop[1], p_A, p_B, func_name, run_name, t,  max_n = max_n, first_body_node = first_body_node, arity = arity)
 
 #active nodes only
 
-n = plot_active_nodes(best_pop[0], best_pop[1], first_body_node, bank_string, biases, inputs, p_A, p_B, func_name, run_name, t)
 
 print(f'Active Nodes = {n}')
+"""
+first_body_node = inputs+bias
 print(f"../output/{run_name}/{func_name}/log/output_{t}.pkl")
+n = plot_active_nodes(best_pop[0], best_pop[1], first_body_node, bank_string, biases, inputs, p_A, p_B, func_name, run_name, t)
 with open(f"../output/{run_name}/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump(biases, f)
 	pickle.dump(best_pop[0], f)
@@ -211,6 +289,8 @@ with open(f"../output/{run_name}/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump([bin_centers, hist_gens, avg_hist_list], f)
 	pickle.dump(drift_list, f)
 	pickle.dump(drift_cum, f)
+	pickle.dump([sharp_in_list, sharp_out_list], f)
+	pickle.dump([sharp_in_std, sharp_out_std], f)
 #expressions = get_expression()
 #for expression in expressions:
 #	print(expression)

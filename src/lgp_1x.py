@@ -14,6 +14,8 @@ from lgp_functions import *
 from lgp_xover import *
 from lgp_mutation import *
 from lgp_select import *
+from sharpness import *
+from cgp_plots import *
 from cgp_fitness import MutationImpact
 from scipy.signal import savgol_filter
 warnings.filterwarnings('ignore')
@@ -57,6 +59,8 @@ try:
 except:
 	run_name = 'lgp_1x'
 
+#run_name = 'lgp_1x'
+num_elites = 7
 
 func_bank = Collection()
 func = func_bank.func_list[int(argv[7])]
@@ -103,6 +107,58 @@ fitness_evaluator = Fitness(train_x, bias, train_y, parents, func, bank, n_inp, 
 fitnesses[:max_p], alignment[:max_p, 0], alignment[:max_p, 1] = fitness_evaluator()
 print(f'starting fitnesses')
 print(fitnesses)
+
+sharp_in_manager = SAM_IN(train_x_bias)
+sharp_out_manager = SAM_OUT()
+
+def getNoise(shape, pop_size = max_p+max_c, inputs = n_inp, func = func, opt = 0):
+	x = []
+	y = []
+	if opt == 1:
+		fixed_inputs = sharp_in_manager.perturb_data()[:, :inputs]
+	for p in range(pop_size):
+		noisy_x = np.zeros((shape))
+		if opt == 1:
+			noisy_x[:, :inputs] = deepcopy(fixed_inputs)
+		else:
+			noisy_x[:, :inputs] = sharp_in_manager.perturb_data()[:, :inputs]
+		noisy_x[:, inputs:] = sharp_in_manager.perturb_constants()[:, inputs:]
+		noisy_y = np.fromiter(map(func.func, list(noisy_x[:, :inputs].flatten())), dtype=np.float32)
+		x.append(noisy_x)
+		y.append(noisy_y)
+	return np.array(x), np.array(y)
+
+#SAM-IN
+
+def get_fitness_evaluators(x, b, y, pr):
+	return [Fitness(x[i], b[i], y[i], [p], func, bank, n_inp, max_d, fit, arity) for p, i in zip(pr, range(len(pr)))]
+
+def get_sam_in(noisy_x, noisy_y, pop):
+	sharpness_evaluators = get_fitness_evaluators(noisy_x[:, :, :n_inp], noisy_x[:, :, n_inp:], noisy_y, pop)
+	sharpness = np.array([evaluator()[0] for evaluator in sharpness_evaluators]).flatten()
+	return sharpness
+def get_neighbor_map(preds, sharp_out_manager, parent, train_y = train_y):
+	neighborhood = sharp_out_manager.perturb(preds)
+	return [corr(neighbor, train_y) for neighbor in neighborhood]
+
+
+noisy_x, noisy_y = getNoise(train_x_bias.shape)
+sharpness = get_sam_in(noisy_x, noisy_y, parents) #np.array([fitness_objects[i](noisy_x[i], noisy_y[i], parent)[0] for i, parent in zip(range(0, max_p), parents)]) 
+sharp_in_list = [np.mean(sharpness)]
+sharp_in_std = [np.std(sharpness)]
+
+preds = [fitness_evaluator.predict(parent, A, B, train_x) for parent, A, B in zip(parents, alignment[:, 0], alignment[:, 1])]
+sharp_out_manager = SAM_OUT()
+
+neighbor_map = np.array([get_neighbor_map(pred, sharp_out_manager, p) for i, pred, p in zip(range(0, max_p), preds, parents)])
+sharp_out_list = [np.mean(np.std(neighbor_map, axis = 1)**2)] #variance
+sharp_out_std = [np.std(np.std(neighbor_map, axis = 1))]
+
+print(sharp_in_list)
+print(sharpness)
+print(sharp_out_list)
+print(np.var(neighbor_map, axis = 1))
+
 #print(f'starting scaling')
 #print(alignment)
 ret_avg_list = [] #best parent best child
@@ -152,6 +208,18 @@ for g in range(1, max_g+1):
 	ret_avg_list.append(np.nanmean(ret_list))
 	ret_std_list.append(np.nanstd(ret_list))	
 
+	noisy_x, noisy_y = getNoise(train_x_bias.shape)
+	sharpness = get_sam_in(noisy_x, noisy_y, pop) #np.array([fitness_objects[i](noisy_x[i], noisy_y[i], parent)[0] for i, parent in zip(range(0, max_p), parents)]) 
+	sharp_in_list.append(np.mean(sharpness))
+	sharp_in_std.append(np.std(sharpness))
+
+	preds = [fitness_evaluator.predict(p, A, B, train_x) for p, A, B in zip(pop, alignment[:, 0], alignment[:, 1])]
+
+	neighbor_map = np.array([get_neighbor_map(pred, sharp_out_manager, p) for i, pred, p in zip(range(0, max_p+max_c), preds, pop)])
+	out_sharpness = np.std(neighbor_map, axis = 1)**2
+	sharp_out_list.append(np.mean(out_sharpness)) #variance
+	sharp_out_std.append(np.std(out_sharpness))
+
 	best_i = np.argmin(fitnesses)
 	best_pop = pop[best_i]
 	best_a = alignment[best_i, 0]
@@ -162,8 +230,17 @@ for g in range(1, max_g+1):
 	parents = select(pop, fitnesses, max_p, n_tour)
 
 	if g % 100 == 0:
-		print(f'Generation {g}: Best Fit {best_fit}')
-
+		print(f"Gen {g} Best Fitness: {best_fit}\tMean SAM-In: {sharp_in_list[-1]}\tMean SAM-Out: {sharp_out_list[-1]}")
+		#sort sharpness
+		indices = np.argsort(fitnesses)[:num_elites]
+		elites = [pop[i] for i in indices]
+		sharpness = np.array(sharpness)
+		out_sharpness = np.array(out_sharpness)
+		in_sharp = sharpness[indices]
+		out_sharp = out_sharpness[indices]
+		#sharp_bar_plot(in_sharp, out_sharp, func_name, run_name, t, g)
+		#scatter_elites(elites, func, func_name, run_name, t, g, fit_name, best_fit, mode = 'lgp')
+	
 pop = parents+children
 fitness_evaluator = Fitness(train_x, bias, train_y, pop, func, bank, n_inp, max_d, fit, arity)
 fitnesses, alignment[:, 0], alignment[:, 1] = fitness_evaluator()
@@ -193,12 +270,12 @@ print(preds)
 print(f"../output/{run_name}/{func_name}/log/output_{t}") 
 Path(f"../output/{run_name}/{func_name}/log/").mkdir(parents=True, exist_ok=True)
 import pickle
-from cgp_plots import *
 
 first_body_node = n_inp+n_bias+1
 print(first_body_node)
 win_length = 100
 #Write Plots
+"""
 from scipy.signal import savgol_filter
 from cgp_plots import *
 scatter(train_x, train_y, preds, func_name, run_name, t, fit_name, best_fit)
@@ -209,6 +286,16 @@ change_avg_plot(avg_change_list, std_change_list, func_name, run_name, t, win_le
 retention_plot(ret_avg_list, ret_std_list, func_name, run_name, t, win_length = 100, order = 2)
 drift_plot(drift_list, drift_cum, func_name, run_name, t, win_length = 100)
 
+indices = np.argsort(fitnesses)[:num_elites]
+elites = [pop[i] for i in indices]
+sharpness = np.array(sharpness)
+out_sharpness = np.array(out_sharpness)
+in_sharp = sharpness[indices]
+out_sharp = out_sharpness[indices]
+
+sharp_bar_plot(in_sharp, out_sharp, func_name, run_name, t)
+sharp_plot(sharp_in_list, sharp_in_std, sharp_out_list, sharp_out_std, func_name, run_name, t)
+"""
 import graphviz as gv
 p = effProg(max_d, best_pop, first_body_node)
 lgp_print_individual(p, p_A, p_B, 'lgp', func_name, bank_string, t, bias, n_inp, first_body_node)
@@ -231,6 +318,8 @@ with open(f"../output/{run_name}/{func_name}/log/output_{t}.pkl", "wb") as f:
 	pickle.dump(p_size, f)
 	pickle.dump(drift_list, f)
 	pickle.dump(drift_cum, f)
+	pickle.dump([sharp_in_list, sharp_out_list], f)
+	pickle.dump([sharp_in_std, sharp_out_std], f)
 dot = draw_graph_thicc(p, p_A, p_B, max_d = max_d)
 Path(f"../output/{run_name}/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
 dot.render(f"../output/{run_name}/{func_name}/full_graphs/graph_{t}", view=False)
