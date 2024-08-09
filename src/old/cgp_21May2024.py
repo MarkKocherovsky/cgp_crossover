@@ -179,7 +179,7 @@ change_avg_plot(avg_change_list, std_change_list, func_name, run_name, t, win_le
 retention_plot(ret_avg_list, ret_std_list, func_name, run_name, t, win_length = 100, order = 2)
 drift_list_sum = np.sum(drift_list, axis = 1).flatten()
 drift_list = np.divide(drift_list, drift_list_sum[:, np.newaxis])
-drift_plot(drift_list, drift_cum/np.sum(drift_cum), func_name, run_name, t, win_length=100, order = 4)
+drift_plot(drift_list, drift_cum / np.sum(drift_cum), func_name, run_name, t)
 #impact_plot(impact_list, func_name, run_name, t)
 #export graph
 first_body_node = inputs+bias

@@ -88,7 +88,7 @@ def measure_changes(children, fitness_objects, train_x_bias, train_y, parent, p_
     ret_avg_list = [(find_similarity(best_child[0], parent[0], best_child[1], parent[1], mode='cgp', method='distance'))]
     ret_std_list = [0.0]
     std_change_list = [0]
-    p_size = [cgp_active_nodes(parent[0], parent[1], opt=2)]
+    p_size = [cgp_active_nodes(parent[0], parent[1])]
 
     drift_cum = np.array([0, 0, 0])
     for c in c_fit[:, 0]:

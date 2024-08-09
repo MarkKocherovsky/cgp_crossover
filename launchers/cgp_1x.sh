@@ -10,7 +10,7 @@ c=40
 ft=1
 pm=0.025
 pc=0.5
-for f in {0..6}
+for f in {0..10}
 do
 	for t in {1..50}
 	do

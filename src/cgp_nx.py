@@ -94,10 +94,10 @@ avg_hist_list = []
 std_change_list = []
 
 best_i = np.argmin(fitnesses[:max_p])
-p_size = [cgp_active_nodes(parents[best_i][0], parents[best_i][1], opt = 2)]
+p_size = [cgp_active_nodes(parents[best_i][0], parents[best_i][1])]
 
 for g in range(1, max_g+1):
-	children, retention = xover(deepcopy(parents), method = 'Node') 
+	children, retention = xover(deepcopy(parents), method='Node', max_n=64)
 	children = mutate(deepcopy(children))
 	pop = parents+children
 	fit_temp = np.array([fitness_objects[i](train_x_bias, train_y, ind) for i, ind in zip(list(range(0, max_p+max_c)), pop)])
@@ -142,7 +142,7 @@ for g in range(1, max_g+1):
 		print(f"Gen {g} Best Fitness: {best_fit}")
 	#print(p_fit)
 	fit_track.append(best_fit)
-	p_size.append(cgp_active_nodes(pop[best_i][0], pop[best_i][1], opt = 2))
+	p_size.append(cgp_active_nodes(pop[best_i][0], pop[best_i][1]))
 	parents = select(pop, fitnesses, max_p)
 
 pop = parents+children
@@ -186,7 +186,7 @@ retention_plot(ret_avg_list, ret_std_list, func_name, run_name, t, win_length = 
 
 #export graph
 first_body_node = inputs+bias
-cgp_graph(inputs, bias, best_pop[0], best_pop[1], p_A, p_B, func_name, run_name, t,  max_n = max_n, first_body_node = first_body_node, arity = arity)
+cgp_graph(inputs, bias, best_pop[0], best_pop[1], p_A, p_B, func_name, run_name, t, first_body_node = first_body_node, arity = arity)
 
 #active nodes only
 

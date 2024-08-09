@@ -8,9 +8,9 @@ n=64
 p=16
 c=4 #4 children for each parent
 ft=1
-for f in {0..6}
+for f in {1..1}
 do
-	for t in {1..50}
+	for t in {51..51}
 	do
 		sbatch cgp_40.sb $t $g $n $p $c $f $ft &
 		#python3 ../src/cgp.py $t $g $n $c $f &

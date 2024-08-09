@@ -15,9 +15,9 @@ rn=""
 echo $rn
 fl=0 #Fixed length - 1 = True
 echo $fl
-for f in {2..2}
+for f in {1..1}
 do
-	for t in {1..50}
+	for t in {51..51}
 	do
 		sbatch lgp_1x.sb $t $g $r $d $p $c $f $ft $pm $px $rn $fl
 		#python3 ../src/lgp.py $t $g $r $d $p $c $f &

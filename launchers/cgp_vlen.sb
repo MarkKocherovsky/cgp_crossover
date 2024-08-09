@@ -2,7 +2,7 @@
 
 #Mark Kocherovsky
 
-#SBATCH --time=02:00:00
+#SBATCH --time=1-12:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 
@@ -11,9 +11,10 @@
 #SBATCH --mem=8G
 
 module purge
-cd $HOME
+#cd $HOME
+cd /mnt/home/kocherov/Documents/cgp/src/
 module load Conda/3
-conda init bash
+conda init
 conda activate cgp
 
 t=$1

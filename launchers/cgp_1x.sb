@@ -2,18 +2,20 @@
 
 #Mark Kocherovsky
 
-#SBATCH --time=02:00:00
+#SBATCH --time=1-12:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 
 #SBATCH --job-name=kocherov_cgp_1x_run
 #SBATCH -o "logs\/%x-%j.txt"
+#SBATCH -e "err\/%x-%j.txt"
 #SBATCH --mem=8G
 
 module purge
-cd $HOME
+#cd $HOME
+cd /mnt/home/kocherov/Documents/cgp/src/
 module load Conda/3
-conda init bash
+conda init
 conda activate cgp
 
 t=$1
@@ -25,7 +27,6 @@ f=$6
 ft=$7
 pm=$8
 pc=$9
-cd /mnt/home/kocherov/Documents/cgp/src/
 echo "trial $t"
 python3 -u cgp_1x.py $t $g $n $p $c $f $ft $pm $pc
 conda deactivate

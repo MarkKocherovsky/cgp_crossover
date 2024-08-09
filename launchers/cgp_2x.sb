@@ -2,12 +2,13 @@
 
 #Mark Kocherovsky
 
-#SBATCH --time=03:00:00
+#SBATCH --time=24:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 
 #SBATCH --job-name=kocherov_cgp_2x_run
 #SBATCH -o "logs\/%x-%j.txt"
+#SBATCH -e "err\/%x-%j.txt"
 #SBATCH --mem=8G
 
 module purge
