@@ -1,0 +1,82 @@
+// trial 21 active nodes
+strict digraph {
+	A [label="*0.05265" fillcolor=green shape=diamond style=filled]
+	B [label="+-0.6411" fillcolor=green shape=diamond style=filled]
+	A -> B
+	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
+	N_60 [label="+"]
+	N_56 [label="/"]
+	N_36 [label="+"]
+	N_23 [label="*"]
+	N_22 [label="*"]
+	N_15 [label="*"]
+	N_12 [label="/"]
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_12
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_12
+	N_12 -> N_15
+	N_13 [label="+"]
+	N_1 [label=0 fillcolor=yellow rank=same shape=square style=filled]
+	N_1 -> N_13
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_13
+	N_13 -> N_15
+	N_15 -> N_22
+	N_13 [label="+"]
+	N_1 [label=0 fillcolor=yellow rank=same shape=square style=filled]
+	N_1 -> N_13
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_13
+	N_13 -> N_22
+	N_22 -> N_23
+	N_20 [label="+"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_20
+	N_13 [label="+"]
+	N_1 [label=0 fillcolor=yellow rank=same shape=square style=filled]
+	N_1 -> N_13
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_13
+	N_13 -> N_20
+	N_20 -> N_23
+	N_23 -> N_36
+	N_26 [label="*"]
+	N_14 [label="/"]
+	N_6 [label=5 fillcolor=yellow rank=same shape=square style=filled]
+	N_6 -> N_14
+	N_4 [label=3 fillcolor=yellow rank=same shape=square style=filled]
+	N_4 -> N_14
+	N_14 -> N_26
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_26
+	N_26 -> N_36
+	N_36 -> N_56
+	N_33 [label="-"]
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_33
+	N_25 [label="/"]
+	N_12 [label="/"]
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_12
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_12
+	N_12 -> N_25
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_25
+	N_25 -> N_33
+	N_33 -> N_56
+	N_56 -> N_60
+	N_37 [label="-"]
+	N_16 [label="+"]
+	N_4 [label=3 fillcolor=yellow rank=same shape=square style=filled]
+	N_4 -> N_16
+	N_5 [label=4 fillcolor=yellow rank=same shape=square style=filled]
+	N_5 -> N_16
+	N_16 -> N_37
+	N_4 [label=3 fillcolor=yellow rank=same shape=square style=filled]
+	N_4 -> N_37
+	N_37 -> N_60
+	N_60 -> O_0
+	O_0 -> A
+}

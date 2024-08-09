@@ -1,6 +1,42 @@
 // trial 3 active nodes
 strict digraph {
 	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
-	N_10 [label=9 fillcolor=yellow rank=same shape=square style=filled]
-	N_10 -> O_0
+	N_18 [label="$sqrt{x^2+y^2}$"]
+	N_16 [label="+"]
+	N_14 [label="$sqrt{x^2+y^2}$"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_14
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_14
+	N_14 -> N_16
+	N_13 [label="^"]
+	N_1 [label=0 fillcolor=yellow rank=same shape=square style=filled]
+	N_1 -> N_13
+	N_12 [label="/"]
+	N_1 [label=0 fillcolor=yellow rank=same shape=square style=filled]
+	N_1 -> N_12
+	N_3 [label=2 fillcolor=yellow rank=same shape=square style=filled]
+	N_3 -> N_12
+	N_12 -> N_13
+	N_13 -> N_16
+	N_16 -> N_18
+	N_16 [label="+"]
+	N_14 [label="$sqrt{x^2+y^2}$"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_14
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_14
+	N_14 -> N_16
+	N_13 [label="^"]
+	N_1 [label=0 fillcolor=yellow rank=same shape=square style=filled]
+	N_1 -> N_13
+	N_12 [label="/"]
+	N_1 [label=0 fillcolor=yellow rank=same shape=square style=filled]
+	N_1 -> N_12
+	N_3 [label=2 fillcolor=yellow rank=same shape=square style=filled]
+	N_3 -> N_12
+	N_12 -> N_13
+	N_13 -> N_16
+	N_16 -> N_18
+	N_18 -> O_0
 }

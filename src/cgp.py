@@ -1,368 +1,146 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from numpy import random, sin, cos, tan, sqrt, exp, log, abs, floor, ceil
-from math import log, pi
-from sys import path
-from pathlib import Path
-from functions import *
 from sys import argv
-def x(x,y):
-	return x
-def y(x, y):
-	return y
-def add(x,y):
-	return x+y
-def sub(x,y):
-	return x-y
-def mul(x,y):
-	return x*y
-def div(x,y):
-	if y == 0.0:
-		return 0
-	return x/y
-def powe(x,y):
-	if(x <= 0):
-		return 0
-	if(y==1):
-		return 1
-	return x**y
-def sin_x(x,y):
-	return sin(x)
-def sin_y(x,y):
-	return sin(y)
-def cos_x(x,y):
-	return cos(x)
-def cos_y(x,y):
-	return cos(y)
-def exp_x(x,y):
-	return exp(x)
-def exp_y(x,y):
-	return exp(y)
-def loga(x,y):
-	if y < 0.001:
-		y=0.001
-	return np.emath.logn(x,y)
 
-def sqrt_x_y(x,y):
-	if x+y < 0:
-		return 0
-	else:
-		return(sqrt(x+y))
-def distance(x,y):
-	return sqrt(x**2+y**2)
-def abs_x(x,y):
-	return abs(x)
-def abs_y(x,y):
-	return abs(y)
-def floor_x(x,y):
-	return floor(x)
-def floor_y(x,y):
-	return floor(y)
-def ceil_x(x,y):
-	return ceil(x)
-def ceil_y(x,y):
-	return ceil(y)
-def max_f(x,y):
-	return max(x,y)
-def min_f(x,y):
-	return min(x,y)
-def midpoint(x,y):
-	return (x+y)/2
+from cgp_mutation import *
+from cgp_parents import *
+from cgp_plots import *
+from cgp_selection import selectElite
+from functions import *
+from helper import *
 
+warnings.filterwarnings('ignore')
 
-#test_x = np.arange(11, 30.1, 1)
-#test_y = [func([y]) for y in test_x]
-#print(train_x)
-#print(train_y)
-#print(powe(0)
-t = int(argv[1]) #trial
-max_g = int(argv[2]) #max generations
-max_n = int(argv[3]) #max body nodes
-max_c = int(argv[4]) #max children
+print("started")
+t = int(argv[1])  # trial
+print(f'trial {t}')
+max_g = int(argv[2])  # max generations
+print(f'generations {max_g}')
+max_n = int(argv[3])  # max body nodes
+print(f'max body nodes {max_n}')
+max_c = int(argv[4])  # max children
+print(f'children {max_c}')
 outputs = 1
 inputs = 1
 biases = np.arange(0, 10, 1).astype(np.int32)
-bias = biases.shape[0] #number of biases
-print(bias)
+bias = biases.shape[0]  # number of biases
+print(f'biases {biases}')
 arity = 2
+random.seed(t + 50)
+print(f'Seed = {sqrt(t)}')
 
-#bank = (add, sub, mul, div, x, y, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, floor_x, floor_y, ceil_x, ceil_y, max_f, min_f, midpoint)
-#bank_string = ("+", "-", "*", "/", "x", "y", "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "$\lfloor{x}\rfloor$", "$\lfloor{y}\rfloor$", "$\lceil{x}\rceil$", "$\lceil{y}\rceil$", "max", "min", "avg")
+max_p = 1
 
-bank = (add, sub, mul, div, x, y, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, midpoint)
-bank_string = ("+", "-", "*", "/", "x", "y", "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "avg")
+bank = (add, sub, mul, div)
+bank_string = ("+", "-", "*", "/")
 
-func_bank = Collection()
-func = func_bank.func_list[int(argv[5])]
-func_name = func_bank.name_list[int(argv[5])]
-train_x = func.x_dom
-train_y = func.y_test
+func, func_name = getFunction(int(argv[6]))
+train_x, train_y = getXY(func)
 
-from scipy.stats import pearsonr
-def rmse(preds, reals):
-	return np.sqrt(np.mean((preds-reals)**2)) #copied from stack overflow
+f = int(argv[6])
+fits = FitCollection()
+fit = fits.fit_list[f]
+fit_name = fits.name_list[f]
 
-def corr(preds, reals, x=train_x):
-	if any(np.isnan(preds)) or any(np.isinf(preds)):
-		return -1
-	r = pearsonr(preds, reals)[0]
-	if np.isnan(r):
-		r = 0
-	return (1-r**2)
-
-def run(ind, cur_node, inp_nodes, arity = arity):
-	inp_size = inp_nodes.shape[0]
-	#print(f"inp_size: {inp_size}")
-	args = []
-	for j in range(arity):
-		if cur_node[j] < inp_size:
-			#print(cur_node[j])
-			args.append(inp_nodes[cur_node[j]])
-		else:
-			args.append(run(ind, ind[cur_node[j]-inp_nodes.shape[0]], inp_nodes))
-	function = bank[cur_node[-1]]
-	#print(args[0], args[1], function(args[0], args[1]))
-	return function(args[0], args[1]) # so far 2d only
-			
-
-def run_output(ind, out_nodes, inp_nodes, arity = arity):
-	inp_nodes = np.array(inp_nodes)
-	#print(inp_nodes)
-	outs = np.zeros(out_nodes.shape,)
-	#print(f'inputs + biases = {inputs+bias}')
-	#print(inp_nodes)
-	#print(inp_nodes.shape[0])
-	for i in np.arange(0, outs.shape[0], 1, np.int32):
-		#print(ind[out_nodes[i]-inp_nodes.shape[0]])
-		if out_nodes[i] < (inputs+bias):
-			#print(f'out_node = {out_nodes[i]} | input = {inp_nodes[out_nodes[i]]}')
-			outs[i] = inp_nodes[out_nodes[i]]
-		else:
-			#print(f'out_node = {out_nodes[i]} | input = {ind[out_nodes[i]-inp_nodes.shape[0]]}')
-			outs[i] = run(ind, ind[out_nodes[i]-inp_nodes.shape[0]], inp_nodes)
-	#print(outs)
-	return outs
-
-def fitness(data, targ, ind_base, output_nodes, opt = 0):
-	data = np.array(data)
-	out_x = np.zeros(data.shape[0])
-	for x in range(data.shape[0]):
-		if len(data.shape) <= 1:
-			in_val = [data[x]]
-		else:
-			in_val = data[x, :]
-		out_x[x] = run_output(ind_base, output_nodes, in_val)
-	if opt == 1:
-		return (out_x)
-	return rmse(out_x, targ)
-		
-
-def mutate(ind, out, p_mut = 0.5, arity = arity, in_size = inputs+bias):
-	for i in range(ind.shape[0]):
-		for j in range(ind.shape[1]):
-			if random.random() < p_mut: #mutate
-				if j < arity:
-					ind[i,j] = random.randint(0, i+in_size)
-				else:
-					ind[i,j] = random.randint(0, len(bank))
-	for i in range(out.shape[0]):
-		if random.random() < p_mut:
-			out[i] = random.randint(0, ind.shape[0]+in_size)
-	return ind, out
+# No Crossover!
+mutate = mutate_1_plus_4
 
 final_fit = []
-fit_track = []
-ind_base = np.zeros(((arity+1)*max_n,), np.int32)
-ind_base = ind_base.reshape(-1, arity+1) #for my sanity
-train_x_bias = np.zeros((train_x.shape[0], biases.shape[0]+1))
-train_x_bias[:, 0] = train_x
-train_x_bias[:, 1:] = biases
-#print(train_x_bias)
-#print(inputs+bias+max_n)
+ind_base = np.zeros(((arity + 1) * max_n,), np.int32)
+ind_base = ind_base.reshape(-1, arity + 1)  # for my sanity - Mark
+print(train_x)
+train_x_bias = prepareConstants(train_x, biases)
+print("instantiating parent")
+# instantiate parent
+parent = generate_parents(1, max_n, bank, first_body_node=11, outputs=1, arity=2)
+density_distro = initDensityDistro(max_n, outputs, arity)
+mut_impact = DriftImpact(neutral_limit=1e-3)
 
-#instantiate parent
-for i in range(0, max_n):
-	#print(i < inputs+bias)
-	for j in range(0, arity): #input
-		if i < (inputs+bias):
-			ind_base[i,j] = random.randint(0, (inputs+bias))
-		else:
-			ind_base[i,j] = random.randint(0, i+(inputs+bias))
-	ind_base[i, -1] = random.randint(0, len(bank))
-#print("First Parent")
-#print(ind_base)
-output_nodes = random.randint(0, max_n+(inputs+bias), (outputs,), np.int32)
+fitness = Fitness()
+sharp_in_manager = SAM_IN(train_x_bias)
+sharp_out_manager = SAM_OUT()
+p_fit, p_A, p_B = fitness(train_x_bias, train_y, parent)
 
-#test = run_output(ind_base, output_nodes, np.array([10.0]))
-p_fit = fitness(train_x_bias, train_y, ind_base, output_nodes)
-fit_track.append(p_fit)
-#print(f"Pre-Run Parent Fitness: {p_fit}")
-for g in range(1, max_g+1):
-	children = [mutate(ind_base.copy(), output_nodes.copy()) for x in range(0, max_c)]
-	c_fit = [fitness(train_x_bias, train_y, child[0], child[1]) for child in children]
-	#print(p_fit)
-	#print(c_fit)
+# SAM-In
+noisy_x, noisy_y = getNoise(train_x_bias.shape, 1, max_c, inputs, func, sharp_in_manager)
+p_sharp, _, _ = fitness(noisy_x[0], noisy_y[0], parent)
+sharp_in_list = [np.abs(p_fit - p_sharp)]
+sharp_in_std = [0]
 
-	if any(np.array(c_fit) <= p_fit):
-		best = np.argmin(c_fit)
-		ind_base = children[best][0].copy()
-		output_nodes = children[best][1].copy()
-		p_fit = np.min(c_fit)
-	#print(f"Gen {g} Best Fitness: {p_fit}")
-	#print(p_fit)
-	fit_track.append(p_fit)
-	#if(p_fit > 0.96):
-	#	break
+# SAM-Out
+preds, _, _ = fitness(train_x_bias, train_y, parent, opt=1)
 
-print(f"Trial {t}: Best Fitness = {p_fit}")
-final_fit.append(p_fit)
-#fig, ax = plt.subplots()
-#ax = plt.plot(fit_track)
-#print(fit_track)
-#plt.show()
-#print(final_fit)
-print('biases')
-print(biases)
-print('best individual')
-print(ind_base)
-print('output nodes')
-print(output_nodes)
-print('preds')
-preds = fitness(train_x_bias, train_y, ind_base, output_nodes, opt = 1)
-print(preds)
-#print(list(train_y))
-Path(f"../output/cgp/{func_name}/log/").mkdir(parents=True, exist_ok=True)
-import pickle
-print(f"../output/cgp/{func_name}/log/output_{t}.pkl")
-with open(f"../output/cgp/{func_name}/log/output_{t}.pkl", "wb") as f:
-	pickle.dump(biases, f)
-	pickle.dump(ind_base, f)
-	pickle.dump(output_nodes, f)
-	pickle.dump(preds, f)
-	pickle.dump(p_fit, f)
+neighbor_map = getNeighborMap(preds, sharp_out_manager, fitness, train_y)
+sharp_out_list = [np.std(neighbor_map) ** 2]  # variance
+sharp_out_std = [0]
 
-fig, ax = plt.subplots()
-ax.scatter(train_x, train_y, label = 'Ground Truth')
-ax.scatter(train_x, preds, label = 'Predicted')
-fig.suptitle(f"{func_name} Trial {t}")
-ax.set_title(f"RMSE = {np.round(p_fit, 2)}")
-ax.legend()
-Path(f"../output/cgp/{func_name}/scatter/").mkdir(parents=True, exist_ok=True)
-plt.savefig(f"../output/cgp/{func_name}/scatter/comp_{t}.png")
+f_change = np.zeros((max_c,))  # % difference from p_fit
+p_size = [cgp_active_nodes(parent[0], parent[1])]  # /ind_base.shape[0]]
+fit_track, ret_avg_list, ret_std_list, avg_change_list, avg_hist_list, std_change_list = initTrackers()
+fitness_objects = [Fitness() for i in range(0, max_c)]
+run_name = 'cgp'
 
-#export graph
-import graphviz as gv
-dot = gv.Digraph(comment=f'trial {t}')
+for g in range(1, max_g + 1):
+    children, mutated_inds = zip(*[mutate(deepcopy(parent)) for _ in range(max_c)])
+    children = list(children)
+    c_fit, alignment = processFitness(fitness_objects, train_x_bias, train_y, children, 0, max_c)
+    best_child_index = np.argmin(c_fit)
+    best_c_fit = c_fit[best_child_index]
+    best_child = children[best_child_index]
+    avg_change_list.append(percent_change(best_c_fit, p_fit))
+    change_list = np.array([percent_change(c, p_fit) for c in c_fit])
+    change_list = change_list[np.isfinite(change_list)]
+    cl_std = np.nanstd(change_list)
+    if not all(cl == 0.0 for cl in change_list):
+        avg_hist_list.append((g, np.histogram(change_list, bins=5, range=(cl_std * -2, cl_std * 2))))
+    ret_avg_list.append(
+        find_similarity(best_child[0], parent[0], best_child[1], parent[1], mode='cgp', method='distance'))
+    ret_std_list.append(0.0)
+    std_change_list.append(0)
+    a = alignment[:, 0].copy().flatten()
+    b = alignment[:, 1].copy().flatten()
+    c_fit = c_fit.flatten()
+    # print(p_fit)
+    # print(c_fit)
+    if any(np.isnan(c_fit)):  # Replace nans with positive infinity to screen them out
+        nans = np.isnan(c_fit)
+        c_fit[nans] = np.PINF
+    drift_per_parent_mut, drift_per_parent_xov = mut_impact(np.insert(c_fit, 0, p_fit), 1, [], mutated_inds, opt=1,
+                                                            option='OneParent')
+    # get average sharpness
+    sharp_in_list, sharp_in_std, sharp_out_list, sharp_out_std = processSharpness(train_x_bias, 1, max_c,
+                                                                                  inputs, func, sharp_in_manager,
+                                                                                  [Fitness()] + fitness_objects,
+                                                                                  [parent] + children, train_y,
+                                                                                  sharp_in_list, sharp_in_std,
+                                                                                  sharp_out_manager, sharp_out_list,
+                                                                                  sharp_out_std)
 
-total_layers = max_n+2 #input and output layers
-#for l in range(total_layers):
-#	dot.node(f"l_{l}", style="invisible")
-#	if i > 0:
-#		dot.edge(f"l_{l-1}", f"l_{l}", style="invisible")
+    parent, p_fit, p_A, p_B = selectElite(parent, children, p_fit, c_fit, p_A, p_B, a, b)
 
-first_body_node = inputs+bias
-#print(first_body_node)
+    if g % 100 == 0:
+        logAndProcessSharpness(g, p_fit, sharp_in_list, sharp_out_list)
+    fit_track.append(p_fit)
+    # sharp_list.append(np.abs(p_fit-p_sharp))
+    p_size.append(cgp_active_nodes(parent[0], parent[1]))  # /ind_base.shape[0])
+# if(p_fit > 0.96):
+#	break
+avg_change_list = np.array(avg_change_list)
+std_change_list = np.array(std_change_list)
+p_size = np.array(p_size)
 
-for i in range(inputs):
-	dot.node(f'N_{i}', f'I_{i}', shape='square', rank='same', fillcolor = 'orange', style='filled')
-#	dot.edge("l_0", f"N_{i}", style='invisible')
-for b in range(bias):
-	dot.node(f'N_{b+inputs}', f"{biases[b]}", shape='square', rank='same', fillcolor='yellow', style='filled')
-#	dot.edge("l_0", f"N_{b}", style='invisible')
-dot.attr(rank='same')
-for n in range(first_body_node, max_n+first_body_node):
+pop = [parent] + children
+fitness_objects = [Fitness()] + fitness_objects
+fitnesses, alignment = processFitness(fitness_objects, train_x_bias, train_y, pop, max_p, max_c)
+best_i, best_fit, best_pop, mut_list, mut_cum, xov_list, xov_cum, density_distro, preds, p_a, p_b = processAndPrintResults(
+    t, fitnesses, pop, mut_impact, density_distro, train_x_bias = train_x_bias, train_y=train_y, mode='cgp')
 
-	node = ind_base[n-first_body_node]
-	op = bank_string[node[-1]]
-	dot.node(f'N_{n}', op)
-	for a in range(arity):
-		dot.edge(f'N_{node[a]}', f'N_{n}')
-for o in range(outputs):
-	node = output_nodes[o]
-	dot.attr(rank='max')
-	dot.node(f'O_{o}', f'O_{o}', shape='square', fillcolor='lightblue', style='filled')
-	dot.edge(f'N_{node}', f'O_{o}')
-#	dot.edge(f"l_{total_layers-1}", f'O_{o}')
-Path(f"../output/cgp/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
-dot.render(f"../output/cgp/{func_name}/full_graphs/graph_{t}", view=False)
+run_name = 'cgp'
+# print(list(train_y))
+Path(f"../output/{run_name}/{func_name}/log/").mkdir(parents=True, exist_ok=True)
 
-#active nodes only
-
-def plot_active_nodes(name = "active_nodes", output_nodes = output_nodes, outputs=outputs, fb_node = first_body_node):
-	active_graph = gv.Digraph(comment=f'trial {t} active nodes', strict = True)
-	size = 0
-	def plot_body_node(n_node):
-		node = ind_base[n_node-first_body_node]
-		op = bank_string[node[-1]]
-		active_graph.node(f'N_{n_node}', op)
-		for a in range(arity):
-			prev_node = node[a]
-			if prev_node < inputs: #inputs
-				active_graph.node(f'N_{prev_node}', f'I_{prev_node}', shape='square', rank='same', fillcolor = 'orange', style='filled')
-				active_graph.edge(f'N_{prev_node}', f'N_{n_node}')
-			elif prev_node >= inputs and prev_node < first_body_node: #bias:
-				active_graph.node(f'N_{prev_node}', f"{biases[prev_node-inputs]}", shape='square', rank='same', fillcolor='yellow', style='filled')
-				active_graph.edge(f'N_{prev_node}', f'N_{n_node}')
-			else:
-				plot_body_node(prev_node)
-				active_graph.edge(f'N_{prev_node}', f'N_{n_node}')
-	for o in range(outputs):
-		node = output_nodes[o]
-		active_graph.node(f'O_{o}', f'O_{o}', shape='square', fillcolor='lightblue', style='filled')
-		if node < inputs: #inputs
-			active_graph.node(f'N_{node}', f'I_{node}', shape='square', rank='same', fillcolor = 'orange', style='filled')
-			active_graph.edge(f'N_{node}', f'O_{o}')
-		elif node >= inputs and node < first_body_node: #bias:
-			active_graph.node(f'N_{node}', f"{biases[node-inputs]}", shape='square', rank='same', fillcolor='yellow', style='filled')
-			active_graph.edge(f'N_{node}', f'O_{o}')
-		else:
-			plot_body_node(node)
-			active_graph.edge(f'N_{node}', f'O_{o}')
-	"""
-	for x in active_graph:
-		print(x)
-		print('label' in x)
-	print([1 if 'label' in x else 0 for x in active_graph])
-	size = sum([1 if 'label' in x else 0 for x in active_graph])
-	print(f'graph size = {size}')
-	"""
-	Path(f"../output/cgp/{func_name}/active_nodes/").mkdir(parents=True, exist_ok=True)
-	active_graph.render(f"../output/cgp/{func_name}/active_nodes/active_{t}", view=False)
-
-def get_expression(output_nodes = output_nodes, outputs = outputs, fb_node = first_body_node):
-	expressions = []
-	def get_body_expressions(n_node):		
-		node = ind_base[n_node-fb_node]
-		op = bank_string[node[-1]]
-		tokens = []
-		for a in range(arity):
-			prev_node = node[a]
-			if prev_node < inputs:
-				tokens.append(f'I_{prev_node}')
-			elif prev_node > inputs and prev_node < fb_node:
-				tokens.append(f'{biases[prev_node-inputs]}')
-			else:
-				if arity == 0:
-					tokens.append(f'{get_body_expressions(prev_node)}')
-				else:
-					tokens.append(f'{get_body_expressions(prev_node)}')
-		sub_expression = f'{op}({tokens[0]}, {tokens[1]})'
-		return sub_expression
-	
-	for o in range(outputs):
-		expressions.append("")
-		expressions[o] = f"O_{o} = "
-		prev_node = output_nodes[o]
-		if prev_node < inputs: 
-			expressions = expressions[o] + f'I_{prev_node}'
-		elif prev_node > inputs and prev_node < fb_node:
-			expressions[o] = expressions[o] + f'{biases[prev_node-inputs]}'
-		else:
-			expressions[o] += get_body_expressions(prev_node)
-	#print(expressions)
-	return(expressions)
-	
-plot_active_nodes()
-#expressions = get_expression()
-#for expression in expressions:
-#	print(expression)
+first_body_node = inputs + bias
+bin_centers, hist_gens, avg_hist_list = change_histogram_plot(avg_hist_list, func_name, run_name, t, max_g)
+n = plot_active_nodes(best_pop[0], best_pop[1], first_body_node, bank_string, biases, inputs, p_a, p_b, func_name,
+                      run_name, t, opt=1)
+saveResults(run_name, func_name, t, biases, best_pop, preds, best_fit, n, fit_track, avg_change_list, ret_avg_list,
+            p_size, bin_centers, hist_gens, avg_hist_list, mut_list, mut_cum,
+            xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro)

@@ -1,0 +1,42 @@
+// trial 8 active nodes
+strict digraph {
+	O_0 [label=O_0 fillcolor=lightblue shape=square style=filled]
+	N_24 [label="|x|"]
+	N_23 [label=x]
+	N_18 [label="$\sqrt{x+y}$"]
+	N_16 [label="sin(y)"]
+	N_11 [label="$sqrt{x^2+y^2}$"]
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_11
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_11
+	N_11 -> N_16
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_16
+	N_16 -> N_18
+	N_14 [label="$sqrt{x^2+y^2}$"]
+	N_13 [label="-"]
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_13
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_13
+	N_13 -> N_14
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_14
+	N_14 -> N_18
+	N_18 -> N_23
+	N_14 [label="$sqrt{x^2+y^2}$"]
+	N_13 [label="-"]
+	N_9 [label=8 fillcolor=yellow rank=same shape=square style=filled]
+	N_9 -> N_13
+	N_8 [label=7 fillcolor=yellow rank=same shape=square style=filled]
+	N_8 -> N_13
+	N_13 -> N_14
+	N_0 [label=I_0 fillcolor=orange rank=same shape=square style=filled]
+	N_0 -> N_14
+	N_14 -> N_23
+	N_23 -> N_24
+	N_7 [label=6 fillcolor=yellow rank=same shape=square style=filled]
+	N_7 -> N_24
+	N_24 -> O_0
+}
