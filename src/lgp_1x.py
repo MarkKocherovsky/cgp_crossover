@@ -29,6 +29,7 @@ bias = np.arange(0, 10, 1)
 n_bias = bias.shape[0]  # number of bias inputs
 random.seed(t + 300)
 
+p_mut = get_param(9, 0.025)
 p_xov = get_param(10, 0.5)
 run_name = f'lgp_1x{get_param(11, "", str)}'
 print(run_name)
@@ -112,7 +113,8 @@ mut_impact = DriftImpact(neutral_limit=1e-3)
 
 for g in range(1, max_g + 1):
     children, retention, d_distro = xover(deepcopy(parents), max_r, p_xov, 'OnePoint', fixed_length = fixed_length)
-    children, mutated_inds = mutate(deepcopy(children), max_c, max_r, max_d, bank, inputs=1, n_bias=10, arity=2)
+    children, mutated_inds = mutate(deepcopy(children), max_c, max_r, max_d, bank, inputs=1, n_bias=10, arity=2,
+                                    p_mut=p_mut)
     pop = parents + children
     fitness_evaluator = Fitness(train_x, bias, train_y, pop, func, bank, n_inp, max_d, fit, arity)
     fitnesses, alignment[:, 0], alignment[:, 1] = fitness_evaluator()
