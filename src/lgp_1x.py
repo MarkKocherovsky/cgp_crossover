@@ -29,6 +29,7 @@ bias = np.arange(0, 10, 1)
 n_bias = bias.shape[0]  # number of bias inputs
 random.seed(t + 300)
 
+p_mut = get_param(9, 0.025)
 p_xov = get_param(10, 0.5)
 run_name = f'lgp_1x{get_param(11, "", str)}'
 print(run_name)
@@ -45,7 +46,6 @@ fit_name = fits.name_list[f]
 print('Fitness Function')
 print(fit)
 print(fit_name)
-run_name = 'lgp'
 num_elites = 7
 
 bank, bank_string = loadBank()
@@ -112,7 +112,7 @@ mut_impact = DriftImpact(neutral_limit=1e-3)
 
 for g in range(1, max_g + 1):
     children, retention, d_distro = xover(deepcopy(parents), max_r, p_xov, 'OnePoint', fixed_length = fixed_length)
-    children, mutated_inds = mutate(deepcopy(children), max_c, max_r, max_d, bank, inputs=1, n_bias=10, arity=2)
+    children, mutated_inds = mutate(deepcopy(children), max_c, max_r, max_d, bank, inputs=1, n_bias=10, arity=2, p_mut=p_mut)
     pop = parents + children
     fitness_evaluator = Fitness(train_x, bias, train_y, pop, func, bank, n_inp, max_d, fit, arity)
     fitnesses, alignment[:, 0], alignment[:, 1] = fitness_evaluator()
@@ -161,8 +161,8 @@ p_A = alignment[best_i, 0]
 p_B = alignment[best_i, 1]
 
 p = effProg(max_d, best_pop, first_body_node)
-lgp_print_individual(p, p_A, p_B, 'lgp', func_name, bank_string, t, bias, n_inp, first_body_node)
-with open(f"../output/lgp/{func_name}/best_program/best_{t}.txt", 'a') as f:
+lgp_print_individual(p, p_A, p_B, 'lgp_1x', func_name, bank_string, t, bias, n_inp, first_body_node)
+with open(f"../output/{run_name}/{func_name}/best_program/best_{t}.txt", 'a') as f:
     f.write(f"\nEffective Instructions\n\n")
     f.write(f'{p}')
 print('effective program')
@@ -172,5 +172,5 @@ saveResults(run_name, func_name, t, bias, best_pop, preds, best_fit, len(p), fit
             xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro)
 print('run finished')
 dot = draw_graph_thicc(p, p_A, p_B)
-Path(f"../output/lgp/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
-dot.render(f"../output/lgp/{func_name}/full_graphs/graph_{t}", view=False)
+Path(f"../output/{run_name}/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
+dot.render(f"../output/{run_name}/{func_name}/full_graphs/graph_{t}", view=False)

@@ -32,7 +32,7 @@ max_p = 1
 bank = (add, sub, mul, div)
 bank_string = ("+", "-", "*", "/")
 
-func, func_name = getFunction(int(argv[6]))
+func, func_name = getFunction(int(argv[5]))
 train_x, train_y = getXY(func)
 
 f = int(argv[6])

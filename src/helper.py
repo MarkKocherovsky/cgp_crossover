@@ -231,7 +231,9 @@ def processAndPrintResults(t, fitnesses, pop, mut_impact, density_distro, train_
 def saveResults(run_name, func_name, t, biases, best_pop, preds, best_fit, n, fit_track, avg_change_list, ret_avg_list,
                 p_size, bin_centers, hist_gens, avg_hist_list, mut_list, mut_cum,
                 xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro):
-    with open(f"../output/{run_name}/{func_name}/log/output_{t}.pkl", "wb") as f:
+    file_name = f"../output/{run_name}/{func_name}/log/output_{t}.pkl"
+    print(f'Saving to {file_name}')
+    with open(file_name, "wb") as f:
         pickle.dump(biases, f)
         pickle.dump(best_pop, f)
         pickle.dump(preds, f)
