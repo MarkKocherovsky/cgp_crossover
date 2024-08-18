@@ -45,7 +45,6 @@ fit_name = fits.name_list[f]
 print('Fitness Function')
 print(fit)
 print(fit_name)
-run_name = 'lgp'
 num_elites = 7
 
 bank, bank_string = loadBank()
@@ -162,7 +161,7 @@ p_B = alignment[best_i, 1]
 
 p = effProg(max_d, best_pop, first_body_node)
 lgp_print_individual(p, p_A, p_B, 'lgp', func_name, bank_string, t, bias, n_inp, first_body_node)
-with open(f"../output/lgp/{func_name}/best_program/best_{t}.txt", 'a') as f:
+with open(f"../output/{run_name}/{func_name}/best_program/best_{t}.txt", 'a') as f:
     f.write(f"\nEffective Instructions\n\n")
     f.write(f'{p}')
 print('effective program')
@@ -172,5 +171,5 @@ saveResults(run_name, func_name, t, bias, best_pop, preds, best_fit, len(p), fit
             xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro)
 print('run finished')
 dot = draw_graph_thicc(p, p_A, p_B)
-Path(f"../output/lgp/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
-dot.render(f"../output/lgp/{func_name}/full_graphs/graph_{t}", view=False)
+Path(f"../output/{run_name}/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
+dot.render(f"../output/{run_name}/{func_name}/full_graphs/graph_{t}", view=False)
