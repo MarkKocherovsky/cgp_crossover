@@ -35,7 +35,7 @@ def basic_mutation(subjects, arity=2, in_size=11, p_mut=0.025, bank_len=4):
     return subjects, mutated_individuals
 
 
-def macromicro_mutation(subjects, arity=2, in_size=11, p_mut=0.025, bank_len=4, n_max=64):
+def macromicro_mutation(subjects, in_size, arity=2, p_mut=0.025, bank_len=4, n_max=64):
     mutated_individuals = []
     for m in range(len(subjects)):
         if random.random() < p_mut:
@@ -53,7 +53,7 @@ def macromicro_mutation(subjects, arity=2, in_size=11, p_mut=0.025, bank_len=4, 
                 elif mutation == 1:  # point mutation
                     ind, out = mutate_node(ind, out, i, arity, in_size, bank_len)
                 elif mutation == 2:  # insertion
-                    ind = insert_instruction(ind, generate_single_instruction(i))
+                    ind = insert_instruction(ind, generate_single_instruction(i, in_size))
                 else:
                     raise ValueError(f'src::cgp_mutation::macromicro_mutation: asked for mutation == {mutation}')
 

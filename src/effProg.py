@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 
 
-def effProg(n_calc, prog_long, fb_node=12):  #Wolfgang gave this to me
+def effProg(n_calc, prog_long, fb_node):  #Wolfgang gave this to me
     n_calc = n_calc + fb_node
     prog = prog_long.copy().astype(np.int32)
     prog = np.atleast_2d(prog)
@@ -220,7 +220,7 @@ def cgp_active_nodes(ind_base, output_nodes, outputs=1, first_body_node=11, opt=
         return (active_nodes[active_nodes >= first_body_node] - first_body_node)
 
 
-def cgp_graph(inputs, bias, ind_base, output_nodes, p_A, p_B, func_name, run_name, t, max_n=64, first_body_node=11,
+def cgp_graph(inputs, bias, ind_base, first_body_node, output_nodes, p_A, p_B, func_name, run_name, t, max_n=64,
               arity=2, biases=list(range(0, 10)), bank_string=['+', '-', '*', '/']):
     max_n = ind_base.shape[0]
     dot = gv.Digraph()
@@ -312,7 +312,7 @@ def plot_active_nodes(ind_base, output_nodes, first_body_node, bank_string, bias
     return active_node_num
 
 
-def lgp_print_individual(ind, a, b, run_name, func_name, bank_string, t, bias, n_inp=1, fb_node=12):
+def lgp_print_individual(ind, a, b, fb_node, run_name, func_name, bank_string, t, bias, n_inp=1):
     Path(f"../output/{run_name}/{func_name}/best_program/").mkdir(parents=True, exist_ok=True)
     ind = np.atleast_2d(ind)
 

@@ -2,8 +2,9 @@ import numpy as np
 from numpy import random
 
 
-def generate_parents(max_p, max_n, bank, first_body_node=11, outputs=1, arity=2, fixed_length=True):
+def generate_parents(max_p, max_n, bank, inputs=1, n_constants=10, outputs=1, arity=2, fixed_length=True):
     parents = []
+    first_body_node = inputs+n_constants
     for _ in range(max_p):
         n = max_n if fixed_length else random.randint(1, max_n + 1)
         ind_base = generate_individual_base(n, arity, first_body_node, len(bank))
@@ -23,7 +24,7 @@ def generate_individual_base(n, arity, first_body_node, bank_len):
     return ind_base
 
 
-def generate_single_instruction(idx, bank_len=4, first_body_node=11, arity=2):
+def generate_single_instruction(idx, first_body_node, bank_len=4, arity=2):
     instruction = np.zeros((arity + 1,))
     for i in range(arity):
         instruction[i] = random.randint(0, idx + first_body_node)

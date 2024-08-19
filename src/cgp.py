@@ -1,5 +1,3 @@
-from sys import argv
-
 from cgp_mutation import *
 from cgp_parents import *
 from cgp_plots import *
@@ -32,7 +30,7 @@ max_p = 1
 bank = (add, sub, mul, div)
 bank_string = ("+", "-", "*", "/")
 
-func, func_name = getFunction(int(argv[6]))
+func, func_name, func_dims = getFunction(int(argv[6]))
 train_x, train_y = getXY(func)
 
 f = int(argv[6])
@@ -50,7 +48,7 @@ print(train_x)
 train_x_bias = prepareConstants(train_x, biases)
 print("instantiating parent")
 # instantiate parent
-parent = generate_parents(1, max_n, bank, first_body_node=11, outputs=1, arity=2)
+parent = generate_parents(1, max_n, bank, inputs=func_dims, n_constants = len(biases), outputs=1, arity=2)
 density_distro = initDensityDistro(max_n, outputs, arity)
 mut_impact = DriftImpact(neutral_limit=1e-3)
 

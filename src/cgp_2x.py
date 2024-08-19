@@ -1,5 +1,4 @@
 #CGP 1 Point Crossover
-from sys import argv
 
 from cgp_mutation import *
 from cgp_parents import *
@@ -22,7 +21,6 @@ print(f'Parents {max_p}')
 max_c = int(argv[5])  #max children
 print(f'children {max_c}')
 outputs = 1
-inputs = 1
 biases = np.arange(0, 10, 1).astype(np.int32)
 bias = biases.shape[0]  #number of biases
 print(f'biases {biases}')
@@ -36,10 +34,11 @@ run_name = 'cgp_2x'
 
 bank, bank_string = loadBank()
 
-func, func_name = getFunction(int(argv[6]))
+func, func_name, func_dims = getFunction(int(argv[6]))
+inputs = func_dims
+first_body_node = inputs+bias+outputs
 
 train_x, train_y = getXY(func)
-print(train_x)
 
 f = int(argv[7])
 fits = FitCollection()
@@ -58,7 +57,7 @@ train_x_bias = prepareConstants(train_x, biases)
 mutate = basic_mutation
 select = tournament_elitism
 
-parents = generate_parents(max_p, max_n, bank, first_body_node=11, outputs=1, arity=2)
+parents = generate_parents(max_p, max_n, bank, inputs=inputs, n_constants=bias, outputs=1, arity=2)
 density_distro = initDensityDistro(max_n, outputs, arity)
 
 fitness_objects, fitnesses = initFitness(max_p, max_c)
@@ -100,7 +99,7 @@ mut_impact = DriftImpact(neutral_limit=1e-3)
 num_elites = 7  #for elite graph plotting
 
 for g in range(1, max_g + 1):
-    children, retention, d_distro = xover(deepcopy(parents), max_n, method='TwoPoint')
+    children, retention, d_distro = xover(deepcopy(parents), max_n, first_body_node=first_body_node, method='TwoPoint')
     children, mutated_inds = mutate(deepcopy(children))
     pop = parents + children
     fitnesses, alignment = processFitness(fitness_objects, train_x_bias, train_y, pop, max_p, max_c)

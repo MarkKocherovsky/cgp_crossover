@@ -58,7 +58,7 @@ def prevent_recursion(ind, first_body_node):
     
     return ind
 
-def xover_1x(p1, p2, max_n, first_body_node=11, fixed_length=True, bank_len=4):
+def xover_1x(p1, p2, max_n, first_body_node, fixed_length=True, bank_len=4):
     ind1, ind2 = np.array(p1[0]), np.array(p2[0])
     out1, out2 = np.array(p1[1]), np.array(p2[1])
     d_distro = np.zeros(max_n * 3)
@@ -121,7 +121,7 @@ def xover_sgx(p1, p2, max_n, inputs=1, first_body_node=11, fixed_length=False, b
     return c1, c2, d_distro
 
 
-def xover(parents, max_n, method='None', p_xov=0.5, first_body_node=11, fixed_length=True, bank_len=4):
+def xover(parents, max_n, first_body_node, method='None', p_xov=0.5, fixed_length=True, bank_len=4):
     children = []
     d_distro = np.zeros((len(parents), max_n * 3))
     methods = {

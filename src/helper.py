@@ -28,7 +28,7 @@ def getXY(func: Function) -> tuple:
 
 def getFunction(func_index: int) -> tuple:
     func_bank = Collection()
-    return func_bank.func_list[func_index], func_bank.name_list[func_index]
+    return func_bank.func_list[func_index], func_bank.name_list[func_index], func_bank.func_list[func_index].dimensions
 
 
 def initAlignment(max_p: int, max_c: int) -> np.ndarray:
