@@ -5,7 +5,7 @@ def macromicro_mutation(individuals, max_c, max_r, max_d, bank, inputs=1, n_bias
                         p_mut=1 / 40):  #either removes, changes, or adds an instruction
     children = []
     mutated_inds = []
-    new_instruction_generator = lgpParentGenerator(1, 1, max_d, bank)
+    new_instruction_generator = LgpParentGenerator(1, 1, max_d, bank)
     while len(children) < max_c:
         for p in range(0, len(individuals)):  #go through each parent
             parent = individuals[p].copy()
@@ -60,7 +60,7 @@ def macromicro_mutation(individuals, max_c, max_r, max_d, bank, inputs=1, n_bias
 def lgp_1pc_mut(p, max_c, max_r, max_d, bank, inputs=1, n_bias=10, arity=2,
                 p_mut=1 / 40):  #either removes, changes, or adds an instruction
     children = []
-    new_instruction_generator = lgpParentGenerator(1, 1, max_d, bank)
+    new_instruction_generator = LgpParentGenerator(1, 1, max_d, bank)
     while len(children) < max_c:
         parent = p.copy()
         if random.random() <= p_mut:

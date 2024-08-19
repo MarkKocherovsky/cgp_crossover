@@ -101,7 +101,7 @@ fit_track = []
 alignment = np.zeros((max_p+max_c, 2))
 alignment[:, 0] = 1.0
 
-parent_generator = lgpParentGenerator(max_p, max_r, max_d, bank, n_inp, n_bias, arity, fixed_length)
+parent_generator = LgpParentGenerator(max_p, max_r, max_d, bank, n_inp, n_bias, arity, fixed_length)
 parents = parent_generator()
 
 train_x_bias = np.zeros((train_x.shape[0], bias.shape[0]+1))

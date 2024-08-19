@@ -30,7 +30,7 @@ def align(preds, reals):
 
 
 class Fitness:
-    def __init__(self, data, bias, target, pop, func, bank, n_inp=1, max_d=4, fit_function=corr, arity=2):
+    def __init__(self, data, bias, target, pop, func, bank, n_inp, max_d=4, fit_function=corr, arity=2):
         self.data = data.reshape((-1, n_inp))
         self.bias = np.array(bias)
         self.target = target
@@ -83,12 +83,12 @@ class Fitness:
         return preds * a + b
 
     def __call__(self, pop=None):
-        if pop == None:
+        if pop is None:
             pop = self.pop
         fitnesses = []
         A = []
         B = []
-        for ind in self.pop:
+        for ind in pop:
             with np.errstate(invalid='raise'):
                 try:
                     f = self.run(ind)
@@ -105,7 +105,7 @@ class Fitness:
         return np.array(fitnesses), np.array(A), np.array(B)
 
 
-class FitCollection():
+class FitCollection:
     def __init__(self):
         self.fit_list = [rmse, corr]
         self.name_list = ['RMSE', '1-R^2']

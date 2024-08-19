@@ -78,7 +78,7 @@ fit_track = []
 alignment = np.zeros((max_p+max_c, 2))
 alignment[:, 0] = 1.0
 
-parent_generator = lgpParentGenerator(max_p, max_r, max_d, bank, n_inp, n_bias, arity)
+parent_generator = LgpParentGenerator(max_p, max_r, max_d, bank, n_inp, n_bias, arity)
 parents = parent_generator()
 
 fitnesses = np.zeros((max_p+max_c),)
