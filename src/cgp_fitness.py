@@ -4,7 +4,6 @@ from scipy.stats import pearsonr
 
 from cgp_operators import *
 
-
 def rmse(preds, reals):
     return np.sqrt(np.mean((preds - reals) ** 2))
 

@@ -25,21 +25,29 @@ class Function:
 
 class MultivariateFunction(Function):
     def __init__(self, dimensions, start, end, n_points, label):
-        x_dom = np.mgrid[[slice(start, end, n_points) for _ in range(dimensions)]]
+        if dimensions > 1:
+            x_dom = np.meshgrid(*[np.linspace(start, end, n_points) for _ in range(dimensions)], indexing='ij')
+            x_dom = np.stack(x_dom, axis=-1)
+            x_dom = x_dom.reshape(-1, x_dom.shape[-1])
+        else:
+            x_dom = np.linspace(start, end, n_points)
         self.x_rng = [start, end]
         super().__init__(None, x_dom, None, label, dimensions)
 
     def generate_y_test(self):
-        self.y_test = np.fromiter(map(self.func, list(self.x_dom)), dtype=np.float32)
+        if self.dim == 1:
+            x_dom = self.x_dom.reshape((-1, 1))
+        else:
+            x_dom = self.x_dom
+        self.y_test = np.fromiter(map(self.func, list(x_dom)), dtype=np.float32)
 
 
 class Sphere(MultivariateFunction):
-    def __init__(self, dimensions: int = 1):
-        super().__init__(dimensions, start=-5, end=5.01, n_points=20j, label=f"Sphere_{dimensions}D")
+    def __init__(self, dimensions: int):
+        super().__init__(dimensions, start=-5, end=5.01, n_points=20, label=f"Sphere_{dimensions}D")
 
         def func(xs: np.ndarray):
             xs = np.atleast_1d(xs)
-            assert len(xs) == self.dim
             return np.sum(xs ** 2)
 
         self.func = func
@@ -48,12 +56,10 @@ class Sphere(MultivariateFunction):
 
 class Ackley(MultivariateFunction):
     def __init__(self, dimensions: int = 1):
-        super().__init__(dimensions, start=-32.768, end=32.769, n_points=40j, label=f"Ackley_{dimensions}D")
+        super().__init__(dimensions, start=-32.768, end=32.769, n_points=40, label=f"Ackley_{dimensions}D")
 
         def func(xs: np.ndarray):
             xs = np.atleast_1d(xs)
-            assert len(xs) == self.dim
-
             a, b, c = 20, 0.2, 2 * pi
 
             first_sum = np.sum(xs ** 2)
@@ -67,10 +73,12 @@ class Ackley(MultivariateFunction):
 
 class Rastrigin(MultivariateFunction):
     def __init__(self, dimensions: int = 1):
-        super().__init__(dimensions, start=-5.12, end=5.12, n_points=40j, label=f"Rastrigin_{dimensions}D")
+        super().__init__(dimensions, start=-5.12, end=5.12, n_points=40, label=f"Rastrigin_{dimensions}D")
 
         def func(xs: np.ndarray):
             xs = np.atleast_1d(xs)
+            xs.reshape(-1, dimensions)
+            print(xs)
             assert len(xs) == self.dim
             return 10 * dimensions + np.sum(xs ** 2 - 10 * cos(2 * pi * xs))
 
@@ -80,7 +88,7 @@ class Rastrigin(MultivariateFunction):
 
 class Griewank(MultivariateFunction):
     def __init__(self, dimensions: int = 1):
-        super().__init__(dimensions, start=-600, end=600, n_points=40j, label=f"Griewank_{dimensions}D")
+        super().__init__(dimensions, start=-600, end=600, n_points=40, label=f"Griewank_{dimensions}D")
 
         def func(xs: np.ndarray):
             xs = np.atleast_1d(xs)
@@ -95,7 +103,7 @@ class Griewank(MultivariateFunction):
 
 class Levy(MultivariateFunction):
     def __init__(self, dimensions: int = 1):
-        super().__init__(dimensions, start=-10, end=10, n_points=40j, label=f"Levy_{dimensions}D")
+        super().__init__(dimensions, start=-10, end=10, n_points=40, label=f"Levy_{dimensions}D")
 
         def func(xs: np.ndarray):
             xs = np.atleast_1d(xs)
@@ -112,7 +120,7 @@ class Levy(MultivariateFunction):
 
 class Schwefel(MultivariateFunction):
     def __init__(self, dimensions: int = 1):
-        super().__init__(dimensions, start=-500, end=500, n_points=40j, label=f"Schwefel_{dimensions}D")
+        super().__init__(dimensions, start=-500, end=500, n_points=40, label=f"Schwefel_{dimensions}D")
 
         def func(xs: np.ndarray):
             xs = np.atleast_1d(xs)
@@ -125,13 +133,13 @@ class Schwefel(MultivariateFunction):
 
 class Perm0db(MultivariateFunction):
     def __init__(self, dimensions: int = 1):
-        super().__init__(dimensions, start=-dimensions, end=dimensions, n_points=40j, label=f"Perm_Beta_{dimensions}D")
+        super().__init__(dimensions, start=-dimensions, end=dimensions, n_points=40, label=f"Perm_Beta_{dimensions}D")
 
         def func(xs: np.ndarray):
             xs = np.atleast_1d(xs)
             assert len(xs) == self.dim
             beta = 1
-            return np.sum([np.sum([(j + beta) * (xs[j] ** i - 1 / j ** i) for j in range(dimensions)]) for i in
+            return np.sum([np.sum([( + beta) * (xs[j] ** i - 1 / j ** i) for j in range(dimensions)]) for i in
                            range(dimensions)])
 
         self.func = func
@@ -140,7 +148,7 @@ class Perm0db(MultivariateFunction):
 
 class HyperEllipsoid(MultivariateFunction):
     def __init__(self, dimensions: int = 1):
-        super().__init__(dimensions, start=-65.536, end=65.536, n_points=40j,
+        super().__init__(dimensions, start=-65.536, end=65.536, n_points=40,
                          label=f"Rotated_Hyper_Ellipsoid_{dimensions}D")
 
         def func(xs: np.ndarray):
@@ -154,7 +162,7 @@ class HyperEllipsoid(MultivariateFunction):
 
 class DifferentPowers(MultivariateFunction):
     def __init__(self, dimensions: int = 1):
-        super().__init__(dimensions, start=-1, end=1, n_points=40j, label=f"Different_Powers_{dimensions}D")
+        super().__init__(dimensions, start=-1, end=1, n_points=40, label=f"Different_Powers_{dimensions}D")
 
         def func(xs: np.ndarray):
             xs = np.atleast_1d(xs)
@@ -167,7 +175,7 @@ class DifferentPowers(MultivariateFunction):
 
 class Trid(MultivariateFunction):
     def __init__(self, dimensions: int = 1):
-        super().__init__(dimensions, start=-dimensions ** 2, end=dimensions ** 2, n_points=40j,
+        super().__init__(dimensions, start=-dimensions ** 2, end=dimensions ** 2, n_points=40,
                          label=f"Trid_{dimensions}D")
 
         def func(xs: np.ndarray):
@@ -181,7 +189,7 @@ class Trid(MultivariateFunction):
 
 class Zakharov(MultivariateFunction):
     def __init__(self, dimensions: int = 1):
-        super().__init__(dimensions, start=-5, end=10, n_points=40j, label=f"Zakharov_{dimensions}D")
+        super().__init__(dimensions, start=-5, end=10, n_points=40, label=f"Zakharov_{dimensions}D")
 
         def func(xs: np.ndarray):
             xs = np.atleast_1d(xs)
@@ -196,7 +204,7 @@ class Zakharov(MultivariateFunction):
 
 class DixonPrice(MultivariateFunction):
     def __init__(self, dimensions: int = 1):
-        super().__init__(dimensions, start=-10, end=10, n_points=40j, label=f"Dixon_Price_{dimensions}D")
+        super().__init__(dimensions, start=-10, end=10, n_points=40, label=f"Dixon_Price_{dimensions}D")
 
         def func(xs: np.ndarray):
             xs = np.atleast_1d(xs)
@@ -209,7 +217,7 @@ class DixonPrice(MultivariateFunction):
 
 class Rosenbrock(MultivariateFunction):
     def __init__(self, dimensions: int = 1):
-        super().__init__(dimensions, start=-5, end=10, n_points=40j, label=f"Rosenbrock_{dimensions}D")
+        super().__init__(dimensions, start=-5, end=10, n_points=40, label=f"Rosenbrock_{dimensions}D")
 
         def func(xs: np.ndarray):
             xs = np.atleast_1d(xs)
@@ -222,7 +230,7 @@ class Rosenbrock(MultivariateFunction):
 
 class Michalewicz(MultivariateFunction):
     def __init__(self, dimensions: int = 1):
-        super().__init__(dimensions, start=0, end=pi, n_points=40j, label=f"Michalewicz_{dimensions}D")
+        super().__init__(dimensions, start=0, end=pi, n_points=40, label=f"Michalewicz_{dimensions}D")
 
         def func(xs: np.ndarray):
             xs = np.atleast_1d(xs)
@@ -251,7 +259,7 @@ class UnivariateFunction(Function):
 
 class Sine(UnivariateFunction):
     def __init__(self):
-        super().__init__(start=-2 * pi, end=2 * pi, n_points=40j, label="Sine")
+        super().__init__(start=-2 * pi, end=2 * pi, n_points=40, label="Sine")
 
         def func(x):
             return np.sin(x)
@@ -262,7 +270,7 @@ class Sine(UnivariateFunction):
 
 class SquareRoot(UnivariateFunction):
     def __init__(self):
-        super().__init__(start=-5, end=5, n_points=40j, label="SquareRoot")
+        super().__init__(start=-5, end=5, n_points=40, label="SquareRoot")
 
         def func(x):
             return np.sqrt(x)
@@ -273,7 +281,7 @@ class SquareRoot(UnivariateFunction):
 
 class Koza1(UnivariateFunction):
     def __init__(self):
-        super().__init__(start=-1, end=1, n_points=20j, label="Koza 1")
+        super().__init__(start=-1, end=1, n_points=20, label="Koza 1")
 
         def func(x):
             return x ** 4 + x ** 3 + x ** 2 + x
@@ -284,7 +292,7 @@ class Koza1(UnivariateFunction):
 
 class Koza2(UnivariateFunction):
     def __init__(self):
-        super().__init__(start=-1, end=1, n_points=20j, label="Koza 2")
+        super().__init__(start=-1, end=1, n_points=20, label="Koza 2")
 
         def func(x):
             return x ** 5 - 2 * x ** 3 + x
@@ -295,7 +303,7 @@ class Koza2(UnivariateFunction):
 
 class Koza3(UnivariateFunction):
     def __init__(self):
-        super().__init__(start=-1, end=1, n_points=20j, label="Koza 3")
+        super().__init__(start=-1, end=1, n_points=20, label="Koza 3")
 
         def func(x):
             return x ** 6 - 2 * x ** 4 + x ** 2
@@ -306,7 +314,7 @@ class Koza3(UnivariateFunction):
 
 class Nguyen4(UnivariateFunction):
     def __init__(self):
-        super().__init__(start=-1, end=1, n_points=20j, label="Nguyen 4")
+        super().__init__(start=-1, end=1, n_points=20, label="Nguyen 4")
 
         def func(x):
             return x ** 6 + x ** 5 + x ** 4 + x ** 3 + x ** 2 + x
@@ -317,7 +325,7 @@ class Nguyen4(UnivariateFunction):
 
 class Nguyen5(UnivariateFunction):
     def __init__(self):
-        super().__init__(start=-1, end=1, n_points=20j, label="Nguyen 5")
+        super().__init__(start=-1, end=1, n_points=20, label="Nguyen 5")
 
         def func(x):
             return sin(x ** 2) * cos(x) - 1
@@ -328,7 +336,7 @@ class Nguyen5(UnivariateFunction):
 
 class Nguyen6(UnivariateFunction):
     def __init__(self):
-        super().__init__(start=-1, end=1, n_points=20j, label="Nguyen 6")
+        super().__init__(start=-1, end=1, n_points=20, label="Nguyen 6")
 
         def func(x):
             return sin(x) + sin(x + x ** 2)
@@ -339,7 +347,7 @@ class Nguyen6(UnivariateFunction):
 
 class Nguyen7(UnivariateFunction):
     def __init__(self):
-        super().__init__(start=0, end=2, n_points=20j, label="Nguyen 7")
+        super().__init__(start=0, end=2, n_points=20, label="Nguyen 7")
 
         def func(x):
             return log(x + 1) + log(x ** 2 + 1)
@@ -350,7 +358,7 @@ class Nguyen7(UnivariateFunction):
 
 class Forrester(UnivariateFunction):
     def __init__(self):
-        super().__init__(start=0, end=2, n_points=40j, label="Forrester")
+        super().__init__(start=0, end=2, n_points=40, label="Forrester")
 
         def func(x):
             return (6 * x - 2) ** 2 * sin(12 * x - 4)
@@ -376,8 +384,8 @@ class BivariateFunction(Function):
 
 class Bukin(BivariateFunction):
     def __init__(self):
-        super().__init__(start=0, end=2, n_points=40j, label="Bukin")
-        self.x_dom = np.mgrid[slice(-15, 5.01, 40j), slice(-3, 3.01, 20j)]  # separate bc of this stuff
+        super().__init__(start=0, end=2, n_points=40, label="Bukin")
+        self.x_dom = np.mgrid[slice(-15, 5.01, 40), slice(-3, 3.01, 20)]  # separate bc of this stuff
         self.x_rng = [(-15, -3), (5, 3)]
 
         def func(xs):
@@ -392,7 +400,7 @@ class Bukin(BivariateFunction):
 
 class CrossInTray(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-10, end=10, n_points=40j, label="Cross_in_Tray")
+        super().__init__(start=-10, end=10, n_points=40, label="Cross_in_Tray")
 
         def func(xs):
             xs = np.atleast_1d(xs)
@@ -406,7 +414,7 @@ class CrossInTray(BivariateFunction):
 
 class DropWave(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-5.12, end=5.12, n_points=40j, label="Drop_Wave")
+        super().__init__(start=-5.12, end=5.12, n_points=40, label="Drop_Wave")
 
         def func(xs):
             xs = np.atleast_1d(xs)
@@ -420,7 +428,7 @@ class DropWave(BivariateFunction):
 
 class HolderTable(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-10, end=10, n_points=40j, label="Holder_Table")
+        super().__init__(start=-10, end=10, n_points=40, label="Holder_Table")
 
         def func(xs):
             xs = np.atleast_1d(xs)
@@ -434,7 +442,7 @@ class HolderTable(BivariateFunction):
 
 class Eggholder(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-512, end=512, n_points=40j, label="Eggholder")
+        super().__init__(start=-512, end=512, n_points=40, label="Eggholder")
 
         def func(xs):
             xs = np.atleast_1d(xs)
@@ -449,7 +457,7 @@ class Eggholder(BivariateFunction):
 # Langermann is actually multivariate but because of the A matrix term I've locked it to 2 for now
 class Langermann(BivariateFunction):
     def __init__(self):
-        super().__init__(start=0, end=10, n_points=40j, label="Langermann")
+        super().__init__(start=0, end=10, n_points=40, label="Langermann")
 
         def func(xs):
             xs = np.atleast_1d(xs)
@@ -472,7 +480,7 @@ class Langermann(BivariateFunction):
 
 class Schaffer2(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-100, end=100, n_points=40j, label="Schaffer2")
+        super().__init__(start=-100, end=100, n_points=40, label="Schaffer2")
 
         def func(xs):
             xs = np.atleast_1d(xs)
@@ -487,7 +495,7 @@ class Schaffer2(BivariateFunction):
 
 class Schaffer4(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-100, end=100, n_points=40j, label="Schaffer4")
+        super().__init__(start=-100, end=100, n_points=40, label="Schaffer4")
 
         def func(xs):
             xs = np.atleast_1d(xs)
@@ -505,7 +513,7 @@ class Schaffer4(BivariateFunction):
 
 class Schubert(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-10, end=10, n_points=40j, label="Schubert")
+        super().__init__(start=-10, end=10, n_points=40, label="Schubert")
 
         def func(xs):
             xs = np.atleast_1d(xs)
@@ -523,7 +531,7 @@ class Schubert(BivariateFunction):
 
 class Bohachevsky1(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-100, end=100, n_points=40j, label="Bohachevsky1")
+        super().__init__(start=-100, end=100, n_points=40, label="Bohachevsky1")
 
         def func(xs):
             xs = np.atleast_1d(xs)
@@ -538,11 +546,10 @@ class Bohachevsky1(BivariateFunction):
 
 class Bohachevsky2(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-100, end=100, n_points=40j, label="Bohachevsky2")
+        super().__init__(start=-100, end=100, n_points=40, label="Bohachevsky2")
 
         def func(xs):
             xs = np.atleast_1d(xs)
-            assert len(xs) == 2
             x1, x2 = xs
 
             return x1 ** 2 + 2 * x2 ** 2 - 0.3 * cos(3 * pi * x1) * 0.4 * cos(4 * pi * x2) + 0.3
@@ -553,11 +560,10 @@ class Bohachevsky2(BivariateFunction):
 
 class Bohachevsky3(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-100, end=100, n_points=40j, label="Bohachevsky3")
+        super().__init__(start=-100, end=100, n_points=40, label="Bohachevsky3")
 
         def func(xs):
             xs = np.atleast_1d(xs)
-            assert len(xs) == 2
             x1, x2 = xs
 
             return x1 ** 2 + 2 * x2 ** 2 - 0.3 * cos(3 * pi * x1 + 4 * pi * x2) + 0.3
@@ -568,11 +574,10 @@ class Bohachevsky3(BivariateFunction):
 
 class Booth(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-10, end=10, n_points=40j, label="Bohachevsky3")
+        super().__init__(start=-10, end=10, n_points=40, label="Bohachevsky3")
 
         def func(xs):
             xs = np.atleast_1d(xs)
-            assert len(xs) == 2
             x1, x2 = xs
 
             return (x1 + 2 * x2 - 7) ** 2 + (2 * x1 + x2 - 5) ** 2
@@ -583,11 +588,10 @@ class Booth(BivariateFunction):
 
 class Matyas(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-10, end=10, n_points=40j, label="Matyas")
+        super().__init__(start=-10, end=10, n_points=40, label="Matyas")
 
         def func(xs):
             xs = np.atleast_1d(xs)
-            assert len(xs) == 2
             x1, x2 = xs
 
             return 0.26 * (x1 ** 2 + x2 ** 2) - 0.48 * x1 * x2
@@ -598,13 +602,12 @@ class Matyas(BivariateFunction):
 
 class McCormick(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-10, end=10, n_points=40j, label="McCormick")
-        self.x_dom = np.mgrid[slice(-1.5, 4, 40j), slice(-3, 4, 40j)]
+        super().__init__(start=-10, end=10, n_points=40, label="McCormick")
+        self.x_dom = np.mgrid[slice(-1.5, 4, 40), slice(-3, 4, 40)]
         self.x_rng = [(-1.5, 4), (-3, 4)]
 
         def func(xs):
             xs = np.atleast_1d(xs)
-            assert len(xs) == 2
             x1, x2 = xs
 
             return sin(x1 + x2) + (x1 - x2) ** 2 - 1.5 * x1 + 2.5 * x2 + 1
@@ -615,7 +618,7 @@ class McCormick(BivariateFunction):
 
 class ThreeHump(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-5, end=5, n_points=40j, label="Three_Hump_Camel_Function")
+        super().__init__(start=-5, end=5, n_points=40, label="Three_Hump_Camel_Function")
 
         def func(xs):
             xs = np.atleast_1d(xs)
@@ -630,8 +633,8 @@ class ThreeHump(BivariateFunction):
 
 class SixHump(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-5, end=5, n_points=2j, label="Six_Hump_Camel_Function")
-        self.x_dom = np.mgrid[slice(-3, 3, 40j), slice(-2, 2, 40j)]
+        super().__init__(start=-5, end=5, n_points=2, label="Six_Hump_Camel_Function")
+        self.x_dom = np.mgrid[slice(-3, 3, 40), slice(-2, 2, 40)]
         self.x_rng = [(-3, 3), (-2, 2)]
 
         def func(xs):
@@ -646,10 +649,10 @@ class SixHump(BivariateFunction):
         self.generate_y_test()
 
 
-# I had chatgpt make this from https://www.sfu.ca/~ssurjano/Code/dejong5m.html
-class DeJong(BivariateFunction):
+# I had chatgpt make this from https://www.sfu.ca/~ssurano/Code/deong5m.html
+class Deong(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-65.536, end=65.536, n_points=40j, label="De_Jong")
+        super().__init__(start=-65.536, end=65.536, n_points=40, label="De_ong")
 
         def func(xs):
             xs = np.atleast_1d(xs)
@@ -672,7 +675,7 @@ class DeJong(BivariateFunction):
 
 class Beale(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-4.5, end=4.5, n_points=40j, label="Beale")
+        super().__init__(start=-4.5, end=4.5, n_points=40, label="Beale")
 
         def func(xs):
             xs = np.atleast_1d(xs)
@@ -688,8 +691,8 @@ class Beale(BivariateFunction):
 
 class Branin(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-4.5, end=4.5, n_points=4j, label="Branin")
-        self.x_dom = np.mgrid[slice(-5, 10, 40j), slice(0, 15, 40j)]
+        super().__init__(start=-4.5, end=4.5, n_points=4, label="Branin")
+        self.x_dom = np.mgrid[slice(-5, 10, 40), slice(0, 15, 40)]
         self.x_rng = [(-5, 10), (0, 15)]
 
         def func(xs):
@@ -706,7 +709,7 @@ class Branin(BivariateFunction):
 
 class Easom(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-100, end=100, n_points=40j, label="Easom")
+        super().__init__(start=-100, end=100, n_points=40, label="Easom")
 
         def func(xs):
             xs = np.atleast_1d(xs)
@@ -722,9 +725,9 @@ class Easom(BivariateFunction):
 
 class GoldsteinPrice(BivariateFunction):
     def __init__(self):
-        super().__init__(start=-2, end=2, n_points=40j, label="Goldstein_Price")
+        super().__init__(start=-2, end=2, n_points=40, label="Goldstein_Price")
 
-        # I had chatgpt translate https://www.sfu.ca/~ssurjano/Code/goldprm.html
+        # I had chatgpt translate https://www.sfu.ca/~ssurano/Code/goldprm.html
         def func(xs):
             x1, x2 = np.atleast_1d(xs)
             assert len(xs) == 2
@@ -755,7 +758,7 @@ class QuadrivariateFunction(Function):
 # quadrivariate
 class PowerSum(QuadrivariateFunction):
     def __init__(self):
-        super().__init__(start=0, end=4, n_points=40j, label="Power_Sum")
+        super().__init__(start=0, end=4, n_points=40, label="Power_Sum")
 
         def func(xs):
             xs = np.atleast_1d(xs)
@@ -774,12 +777,10 @@ class PowerSum(QuadrivariateFunction):
 
 class Colville(QuadrivariateFunction):
     def __init__(self):
-        super().__init__(start=-10, end=10, n_points=40j, label="Colville")
+        super().__init__(start=-10, end=10, n_points=40, label="Colville")
 
         def func(xs):
             xs = np.atleast_1d(xs)
-            assert len(xs) == 4
-
             x1, x2, x3, x4 = xs
 
             return 100 * (x1 ** 2 - x2) ** 2 + (x1 - 1) ** 2 + (x3 - 1) ** 2 + 90 * (x3 ** 2 - x4) ** 2 + 10.1 * (
@@ -792,11 +793,25 @@ class Colville(QuadrivariateFunction):
 
 class Collection:
     def __init__(self):
-        self.func_list = [Sphere(), Ackley(), Rastrigin(), Griewank(), Levy(), Schwefel(), Perm0db(), HyperEllipsoid(),
-                          DifferentPowers(), Trid(), Zakharov(), DixonPrice(), Rosenbrock(), Michalewicz(), Sine(),
-                          SquareRoot(), Koza1(), Koza2(), Koza3(), Nguyen4(), Nguyen5(), Nguyen6(), Nguyen7(),
-                          Forrester(), Bukin(), CrossInTray(), DropWave(), HolderTable(), Eggholder(), Langermann(),
-                          Schaffer2(), Schaffer4(), Schubert(), Bohachevsky1(), Bohachevsky2(), Bohachevsky3(), Booth(),
-                          Matyas(), McCormick(), ThreeHump(), SixHump(), DeJong(), Beale(), Branin(), Easom(),
-                          GoldsteinPrice(), PowerSum(), Colville()]
-        self.name_list = [f.label for f in self.func_list]
+        self.func_list = [Sphere, Ackley, Rastrigin, Griewank, Levy, Schwefel, Perm0db, HyperEllipsoid, DifferentPowers,
+                          Trid, Zakharov, DixonPrice, Rosenbrock, Michalewicz, Sine, SquareRoot, Koza1, Koza2, Koza3,
+                          Nguyen4, Nguyen5, Nguyen6, Nguyen7, Forrester, Bukin, CrossInTray, DropWave, HolderTable,
+                          Eggholder, Langermann, Schaffer2, Schaffer4, Schubert, Bohachevsky1, Bohachevsky2,
+                          Bohachevsky3, Booth, Matyas, McCormick, ThreeHump, SixHump, Deong, Beale, Branin, Easom,
+                          GoldsteinPrice, PowerSum, Colville]
+
+    def __call__(self, index: int, dims: int):
+
+        # Check if it's a class or an instance
+        func_type = self.func_list[index]
+
+        if isinstance(func_type, type) and issubclass(func_type, MultivariateFunction):
+            # It's a class, so instantiate with `dims`
+            func = func_type(dims)
+        elif callable(func_type):
+            # It's a callable instance (e.g., a function or obect with a __call__ method)
+            func = func_type()
+        else:
+            raise TypeError("The function at the provided index is neither a callable nor a class")
+
+        return func, func.label, func.dim

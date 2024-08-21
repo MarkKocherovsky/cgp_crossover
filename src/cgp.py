@@ -55,6 +55,7 @@ mut_impact = DriftImpact(neutral_limit=1e-3)
 fitness = Fitness()
 sharp_in_manager = SAM_IN(train_x_bias)
 sharp_out_manager = SAM_OUT()
+print(train_x_bias)
 p_fit, p_A, p_B = fitness(train_x_bias, train_y, parent)
 
 # SAM-In

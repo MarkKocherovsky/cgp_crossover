@@ -190,13 +190,13 @@ def percent_change(new, old):
         return np.nan
 
 
-def cgp_active_nodes(ind_base, output_nodes, outputs=1, first_body_node=11, opt=0):
+def cgp_active_nodes(ind_base, output_nodes, first_body_node, outputs=1, opt=0):
     active_nodes = []
-
+    output_nodes = np.atleast_1d(output_nodes)
     def plot_body_node(n_node, arity=2):
         node = ind_base[n_node - first_body_node]
         for a in range(arity):
-            prev_node = node[a]
+            prev_node = node.flatten()[a]
             if prev_node not in active_nodes:
                 active_nodes.append(prev_node)  #count active nodes
             if prev_node >= first_body_node:  #inputs

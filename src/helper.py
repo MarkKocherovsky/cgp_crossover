@@ -7,11 +7,12 @@ from sharpness import *
 from similarity import *
 
 
-def get_param(index, default, cast=float): 
-    try: 
-        return cast(argv[index]) 
-    except (IndexError, ValueError): 
-        return default 
+def get_param(index, default, cast=float):
+    try:
+        return cast(argv[index])
+    except (IndexError, ValueError):
+        return default
+
 
 def getNeighborMap(true_predictions: np.ndarray, sharp_out: SAM_OUT, fitness_list: Fitness, target: np.ndarray):
     neighborhood = sharp_out.perturb(true_predictions)
@@ -26,9 +27,9 @@ def getXY(func: Function) -> tuple:
     return func.x_dom, func.y_test
 
 
-def getFunction(func_index: int) -> tuple:
-    func_bank = Collection()
-    return func_bank.func_list[func_index], func_bank.name_list[func_index], func_bank.func_list[func_index].dimensions
+def getFunction(func_index: int, dimensions: int = 1) -> tuple:
+    c = Collection()
+    return c(func_index, dimensions)
 
 
 def initAlignment(max_p: int, max_c: int) -> np.ndarray:
@@ -38,21 +39,24 @@ def initAlignment(max_p: int, max_c: int) -> np.ndarray:
 
 
 def prepareConstants(train_x: np.ndarray, biases: np.ndarray) -> np.ndarray:
-    train_x_bias = np.zeros((train_x.shape[0], biases.shape[0] + 1))
-    train_x_bias[:, 0] = train_x
-    train_x_bias[:, 1:] = biases
+    n_inputs = train_x.shape[-1]
+    train_x_bias = np.zeros((train_x.shape[0], biases.shape[0] + n_inputs))
+
+    train_x_bias[:, :n_inputs] = train_x
+    train_x_bias[:, n_inputs:] = biases
+    print(train_x_bias[0])
     return train_x_bias
 
 
-def initDensityDistro(max_n: int, operators: int, arity: int, mode: str = 'cgp', outputs:int = 0) -> dict:
+def initDensityDistro(max_n: int, operators: int, arity: int, mode: str = 'cgp', outputs: int = 0) -> dict:
     if mode == 'cgp':
         m = operators + arity
     else:
         m = 1
     return {
-        'd': np.zeros(max_n * m+outputs, dtype=np.int32),
-        'n': np.zeros(max_n * m+outputs, dtype=np.int32),
-        'b': np.zeros(max_n * m+outputs, dtype=np.int32)
+        'd': np.zeros(max_n * m + outputs, dtype=np.int32),
+        'n': np.zeros(max_n * m + outputs, dtype=np.int32),
+        'b': np.zeros(max_n * m + outputs, dtype=np.int32)
     }
 
 
@@ -81,7 +85,7 @@ def getNoise(shape, max_p, max_c, noise_inputs, noise_func, sharp_in_manager: SA
         noisy_x_preproc[:, noise_inputs:] = sharp_in_manager.perturb_constants()[:, noise_inputs:]
 
         noisy_y_preproc = np.fromiter(
-            map(noise_func.func, noisy_x_preproc[:, :noise_inputs].flatten()),
+            map(noise_func.func, noisy_x_preproc[:, :noise_inputs]),
             dtype=np.float32
         )
 
@@ -122,7 +126,7 @@ def processFitness(fitness_objects, train_x_bias, train_y, pop, max_p, max_c, op
 
 
 def processRetention(retention, pop, fitnesses, max_p, avg_hist_list, avg_change_list, std_change_list, ret_avg_list,
-                     ret_std_list, g, mode='cgp'):
+                     ret_std_list, g, first_body_node, mode='cgp'):
     change_list = []
     full_change_list = []
     ret_list = []
@@ -138,9 +142,10 @@ def processRetention(retention, pop, fitnesses, max_p, avg_hist_list, avg_change
 
         change_list.append(percent_change(c_fits[best_c], p_fits[best_p]))
         if mode == 'cgp':
-            ret_list.append(find_similarity(cs[best_c][0], ps[best_p][0], cs[best_c][1], ps[best_p][1], mode))
+            ret_list.append(
+                find_similarity(cs[best_c][0], ps[best_p][0], first_body_node, cs[best_c][1], ps[best_p][1], mode))
         elif mode == 'lgp':
-            ret_list.append(find_similarity(cs[best_c], ps[best_p], cs[best_c], ps[best_p], mode))
+            ret_list.append(find_similarity(cs[best_c], ps[best_p], cs[best_c], ps[best_p], first_body_node, mode))
         full_change_list.extend([percent_change(c, p_fits[best_p]) for c in c_fits])
 
     full_change_list = np.array(full_change_list).flatten()
@@ -220,7 +225,7 @@ def processAndPrintResults(t, fitnesses, pop, mut_impact, density_distro, train_
     density_distro['b'] = density_distro['b'] / np.sum(density_distro['b'])
     print(density_distro)
 
-    if mode == 'cgp':  #this is weird for some reason
+    if mode == 'cgp':  # this is weird for some reason
         pred_fitness = Fitness()
         preds, p_a, p_b = pred_fitness(train_x_bias, train_y, best_pop, opt=1)
         return best_i, best_fit, best_pop, mut_list, mut_cum, xov_list, xov_cum, density_distro, preds, p_a, p_b
@@ -256,7 +261,7 @@ def associateDistro(drift_per_parent, retention, d_distro, density_distro, mode=
     if len(retention) < 1:
         return density_distro
     if mode == 'dnc':
-        d_distro = np.sum(d_distro, axis = 1)
+        d_distro = np.sum(d_distro, axis=1)
     for i, p_index in zip(range(drift_per_parent.shape[0]), list(retention)):
         if drift_per_parent[i] == 0:
             density_distro['d'] += d_distro[p_index, :]

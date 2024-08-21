@@ -34,12 +34,11 @@ run_name = 'cgp_1x'
 
 bank, bank_string = loadBank()
 
-func, func_name, func_dims = getFunction(int(argv[6]))
+func, func_name, func_dims = getFunction(int(argv[6]), 2)
 inputs = func_dims
-first_body_node = inputs + bias + outputs
+first_body_node = inputs + bias
 
 train_x, train_y = getXY(func)
-print(train_x)
 
 f = int(argv[7])
 fits = FitCollection()
@@ -74,8 +73,6 @@ print(np.round(fitnesses, 4))
 noisy_x, noisy_y = getNoise(train_x_bias.shape, max_p, max_c, inputs, func, sharp_in_manager)
 sharpness = np.array(
     [fitness_objects[i](noisy_x[i], noisy_y[i], parent)[0] for i, parent in zip(range(0, max_p), parents)])
-print(noisy_x.shape)
-print(train_x_bias.shape)
 sharp_in_list = [np.mean(sharpness)]
 sharp_in_std = [np.std(sharpness)]
 # SAM-OUT
@@ -94,7 +91,7 @@ print(np.round(np.std(neighbor_map, axis=1) ** 2, 4))
 fit_track, ret_avg_list, ret_std_list, avg_change_list, avg_hist_list, std_change_list = initTrackers()
 
 best_i = getBestInd(fitnesses, max_p)
-p_size = [cgp_active_nodes(parents[best_i][0], parents[best_i][1])]
+p_size = [cgp_active_nodes(parents[best_i][0], parents[best_i][1], first_body_node)]
 
 mut_impact = DriftImpact(neutral_limit=1e-3)
 num_elites = 7  # for elite graph plotting
@@ -111,7 +108,8 @@ for g in range(1, max_g + 1):
                                                                                                    avg_change_list,
                                                                                                    std_change_list,
                                                                                                    ret_avg_list,
-                                                                                                   ret_std_list, g)
+                                                                                                   ret_std_list, g,
+                                                                                                   first_body_node)
 
     sharp_in_list, sharp_in_std, sharp_out_list, sharp_out_std = processSharpness(train_x_bias, max_p, max_c,
                                                                                   inputs, func, sharp_in_manager,
@@ -127,7 +125,7 @@ for g in range(1, max_g + 1):
         logAndProcessSharpness(g, best_fit, sharp_in_list, sharp_out_list)
 
     fit_track.append(best_fit)
-    p_size.append(cgp_active_nodes(pop[best_i][0], pop[best_i][1]))
+    p_size.append(cgp_active_nodes(pop[best_i][0], pop[best_i][1], first_body_node))
     parents = select(pop, fitnesses, max_p)
 
 pop = parents + children
