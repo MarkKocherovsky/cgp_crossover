@@ -1,4 +1,4 @@
-#CGP 1 Point Crossover
+#CGP subgraph Crossover
 from sys import argv
 
 from cgp_mutation import *
@@ -30,7 +30,7 @@ arity = 2
 p_mut = float(argv[8])
 p_xov = float(argv[9])
 random.seed(t + 100)
-print(f'Seed = {t + 432}')
+print(f'Seed = {t + 420}')
 
 run_name = 'cgp_sgx'
 
@@ -74,6 +74,8 @@ print(np.round(fitnesses, 4))
 noisy_x, noisy_y = getNoise(train_x_bias.shape, max_p, max_c, inputs, func, sharp_in_manager)
 sharpness = np.array(
     [fitness_objects[i](noisy_x[i], noisy_y[i], parent)[0] for i, parent in zip(range(0, max_p), parents)])
+print(noisy_x.shape)
+print(train_x_bias.shape)
 sharp_in_list = [np.mean(sharpness)]
 sharp_in_std = [np.std(sharpness)]
 #SAM-OUT
@@ -99,10 +101,10 @@ num_elites = 7  #for elite graph plotting
 
 for g in range(1, max_g + 1):
     children, retention, d_distro = xover(deepcopy(parents), max_n, method='Subgraph')
-    children, mutated_individuals = mutate(deepcopy(children))
+    children, mutated_inds = mutate(deepcopy(children))
     pop = parents + children
     fitnesses, alignment = processFitness(fitness_objects, train_x_bias, train_y, pop, max_p, max_c)
-    drift_per_parent = mut_impact(fitnesses, max_p, opt=1)
+    drift_per_parent_mut, drift_per_parent_xov = mut_impact(fitnesses, max_p, retention, mutated_inds, opt=1)
     avg_hist_list, avg_change_list, std_change_list, ret_avg_list, ret_std_list = processRetention(retention, pop,
                                                                                                    fitnesses, max_p,
                                                                                                    avg_hist_list,
@@ -117,7 +119,7 @@ for g in range(1, max_g + 1):
                                                                                   sharp_in_list, sharp_in_std,
                                                                                   sharp_out_manager, sharp_out_list,
                                                                                   sharp_out_std)
-    density_distro = associateDistro(drift_per_parent, retention, d_distro, density_distro)
+    density_distro = associateDistro(drift_per_parent_xov, retention, d_distro, density_distro)
 
     best_i = getBestInd(fitnesses)
     best_fit = fitnesses[best_i]
@@ -130,14 +132,9 @@ for g in range(1, max_g + 1):
 
 pop = parents + children
 fit_temp = np.array([fitness_objects[i](train_x_bias, train_y, ind) for i, ind in zip(range(0, max_p + max_c), pop)])
-fitnesses, _ = processFitness(fitness_objects, train_x_bias, train_y, pop, max_p, max_c, alignment)
-best_i, best_fit, best_pop, drift_list, drift_cum, density_distro, preds, p_a, p_b = processAndPrintResults(t,
-                                                                                                            fitnesses,
-                                                                                                            pop,
-                                                                                                            mut_impact,
-                                                                                                            density_distro, train_x_bias = train_x_bias, train_y = train_y, mode = 'cgp')
-run_name = 'cgp_sgx'
-#print(list(train_y))
+fitnesses, alignment = processFitness(fitness_objects, train_x_bias, train_y, pop, max_p, max_c)
+best_i, best_fit, best_pop, mut_list, mut_cum, xov_list, xov_cum, density_distro, preds, p_a, p_b = processAndPrintResults(
+    t, fitnesses, pop, mut_impact, density_distro, train_x_bias = train_x_bias, train_y = train_y, mode = 'cgp')
 Path(f"../output/{run_name}/{func_name}/log/").mkdir(parents=True, exist_ok=True)
 
 first_body_node = inputs + bias
@@ -145,5 +142,5 @@ bin_centers, hist_gens, avg_hist_list = change_histogram_plot(avg_hist_list, fun
 n = plot_active_nodes(best_pop[0], best_pop[1], first_body_node, bank_string, biases, inputs, p_a, p_b, func_name,
                       run_name, t, opt=1)
 saveResults(run_name, func_name, t, biases, best_pop, preds, best_fit, n, fit_track, avg_change_list, ret_avg_list,
-            p_size, bin_centers, hist_gens, avg_hist_list, drift_list,
-            drift_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro)
+            p_size, bin_centers, hist_gens, avg_hist_list, mut_list, mut_cum,
+            xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro)

@@ -10,8 +10,6 @@ def generate_parents(max_p, max_n, bank, inputs=1, n_constants=10, outputs=1, ar
         ind_base = generate_individual_base(n, arity, first_body_node, len(bank))
         output_nodes = random.randint(0, n + first_body_node, outputs, np.int32)
         parent = (ind_base.copy(), output_nodes.copy())
-        if max_p == 1:
-            return parent
         parents.append(parent)
     return parents
 

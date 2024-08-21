@@ -33,7 +33,7 @@ def find_similarity_distance(child, parent, first_body_node, c_out=[], p_out=[],
         c_active = child[np.array(cgp_active_nodes(child, c_out, first_body_node, opt=3), dtype=np.int32)]
         p_active = parent[np.array(cgp_active_nodes(parent, p_out, first_body_node, opt=3), dtype=np.int32)]
     elif mode == 'lgp':
-        c_active, p_active = effProg(4, child), effProg(4, parent)
+        c_active, p_active = effProg(4, child, first_body_node), effProg(4, parent, first_body_node)
     return get_similarity_score(c_active, p_active)
 
 

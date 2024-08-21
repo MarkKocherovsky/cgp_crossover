@@ -125,18 +125,20 @@ class FitCollection:
 
 # Add xover impact
 class DriftImpact:
-    def __init__(self, neutral_limit=0.1):
+    def __init__(self, neutral_limit=0.1, drift_parents='TwoParent'):
         self.mut_list = []
         self.mut_cum = np.array([0, 0, 0])
         self.xov_list = []
         self.xov_cum = np.array([0, 0, 0])
         self.neutral_limit = neutral_limit
+        self.drift_parents = drift_parents
 
-    def __call__(self, fitnesses, max_p, xov_parents, mut_parents, option='TwoParent', children=4, opt=0):
+    def __call__(self, fitnesses, max_p, xov_parents, mut_parents, children, opt=0):
         drift_mut = np.array([0, 0, 0])
         drift_xov = np.array([0, 0, 0])
         drift_per_parent_mut = []
         drift_per_parent_xov = []
+        option = self.drift_parents
 
         if option == 'TwoParent':
             for i in xov_parents:
@@ -144,13 +146,24 @@ class DriftImpact:
                 c = min(fitnesses[i + max_p], fitnesses[i + 1 + max_p])
                 drift_xov, drift_per_parent_xov = self.get_drift_category(c, drift_xov, drift_per_parent_xov, p)
             for i in mut_parents:
-                p = fitnesses[i]
-                c = fitnesses[i + max_p]
+                c = fitnesses[i]
+                try:
+                    p = fitnesses[i - max_p]
+                except IndexError:
+                    print(mut_parents)
+                    print(fitnesses)
+                    print(i)
+                    print(max_p)
                 drift_mut, drift_per_parent_mut = self.get_drift_category(c, drift_mut, drift_per_parent_mut, p)
         elif option == 'OneParent':  # only uses mutation
             for i in range(max_p):
                 p = fitnesses[i]
-                c = min(fitnesses[i * children: i * children + children])
+                try:
+                    c = min(fitnesses[i * children: i * children + children])
+                except ValueError:
+                    print(i)
+                    print(children)
+                    c = fitnesses[i*children]
                 drift_mut, drift_per_parent_mut = self.get_drift_category(c, drift_mut, drift_per_parent_mut, p)
 
         self.mut_cum += drift_mut

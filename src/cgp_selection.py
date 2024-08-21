@@ -26,15 +26,11 @@ def tournament_elitism(pop, f_list, max_p, n_con=4):
     return new_p  #, p_distro
 
 
-def selectElite(current_parent: tuple, current_children: list, parent_fitness: float, child_fitness: [float],
-                parent_a, parent_b, child_a, child_b) -> object:
-    max_children = len(current_children)
-    if any(child_fitness <= parent_fitness) and random.rand() > 1 / max_children:
-        best = np.argmin(child_fitness)
-        current_parent = deepcopy(current_children[best])
-        p_fi = np.argmin(child_fitness)
-        # parent_distro[0] += 1
-        parent_fitness = np.min(child_fitness)
-        parent_a = child_a[p_fi]
-        parent_b = child_b[p_fi]
-    return current_parent, parent_fitness, parent_a, parent_b
+def select_elite(pop: list, fitnesses: np.ndarray, max_parents = 1) -> object:
+    child_fitness = fitnesses[max_parents:]
+    parent_fitness = fitnesses[:max_parents]
+    if any(child_fitness <= parent_fitness):
+        best = np.argsort(child_fitness)[:max_parents].astype(np.int32)+max_parents
+    else:
+        best = np.argsort(fitnesses)[:max_parents].astype(np.int32) + max_parents
+    return deepcopy([pop[i] for i in best])

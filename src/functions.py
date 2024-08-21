@@ -32,6 +32,7 @@ class MultivariateFunction(Function):
         else:
             x_dom = np.linspace(start, end, n_points)
         self.x_rng = [start, end]
+        self.n_points = n_points
         super().__init__(None, x_dom, None, label, dimensions)
 
     def generate_y_test(self):
@@ -41,10 +42,9 @@ class MultivariateFunction(Function):
             x_dom = self.x_dom
         self.y_test = np.fromiter(map(self.func, list(x_dom)), dtype=np.float32)
 
-
 class Sphere(MultivariateFunction):
     def __init__(self, dimensions: int):
-        super().__init__(dimensions, start=-5, end=5.01, n_points=20, label=f"Sphere_{dimensions}D")
+        super().__init__(dimensions, start=-5, end=5, n_points=20, label=f"Sphere_{dimensions}D")
 
         def func(xs: np.ndarray):
             xs = np.atleast_1d(xs)
@@ -385,14 +385,14 @@ class BivariateFunction(Function):
 class Bukin(BivariateFunction):
     def __init__(self):
         super().__init__(start=0, end=2, n_points=40, label="Bukin")
-        self.x_dom = np.mgrid[slice(-15, 5.01, 40), slice(-3, 3.01, 20)]  # separate bc of this stuff
+        self.x_dom = np.mgrid[slice(-15, 5, 40), slice(-3, 3, 20)]  # separate bc of this stuff
         self.x_rng = [(-15, -3), (5, 3)]
 
         def func(xs):
             xs = np.atleast_1d(xs)
             assert len(xs) == 2
             x1, x2 = xs
-            return 100 * sqrt(abs(x2 - 0.01 * x1 ** 2)) + 0.01 * abs(x1 + 10)
+            return 100 * sqrt(abs(x2 - 0 * x1 ** 2)) + 0 * abs(x1 + 10)
 
         self.func = func
         self.generate_y_test()

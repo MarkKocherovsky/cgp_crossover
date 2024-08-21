@@ -125,17 +125,19 @@ def xover(parents, max_n, first_body_node, method='None', p_xov=0.5, fixed_lengt
     children = []
     d_distro = np.zeros((len(parents), max_n * 3))
     methods = {
-        'None': 'None',
+        'None': None,
         'OnePoint': xover_1x,
         'TwoPoint': xover_2x,
         'Subgraph': xover_sgx,
     }
 
-    xover_method = methods.get(method, 'None')
+    xover_method = methods.get(method, None)
     retention = []
 
     for i in range(0, len(parents), 2):
-        if method == 'None' or random.random() < p_xov:
+        if method is None:
+            return parents, retention, d_distro
+        elif random.random() > p_xov:
             children.append(parents[i])
             children.append(parents[i + 1])
         elif method in methods:

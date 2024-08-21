@@ -44,7 +44,6 @@ def prepareConstants(train_x: np.ndarray, biases: np.ndarray) -> np.ndarray:
 
     train_x_bias[:, :n_inputs] = train_x
     train_x_bias[:, n_inputs:] = biases
-    print(train_x_bias[0])
     return train_x_bias
 
 
@@ -63,6 +62,7 @@ def initDensityDistro(max_n: int, operators: int, arity: int, mode: str = 'cgp',
 def initFitness(max_p: int, max_c: int) -> (Fitness, np.ndarray):
     fitness_objects = [Fitness() for _ in range(0, max_p + max_c)]
     fitnesses = np.zeros((max_p + max_c), )
+
     return fitness_objects, fitnesses
 
 
@@ -145,7 +145,7 @@ def processRetention(retention, pop, fitnesses, max_p, avg_hist_list, avg_change
             ret_list.append(
                 find_similarity(cs[best_c][0], ps[best_p][0], first_body_node, cs[best_c][1], ps[best_p][1], mode))
         elif mode == 'lgp':
-            ret_list.append(find_similarity(cs[best_c], ps[best_p], cs[best_c], ps[best_p], first_body_node, mode))
+            ret_list.append(find_similarity(cs[best_c], ps[best_p], first_body_node, cs[best_c], ps[best_p], mode))
         full_change_list.extend([percent_change(c, p_fits[best_p]) for c in c_fits])
 
     full_change_list = np.array(full_change_list).flatten()

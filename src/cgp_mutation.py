@@ -17,22 +17,25 @@ def mutate_node(ind, out, i, arity, in_size, bank_len):
     return (ind, out)
 
 
-def mutate_1_plus_4(individual, len_bank=4, arity=2, in_size=11):
-    ind, out = individual
+def mutate_1_plus_4(individual, in_size, len_bank=4, arity=2,):
+    if len(individual) <=1 :
+        ind, out = individual[0][0], individual[0][1]
+    else:
+        ind, out = individual #kludge af
     i = int((ind.shape[0] + out.shape[0]) * random.random_sample())
     return mutate_node(ind, out, i, arity, in_size, len_bank), [i]
 
 
-def basic_mutation(subjects, arity=2, in_size=11, p_mut=0.025, bank_len=4):
+def basic_mutation(children, in_size, max_p, p_mut=0.025, arity=2, bank_len=4):
     mutated_individuals = []
-    for m in range(len(subjects)):
+    for m in range(len(children)):
         if random.random() < p_mut:
-            mutant = deepcopy(subjects[m])
+            mutant = deepcopy(children[m])
             ind, out = mutant
             i = int((ind.shape[0] + out.shape[0]) * random.random_sample())
-            subjects[m] = mutate_node(ind, out, i, arity, in_size, bank_len)
-            mutated_individuals.append(m)
-    return subjects, mutated_individuals
+            children[m] = mutate_node(ind, out, i, arity, in_size, bank_len)
+            mutated_individuals.append(max_p+m)
+    return children, mutated_individuals
 
 
 def macromicro_mutation(subjects, in_size, arity=2, p_mut=0.025, bank_len=4, n_max=64):

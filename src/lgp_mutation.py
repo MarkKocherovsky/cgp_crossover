@@ -1,11 +1,11 @@
 from lgp_parents import *
 
 
-def macromicro_mutation(individuals, max_c, max_r, max_d, bank, inputs=1, n_bias=10, arity=2,
+def macromicro_mutation(individuals, max_c, max_r, max_d, bank, inputs, n_bias=10, arity=2,
                         p_mut=1 / 40):  #either removes, changes, or adds an instruction
     children = []
     mutated_inds = []
-    new_instruction_generator = LgpParentGenerator(1, 1, max_d, bank)
+    new_instruction_generator = LgpParentGenerator(1, 1, max_d, bank, inputs)
     while len(children) < max_c:
         for p in range(0, len(individuals)):  #go through each parent
             parent = individuals[p].copy()

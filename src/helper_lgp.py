@@ -24,7 +24,8 @@ def processSharpnessLGP(train_x, train_x_bias, alignment, max_p, max_c, inputs, 
     # Get noisy data
     noisy_x, noisy_y = getNoise(train_x_bias.shape, max_p, max_c, inputs, func, sharp_in_manager, opt=1)
     # Calculate sharpness for SAM-IN
-    sharpness = get_sam_in(noisy_x[:, :, 0], noisy_x[:, :, 1:], noisy_y, pop, func, bank, n_inp, max_d, fit, arity)
+    sharpness = get_sam_in(noisy_x[:, :, inputs], noisy_x[:, :, inputs:], noisy_y, pop, func, bank, n_inp, max_d, fit,
+                           arity)
     sharp_in_list.append(np.mean(sharpness))
     sharp_in_std.append(np.std(sharpness))
 

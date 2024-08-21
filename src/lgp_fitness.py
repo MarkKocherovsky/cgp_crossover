@@ -64,11 +64,11 @@ class Fitness:
         preds = preds * a + b
         return self.fit(preds, self.target), a, b
 
-    def predict(self, individual, a, b, test):
+    def predict(self, individual, a, b, n_inp, test):
         preds = np.zeros((len(test),))
-        train_x_bias = np.zeros((test.shape[0], self.bias.shape[0] + 1))
-        train_x_bias[:, 0] = test
-        train_x_bias[:, 1:] = self.bias
+        train_x_bias = np.zeros((test.shape[0], self.bias.shape[0] + n_inp))
+        train_x_bias[:, :n_inp] = test
+        train_x_bias[:, n_inp:] = self.bias
         for i in range(len(test)):
             registers = np.zeros((1 + self.n_inp + self.n_bias + self.max_d,))
             registers[1:self.n_inp + self.n_bias + 1] = train_x_bias[i, :]
