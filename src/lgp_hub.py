@@ -113,8 +113,9 @@ best_i = getBestInd(fitnesses, max_p)
 p_size = [len(effProg(4, parents[best_i], first_body_node)) / len(parents[best_i])]
 mut_impact = DriftImpact(neutral_limit=1e-3)
 
+print(xover_method)
 for g in range(1, max_g + 1):
-    children, retention, d_distro = xover(deepcopy(parents), max_r, p_xov, 'OnePoint', fixed_length=fixed_length)
+    children, retention, d_distro = xover(deepcopy(parents), max_r, p_xov, xover_method, fixed_length=fixed_length)
     children, mutated_inds = mutate(deepcopy(children), max_c, max_r, max_d, bank, n_inp, n_bias=10, arity=2)
     pop = parents + children
     fitness_evaluator = Fitness(train_x, bias, train_y, pop, func, bank, n_inp, max_d, fit, arity)
@@ -147,7 +148,7 @@ for g in range(1, max_g + 1):
         logAndProcessSharpness(g, best_fit, sharp_in_list, sharp_out_list)
 
     fit_track.append(best_fit)
-    p_size.append(len(effProg(max_d, pop[best_i])))
+    p_size.append(len(effProg(max_d, pop[best_i], first_body_node)))
     parents = select(pop, fitnesses, max_p)
 
 pop = parents + children
@@ -165,7 +166,7 @@ p_A = alignment[best_i, 0]
 p_B = alignment[best_i, 1]
 
 p = effProg(max_d, best_pop, first_body_node)
-lgp_print_individual(p, p_A, p_B, 'lgp', func_name, bank_string, t, bias, n_inp, first_body_node)
+lgp_print_individual(p, p_A, p_B, first_body_node, run_name, func_name, bank_string, t, bias, n_inp)
 with open(f"../output/{run_name}/{func_name}/best_program/best_{t}.txt", 'a') as f:
     f.write(f"\nEffective Instructions\n\n")
     f.write(f'{p}')

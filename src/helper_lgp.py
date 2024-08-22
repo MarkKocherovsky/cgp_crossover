@@ -24,13 +24,13 @@ def processSharpnessLGP(train_x, train_x_bias, alignment, max_p, max_c, inputs, 
     # Get noisy data
     noisy_x, noisy_y = getNoise(train_x_bias.shape, max_p, max_c, inputs, func, sharp_in_manager, opt=1)
     # Calculate sharpness for SAM-IN
-    sharpness = get_sam_in(noisy_x[:, :, inputs], noisy_x[:, :, inputs:], noisy_y, pop, func, bank, n_inp, max_d, fit,
+    sharpness = get_sam_in(noisy_x[:, :, :inputs], noisy_x[:, :, inputs:], noisy_y, pop, func, bank, n_inp, max_d, fit,
                            arity)
     sharp_in_list.append(np.mean(sharpness))
     sharp_in_std.append(np.std(sharpness))
 
     # Calculate predictions
-    preds = [fitness_eval.predict(p, A, B, train_x) for p, A, B in zip(pop, alignment[:, 0], alignment[:, 1])]
+    preds = [fitness_eval.predict(p, A, B, inputs, train_x) for p, A, B in zip(pop, alignment[:, 0], alignment[:, 1])]
 
     neighbor_map = np.array(
         [getNeighborMap(pred, sharp_out_manager, train_y) for i, pred in zip(range(0, max_p), preds)])

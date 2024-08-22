@@ -24,6 +24,7 @@ def macromicro_mutation(individuals, max_c, max_r, max_d, bank, inputs, n_bias=1
                         inst = random.randint(0, len(parent))
                         part = random.randint(0, len(parent[inst]))
                     except:
+                        print('Program too short')
                         print(parent)
                         inst = 0
                         try:
@@ -39,6 +40,7 @@ def macromicro_mutation(individuals, max_c, max_r, max_d, bank, inputs, n_bias=1
                         else:  #source
                             parent[inst, part] = random.choice(possible_sources)
                     except IndexError:
+                        print("unknown index")
                         print(inst, part, parent[inst, part])
                     children.append(parent)
                 elif mutation == 2:
