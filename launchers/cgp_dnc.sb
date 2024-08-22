@@ -23,10 +23,10 @@ t=$1
 g=$2
 n=$3
 p=$4
-f=$6
-ft=$7
-pm=$8
-pc=$9
+f=$5
+ft=$6
+pm=$7
+pc=$8
 echo "trial $t"
 python3 -u cgp_dnc.py $t $g $n $p $f $ft $pm $pc
 conda deactivate
