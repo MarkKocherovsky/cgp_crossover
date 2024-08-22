@@ -1,586 +1,180 @@
-import numpy as np
-import warnings
-import matplotlib.pyplot as plt
-from numpy import random, sin, exp, cos, sqrt, pi
-from sys import path, argv
-from pathlib import Path
-from functions import *
-from effProg import *
-from similarity import *
-from scipy.signal import savgol_filter
+from sys import argv
+
+from cgp_plots import *
+from helper import *
+from helper_lgp import *
+from lgp_fitness import *
+from lgp_mutation import *
+from lgp_select import *
+from lgp_xover import *
+
 warnings.filterwarnings('ignore')
 
-def first(x):
-	return x[0]
-def last(x):
-	return x[-1]
-def add(x):
-	return sum(x)
-def sub(x):
-	y = x[0]
-	for i in x[1:]:
-		y -= i
-	return y
-def mul(x):
-	y = x[0]
-	for i in x[1:]:
-		y *= i
-	return y
-def div(x):
-	if any(x[1:] == 0.0):
-		return np.PINF
-	y = x[0]
-	for i in x[1:]:
-		y /= i
-	return y
-def sin_x(x):
-	return sin(x[0])
-def sin_y(x):
-	return sin(x[-1])
-def cos_x(x):
-	return cos(x[0])
-def cos_y(x):
-	return cos(x[-1])
-def exp_x(x):
-	return exp(x[0])
-def exp_y(x):
-	return exp(x[-1])
-
-
-t = int(argv[1]) #trials
-max_g = int(argv[2]) #generations
-max_r = int(argv[3]) #rules
-max_d = int(argv[4]) #destinations (other than output)
+t = int(argv[1])  # trials
+max_g = int(argv[2])  # generations
+max_r = int(argv[3])  # rules
+max_d = int(argv[4])  # destinations (other than output)
 if max_r < 1:
-	print("Number of rules too small, setting to 10")
-	max_r = 10
-max_p = int(argv[5]) #parents
-max_c = int(argv[6]) #children
-arity = 2 #sources
-n_inp = 1 #number of inputs
+    print("Number of rules too small, setting to 10")
+    max_r = 10
+max_p = int(argv[5])  # parents
+max_c = int(argv[6])  # children
+arity = 2  # sources
+n_inp = 1  # number of inputs
+n_out = 1
 bias = np.arange(0, 10, 1)
-n_bias = bias.shape[0] #number of bias inputs
+n_bias = bias.shape[0]  # number of bias inputs
+random.seed(t + 300)
 
 try:
-	p_mut = float(argv[9])
-except:
-	p_mut = 1/max_p #mutation probability
-try:
-	p_xov = float(argv[10])
-except:
-	p_xov = 0.5
+    p_mut = float(argv[9])
+except (IndexError, ValueError):
+    p_mut = 1 / max_p  # Mutation probability
 
-func_bank = Collection()
-func = func_bank.func_list[int(argv[7])]
-func_name = func_bank.name_list[int(argv[7])]
-train_x = func.x_dom
-train_y = func.y_test
+try:
+    p_xov = float(argv[10])
+except (IndexError, ValueError):
+    p_xov = 0.5  # Crossover probability
+
+f = int(argv[8])
+fits = FitCollection()
+fit = fits.fit_list[f]
+print(f)
+print(fits.fit_list)
+fit_name = fits.name_list[f]
+print('Fitness Function')
+print(fit)
+print(fit_name)
+run_name = 'lgp'
+num_elites = 7
+
+bank, bank_string = loadBank()
+
+func, func_name = getFunction(int(argv[7]))
+
+train_x, train_y = getXY(func)
 
 output_index = 0
-input_indices = np.arange(1, n_inp+1, 1)
-#print(input_indices)
-with open(f"../output/lgp/{func_name}/best_program/best_{t}.txt", 'w') as f:
-	f.write(f"Problem {func_name}\n")
-	f.write(f'Trial {t}\n')
-	f.write(f'----------\n\n')
+input_indices = np.arange(1, n_inp + 1, 1)
+# print(input_indices)
+Path(f"../output/{run_name}/{func_name}/log/").mkdir(parents=True, exist_ok=True)
+Path(f"../output/{run_name}/{func_name}/best_program/").mkdir(parents=True, exist_ok=True)
+with open(f"../output/{run_name}/{func_name}/best_program/best_{t}.txt", 'w') as f:
+    f.write(f"Problem {func_name}\n")
+    f.write(f'Trial {t}\n')
+    f.write(f'----------\n\n')
 
-#bank = (add, add)
-bank = (add, sub, mul, div) #, cos_x, cos_y, sin_x, sin_y, powe, sqrt_x_y, distance, abs_x, abs_y, midpoint)
-bank_string = ("+", "-", "*", "/") #, "cos(x)","cos(y)", "sin(x)", "sin(y)", "^", "$\sqrt{x+y}$", "$sqrt{x^2+y^2}$", "|x|", "|y|", "avg")
+mutate = macromicro_mutation
 
-def rmse(preds, reals):
-	return np.sqrt(np.mean((preds-reals)**2)) #copied from stack overflow
-from scipy.stats import pearsonr
-
-def corr(preds, reals, x=train_x):
-	if any(np.isnan(preds)) or any(np.isinf(preds)):
-		return np.PINF
-	r = pearsonr(preds, reals)[0]
-	if np.isnan(r):
-		r = 0
-	return (1-r**2)
-fit_bank = [rmse, corr]
-fit_names = ["RMSE", "1-R^2"]
-f = int(argv[8])
-fit = fit_bank[f]
-fit_name  = fit_names[f]
-def align(preds, reals, x = train_x):
-	if not all(np.isfinite(preds)):
-		return 1.0, 0.0
-	try:
-		align = np.round(np.polyfit(preds, reals, 1, rcond=1e-16), decimals = 14)
-	except:
-		return 1.0, 0.0
-	a = align[0]
-	b = align[1]
-	#print(f'align {align}')
-	return (a,b)
-#, output_index = output_index, input_indices = input_indices
-def generate_instruction(sources, destinations, arity=arity, bank = bank):
-	instruction = np.zeros(((2+arity),), dtype=np.int32)
-	instruction[0] = random.choice(destinations) #destination index
-	instruction[1] = random.randint(0, len(bank))
-	instruction[2:] = random.choice(sources, (arity,))
-	return instruction
-	
-def get_registers(arity = arity, max_d = max_d, n_bias = n_bias, inputs = n_inp):
-	possible_indices = np.arange(0, max_d+n_bias+inputs+1)
-	possible_destinations = np.delete(possible_indices, np.arange(1, n_bias+inputs+1)) #removes inputs for destination
-	possible_sources = possible_indices
-	return possible_destinations, possible_sources
-	
-
-def generate_ind(max_r = max_r, inputs = n_inp, n_bias = n_bias, max_d = max_d, arity = arity):
-	#instruction_count = 5
-	instruction_count = random.randint(2, max_r)
-	#print(instruction_count)
-	instructions = np.zeros((instruction_count, 2+arity))
-	possible_destinations, possible_sources = get_registers()
-	for i in range(instruction_count):
-		instructions[i, :] = generate_instruction(possible_sources, possible_destinations)
-	#print(instructions)
-	return instructions
-	
-def generate_single_ind(max_r = max_r, inputs = n_inp, n_bias = n_bias, max_d = max_d, arity = arity):
-	#instruction_count = 5
-	instruction_count = 1
-	#print(instruction_count)
-	instructions = np.zeros((instruction_count, 2+arity))
-	possible_destinations, possible_sources = get_registers()
-	for i in range(instruction_count):
-		instructions[i, :] = generate_instruction(possible_sources, possible_destinations)
-	#print(instructions)
-	return instructions
-	
-def run(individual, train_x = train_x, train_y = train_y, max_d = max_d, n_inp = n_inp, n_bias = n_bias, bias = bias, bank = bank):
-	preds = np.zeros((len(train_y),))
-	train_x_bias = np.zeros((train_x.shape[0], bias.shape[0]+1))
-	train_x_bias[:, 0] = train_x
-	train_x_bias[:, 1:] = bias
-	for i in range(len(train_x)):
-		registers = np.zeros((1+n_inp+n_bias+max_d,))
-		registers[1:n_inp+n_bias+1] = train_x_bias[i, :]
-		#registers[n_inp+1, n_bias+1] = bias
-		for j in range(len(individual)):
-			operation = individual[j].astype(int)
-			destination = operation[0]
-			operator = bank[operation[1]]
-			sources = operation[2:]
-			registers[destination] = operator(registers[sources])
-		preds[i] = registers[0]
-	#print(train_y
-	(a,b) = align(preds, train_y)
-	preds = preds*a+b
-	return fit(preds, train_y), a, b
-	
-def predict(individual, a, b, test, max_d = max_d, n_inp = n_inp, n_bias = n_bias, bias = bias, bank = bank):
-	preds = np.zeros((len(test),))
-	train_x_bias = np.zeros((test.shape[0], bias.shape[0]+1))
-	train_x_bias[:, 0] = test
-	train_x_bias[:, 1:] = bias
-	for i in range(len(train_x)):
-		registers = np.zeros((1+n_inp+n_bias+max_d,))
-		registers[1:n_inp+n_bias+1] = train_x_bias[i, :]
-		#registers[n_inp+1, n_bias+1] = bias
-		for j in range(len(individual)):
-			operation = individual[j].astype(int)
-			destination = operation[0]
-			operator = bank[operation[1]]
-			sources = operation[2:]
-			registers[destination] = operator(registers[sources])
-		preds[i] = registers[0]
-	return preds*a+b
-			
-
-def mass_eval(pop, func = func):
-	fitnesses = []
-	A = []
-	B = []
-	for ind in pop:
-		with np.errstate(invalid='raise'):
-			try:
-				f = run(ind)
-				v = f[0]
-				a = f[1]
-				b = f[2]
-				fitnesses.append(v)
-				A.append(a)
-				B.append(b)			
-			except (OverflowError, FloatingPointError):
-				fitnesses.append(np.nan)
-				A.append(1.0)
-				B.append(0.0)
-	return fitnesses, A, B
-
-import operator as opt
-def xover(parents, max_r = max_r, p_xov = p_xov):
-	children = []
-	retention = []
-	for i in range(0, len(parents), 2):
-		if random.random() >= p_xov:
-			children.append(parents[i].copy())
-			children.append(parents[i+1].copy())
-		for j in [1,2]: #two children
-			p1 = parents[i].copy()
-			p2 = parents[i+1].copy()
-			
-			inst_counts = [len(p1), len(p2)] #count instructions
-			samples = [random.choice(inst_counts[0], size = (int(len(p1)/2),), replace = False), random.choice(inst_counts[1], size = (int(len(p2)/2),), replace = False)] #get instruction indices
-			samples_norm = [samples[0]/inst_counts[0], samples[1]/inst_counts[1]] #normalize indices
-
-			p1_list = samples[0]
-			p2_list = samples[1]
-			fu_list = np.concatenate((p1_list,p2_list))
-			no_list = np.concatenate((samples_norm[0], samples_norm[1]))
-			
-			c1 = np.concatenate((p1[p1_list],p2[p2_list]), axis = 0)
-			#c2 = np.concatenate((p1[-p1_list], p2[-p2_list]), axis = 0)
-			#https://stackoverflow.com/questions/9007877/sort-arrays-rows-by-another-array-in-python
-			fu_list = no_list.argsort()#sort by normalized order
-			c = c1[fu_list, :]
-			retention.append(i)
-			children.append(c)
-	return children, np.array(retention).astype(np.int32)
-	
-def mutate(parents, max_c = max_c, p_mut = p_mut, bank = bank):
-	children = []
-	while len(children) < max_c:
-		for p in range(0, len(parents)): #go through each parent
-			if random.random() <= p_mut:
-				parent = parents[p]
-				if len(parent < 2):
-					mutation = random.randint(1, 3)
-				else:
-					mutation = random.randint(0, 3)
-				
-				if mutation == 0: #remove instfuction
-					inst = random.randint(0, len(parent))
-					children.append(np.delete(parent, inst, axis = 0))
-				elif mutation == 1: #change instruction
-					inst = random.randint(0, len(parent))
-					part = random.randint(0, len(parent[inst]))
-					possible_destinations, possible_sources = get_registers()
-					if part == 0: #destination
-						parent[inst, part] = random.choice(possible_destinations) #destination index
-					elif part == 1: #operator
-						parent[inst, part] = random.randint(0, len(bank))
-					else: #source
-						parent[inst, part] = random.choice(possible_sources)
-					children.append(parent)
-				elif mutation == 2:
-					inst = random.randint(0, len(parent))
-					new_inst = generate_single_ind() #easiest just to generate a new individual with one instruction
-					np.insert(parent, inst, new_inst, axis = 0) #parent.insert(inst, new_inst)
-					children.append(parent)
-			if len(children) >= max_c:
-				break
-	return children
-
-def fight(contestants, c_fitnesses):
-	winner = np.argmin(c_fitnesses)
-	return contestants[winner], winner
-	
-def select(pop, fitnesses, max_p = max_p):
-	n_tour = int(len(pop)/10)
-	if n_tour <=1:
-		n_tour = 2
-	new_parents = []
-	idxs = []
-	#new_fitnesses = []
-	#print(fitnesses)
-	#print(np.argmin(fitnesses)
-	best_fit_id = np.argmin(fitnesses)
-	best_fit = np.argmin(fitnesses)
-	#print(pop[best_fit_id])
-	new_parents.append(pop[best_fit_id])
-	idxs.append(best_fit_id)
-	while len(new_parents) < max_p:
-		contestant_indices = random.choice(range(len(pop)), n_tour, replace = False)
-		#print(pop)
-		contestants = []
-		for i in contestant_indices:
-			contestants.append(pop[i])
-		c_fitnesses = fitnesses[contestant_indices]
-		candidate, winner = fight(contestants, c_fitnesses)
-		#if winner not in idxs:
-		idxs.append(contestant_indices[winner])
-		new_parents.append(candidate)	
-	return new_parents, idxs
-
-from numpy import unique
-def clean(pop): # remove consecutive duplicate rules
-	new = []
-	for p in pop:
-		current_parent = p.copy()
-		c, idx = unique(current_parent, return_index=True, axis = 0)
-		#print(c)
-		#print(idx)
-		c = c[np.argsort(idx)]
-		new.append(c.copy())
-	return new
-					
+select = lgp_tournament_elitism_selection
+n_tour = 4
 print(f"#####Trial {t}#####")
-parents = []
-fit_track = []
-alignment = np.zeros((max_p+max_c, 2))
+alignment = np.zeros((max_p + max_c, 2))
 alignment[:, 0] = 1.0
-for i in range(0, max_p):
-	parents.append(generate_ind())
-fitnesses = np.zeros((max_p+max_c),)
-fitnesses[:max_p], alignment[:max_p, 0], alignment[:max_p, 1] = mass_eval(parents)
+
+parent_generator = LgpParentGenerator(max_p, max_r, max_d, bank, n_inp, n_bias, arity)
+parents = parent_generator()
+
+train_x_bias = prepareConstants(train_x, bias)
+
+density_distro = initDensityDistro(max_r, n_out, arity, mode='lgp')
+
+fitnesses = np.zeros((max_p + max_c), )
+fitness_evaluator = Fitness(train_x, bias, train_y, parents, func, bank, n_inp, max_d, fit, arity)
+fitnesses[:max_p], alignment[:max_p, 0], alignment[:max_p, 1] = fitness_evaluator()
 print(f'starting fitnesses')
 print(fitnesses)
-#print(f'starting scaling')
-#print(alignment)
 
-ret_1_1_avg_list = [] #first parent first child
-ret_1_2_avg_list = [] #first parent second child
-ret_1_1_std_list = []
-ret_1_2_std_list = []
-ret_2_2_avg_list = [] #second parent second child
-ret_2_1_avg_list = [] #second parent first child
-ret_2_2_std_list = []
-ret_2_1_std_list = []
+sharp_in_manager = SAM_IN(train_x_bias)
+sharp_out_manager = SAM_OUT()
 
-avg_1_1_change_list = []
-avg_1_2_change_list = []
-avg_2_1_change_list = []
-avg_2_2_change_list = []
-std_1_1_change_list = []
-std_1_2_change_list = []
-std_2_1_change_list = []
-std_2_2_change_list = []
-best_i = np.argmin(fitnesses[:max_p])
-p_size = [len(effProg(4, parents[best_i]))/len(parents[best_i])]
+# SAM-IN
+noisy_x, noisy_y = getNoise(train_x_bias.shape, max_p, max_c, n_inp, func, sharp_in_manager)
+sharpness = get_sam_in(noisy_x[:, :, 0], noisy_x[:, :, 1:], noisy_y, parents, func, bank, n_inp, max_d, fit, arity)
+sharp_in_list = [np.mean(sharpness)]
+sharp_in_std = [np.std(sharpness)]
 
-for g in range(1, max_g+1):
-	children, retention = xover(parents)
-	children = mutate(children.copy())
-	fitnesses[max_p:], alignment[max_p:, 0], alignment[max_p:, 1] = mass_eval(children)
-	pop = parents+children
-	if any(np.isnan(fitnesses)): #screen out nan values
-		nans = np.isnan(fitnesses)
-		fitnesses[nans] = np.PINF
+preds = [fitness_evaluator.predict(parent, A, B, train_x) for parent, A, B in
+         zip(parents, alignment[:, 0], alignment[:, 1])]
 
-	change_1_1_list = []
-	change_1_2_list = []
-	change_2_1_list = []
-	change_2_2_list = []
-	ret_1_1_list = []
-	ret_1_2_list = []
-	ret_2_1_list = []
-	ret_2_2_list = []
-	for p in retention:
-		change_1_1_list.append(percent_change(fitnesses[p+max_p], fitnesses[p]))
-		change_1_2_list.append(percent_change(fitnesses[p+1+max_p], fitnesses[p]))
-		change_2_1_list.append(percent_change(fitnesses[p+max_p], fitnesses[p+1]))
-		change_2_2_list.append(percent_change(fitnesses[p+1+max_p], fitnesses[p+1]))
-		ret_1_1_list.append(find_similarity(pop[p+max_p], pop[p], mode = 'lgp'))
-		ret_1_2_list.append(find_similarity(pop[p+max_p+1], pop[p], mode = 'lgp'))
-		ret_2_2_list.append(find_similarity(pop[p+1+max_p], pop[p+1], mode = 'lgp'))
-		ret_2_1_list.append(find_similarity(pop[p+max_p], pop[p+1], mode = 'lgp'))
-	
-	avg_1_1_change_list.append(np.nanmean(change_1_1_list))
-	avg_1_2_change_list.append(np.nanmean(change_1_2_list))
-	avg_2_1_change_list.append(np.nanmean(change_2_1_list))
-	avg_2_2_change_list.append(np.nanmean(change_2_2_list))
-	std_1_1_change_list.append(np.nanstd(change_1_1_list))
-	std_1_2_change_list.append(np.nanstd(change_1_2_list))
-	std_2_1_change_list.append(np.nanstd(change_2_1_list))
-	std_2_2_change_list.append(np.nanstd(change_2_2_list))
+sharp_out_manager = SAM_OUT()
 
-	ret_1_1_avg_list.append(np.nanmean(ret_1_1_list))
-	ret_1_2_avg_list.append(np.nanmean(ret_1_2_list))
-	ret_1_1_std_list.append(np.nanstd(ret_1_1_list))
-	ret_1_2_std_list.append(np.nanstd(ret_1_2_list))
-	ret_2_1_avg_list.append(np.nanmean(ret_2_1_list))
-	ret_2_2_avg_list.append(np.nanmean(ret_2_2_list))
-	ret_2_1_std_list.append(np.nanstd(ret_2_1_list))
-	ret_2_2_std_list.append(np.nanstd(ret_2_2_list))
+neighbor_map = np.array(
+    [getNeighborMap(pred, sharp_out_manager, train_y) for i, pred in zip(range(0, max_p), preds)])
+sharp_out_list = [np.mean(np.std(neighbor_map, axis=1) ** 2)]  # variance
+sharp_out_std = [np.std(np.std(neighbor_map, axis=1))]
 
-	parents, p_idxs = select(pop, fitnesses)
-	fitnesses[:max_p] = fitnesses.copy()[p_idxs]
-	alignment[:max_p, :] = alignment.copy()[p_idxs, :]
-	pop = parents+children
-	best_i = np.argmin(fitnesses)
-	best_pop = pop[best_i]
-	best_a = alignment[best_i, 0]
-	best_b = alignment[best_i, 1]
-	best_fit = fitnesses[best_i]
-	fit_track.append(best_fit)
-	p_size.append(len(effProg(4, parents[best_i]))/len(parents[best_i]))
-	if g % 100 == 0:
-		print(f'Generation {g}: Best Fit {best_fit}')
-	
-#fig, ax = plt.subplots()
-#ax = plt.plot(fit_track)
-#print(fit_track)
-#plt.show()
-print("Fitnesses")	
-print(np.round(fitnesses, 5))
-print("Alignment")
-print(alignment)
-print(f"Best Pop:\n{best_pop}")
-print(f"Best Fit: {np.round(best_fit, 4)}")
-#elif np.isnan(best_fit):
-#	print("Redoing Trial")
-#	t = t-1
-preds = predict(best_pop, best_a, best_b, train_x)
-print('preds')
-print(preds)
-print(f"../output/lgp/{func_name}/log/") 
-Path(f"../output/lgp/{func_name}/log/").mkdir(parents=True, exist_ok=True)
-import pickle
-with open(f"../output/lgp/{func_name}/log/output_{t}.pkl", "wb") as f:
-	pickle.dump(bias, f)
-	pickle.dump(best_pop, f)
-	pickle.dump(preds, f)
-	pickle.dump(np.round(best_fit, 4), f)
-	pickle.dump(best_pop.shape[0], f)
-	pickle.dump(fit_track, f)
+print(sharp_in_list)
+print(sharpness)
+print(sharp_out_list)
+print(np.var(neighbor_map, axis=1))
 
-fig, ax = plt.subplots()
-ax.scatter(train_x, train_y, label = 'Ground Truth')
-ax.scatter(train_x, preds, label = 'Predicted')
-fig.suptitle(f"{func_name} Trial {t}")
-ax.set_title(f"{fit_name} = {np.round(best_fit, 4)}")
-ax.legend()
-Path(f"../output/lgp/{func_name}/scatter/").mkdir(parents=True, exist_ok=True)
-plt.savefig(f"../output/lgp/{func_name}/scatter/comp_{t}.png")
+fit_track, ret_avg_list, ret_std_list, avg_change_list, avg_hist_list, std_change_list = initTrackers()
 
-fig, ax = plt.subplots()
-ax.plot(fit_track)
-ax.set_title(f"{func_name} Trial {t}")
-Path(f"../output/lgp/{func_name}/plot/").mkdir(parents=True, exist_ok=True)
-plt.savefig(f"../output/lgp/{func_name}/plot/plot_{t}.png")
+best_i = getBestInd(fitnesses, max_p)
+p_size = [len(effProg(4, parents[best_i])) / len(parents[best_i])]
+mut_impact = DriftImpact(neutral_limit=1e-3)
 
+for g in range(1, max_g + 1):
+    children, retention, d_distro = xover(deepcopy(parents), max_r, p_xov, 'uniform')
+    children, mutated_inds = mutate(deepcopy(children), max_c, max_r, max_d, bank, inputs=1, n_bias=10, arity=2)
+    pop = parents + children
+    fitness_evaluator = Fitness(train_x, bias, train_y, pop, func, bank, n_inp, max_d, fit, arity)
+    fitnesses, alignment[:, 0], alignment[:, 1] = fitness_evaluator()
+    drift_per_parent_mut, drift_per_parent_xov = mut_impact(fitnesses, max_p, retention, mutated_inds, opt=1)
+    avg_hist_list, avg_change_list, std_change_list, ret_avg_list, ret_std_list = processRetention(retention, pop,
+                                                                                                   fitnesses, max_p,
+                                                                                                   avg_hist_list,
+                                                                                                   avg_change_list,
+                                                                                                   std_change_list,
+                                                                                                   ret_avg_list,
+                                                                                                   ret_std_list, g,
+                                                                                                   mode='lgp')
 
-win_length = 100
-ret_1_1_avg_list = np.array(ret_1_1_avg_list)
-ret_1_2_avg_list = np.array(ret_1_2_avg_list)
-ret_2_1_avg_list = np.array(ret_2_1_avg_list)
-ret_2_2_avg_list = np.array(ret_2_2_avg_list)
-ret_1_1_std_list = np.array(ret_1_1_std_list)
-ret_1_2_std_list = np.array(ret_1_2_std_list)
-ret_2_1_std_list = np.array(ret_2_1_std_list)
-ret_2_2_std_list = np.array(ret_2_2_std_list)
-fig, ax = plt.subplots()
-ax.plot(savgol_filter(ret_1_1_avg_list, win_length, 3), c = 'blue', label = 'First Parent | First Child')
-ax.plot(savgol_filter(ret_1_2_avg_list, win_length, 3), c = 'blue', label = 'First Parent | Second Child', linestyle = 'dashed')
-ax.plot(savgol_filter(ret_2_1_avg_list, win_length, 3), c = 'red', label = 'Second Parent | First Child', linestyle='dashed')
-ax.plot(savgol_filter(ret_2_2_avg_list, win_length, 3), c = 'red', label = 'Second Parent | Second Child')
-ax.fill_between(range(ret_1_1_avg_list.shape[0]), savgol_filter((ret_1_1_avg_list-ret_1_1_std_list), win_length, 3), savgol_filter((ret_1_1_avg_list+ret_1_1_std_list), win_length, 3), color = 'blue', alpha = 0.1)
-ax.fill_between(range(ret_1_2_avg_list.shape[0]), savgol_filter((ret_1_2_avg_list-ret_1_2_std_list), win_length, 3), savgol_filter((ret_1_2_avg_list+ret_1_2_std_list), win_length, 3), color = 'blue', alpha = 0.1)
-ax.fill_between(range(ret_2_1_avg_list.shape[0]), savgol_filter((ret_2_1_avg_list-ret_2_1_std_list), win_length, 3), savgol_filter((ret_2_1_avg_list+ret_2_1_std_list), win_length, 3), color = 'red', alpha = 0.1)
-ax.fill_between(range(ret_2_2_avg_list.shape[0]), savgol_filter((ret_2_2_avg_list-ret_2_2_std_list), win_length, 3), savgol_filter((ret_2_2_avg_list+ret_2_2_std_list), win_length, 3), color = 'red', alpha = 0.1)
-ax.set_title(f'{func_name} Trial {t}')
-ax.set_ylabel('Average Retention Proportion from Parent to Child after Crossover')
-ax.set_xlabel('Generations')
-fig.legend()
-Path(f"../output/lgp/{func_name}/retention/").mkdir(parents=True, exist_ok=True)
-plt.savefig(f"../output/lgp/{func_name}/retention/retention_{t}.png")
+    sharp_in_list, sharp_in_std, sharp_out_list, sharp_out_std = processSharpnessLGP(train_x, train_x_bias, alignment,
+                                                                                     max_p,
+                                                                                     max_c, n_inp, func, bank, n_inp,
+                                                                                     fit, arity, max_d,
+                                                                                     sharp_in_manager,
+                                                                                     fitness_evaluator, pop,
+                                                                                     sharp_in_list, sharp_in_std,
+                                                                                     sharp_out_manager,
+                                                                                     sharp_out_list, sharp_out_std,
+                                                                                     train_y)
+    density_distro = associateDistro(drift_per_parent_xov, retention, d_distro, density_distro)
+    best_i = getBestInd(fitnesses)
+    best_fit = fitnesses[best_i]
+    if g % 100 == 0:
+        logAndProcessSharpness(g, best_fit, sharp_in_list, sharp_out_list)
 
-avg_1_1_change_list = np.array(avg_1_1_change_list)
-avg_1_2_change_list = np.array(avg_1_2_change_list)
-avg_2_1_change_list = np.array(avg_2_1_change_list)
-avg_2_2_change_list = np.array(avg_2_2_change_list)
-std_1_1_change_list = np.array(std_1_1_change_list)
-std_1_2_change_list = np.array(std_1_2_change_list)
-std_2_1_change_list = np.array(std_2_1_change_list)
-std_2_2_change_list = np.array(std_2_2_change_list)
-fig, ax = plt.subplots()
-ax.plot(savgol_filter(avg_1_1_change_list, win_length, 3), c = 'blue', label = 'First Parent | First Child')
-ax.plot(savgol_filter(avg_1_2_change_list, win_length, 3), c = 'blue', label = 'First Parent | Second Child', linestyle='dashed')
-ax.plot(savgol_filter(avg_2_1_change_list, win_length, 3), c = 'red', label = 'Second Parent | First Child', linestyle='dashed')
-ax.plot(savgol_filter(avg_2_2_change_list, win_length, 3), c = 'red', label = 'Second Parent | Second Child')
-ax.fill_between(range(avg_1_1_change_list.shape[0]), savgol_filter((avg_1_1_change_list-std_1_1_change_list), win_length, 3), savgol_filter((avg_1_1_change_list+std_1_1_change_list), win_length, 3), color = 'blue', alpha = 0.1)
-ax.fill_between(range(avg_1_2_change_list.shape[0]), savgol_filter((avg_1_2_change_list-std_1_2_change_list), win_length, 3), savgol_filter((avg_1_2_change_list+std_1_2_change_list), win_length, 3), color = 'blue', alpha = 0.1)
-ax.fill_between(range(avg_2_1_change_list.shape[0]), savgol_filter((avg_2_1_change_list-std_2_1_change_list), win_length, 3), savgol_filter((avg_2_1_change_list+std_2_1_change_list), win_length, 3), color = 'red', alpha = 0.1)
-ax.fill_between(range(avg_2_2_change_list.shape[0]), savgol_filter((avg_2_2_change_list-std_2_2_change_list), win_length, 3), savgol_filter((avg_2_2_change_list+std_2_1_change_list), win_length, 3), color = 'red', alpha = 0.1)
-ax.set_title(f'{func_name} Trial {t}')
-ax.set_ylabel('Percent Change between parents and children')
-ax.set_xlabel('Generations')
-fig.legend()
-plt.tight_layout()
-Path(f"../output/lgp/{func_name}/change_plot/").mkdir(parents=True, exist_ok=True)
-plt.savefig(f"../output/lgp/{func_name}/change_plot/change_{t}.png")
+    fit_track.append(best_fit)
+    p_size.append(len(effProg(max_d, pop[best_i])))
+    parents = select(pop, fitnesses, max_p)
 
-p_size = np.array(p_size)
+pop = parents + children
+fitness_evaluator = Fitness(train_x, bias, train_y, pop, func, bank, n_inp, max_d, fit, arity)
+fitnesses, alignment[:, 0], alignment[:, 1] = fitness_evaluator()
+best_i, best_fit, best_pop, mut_list, mut_cum, xov_list, xov_cum, density_distro = processAndPrintResults(
+    t, fitnesses, pop, mut_impact, density_distro, mode='lgp')
+Path(f"../output/{run_name}/{func_name}/log/").mkdir(parents=True, exist_ok=True)
 
-fig, ax = plt.subplots()
-ax.plot(p_size)
-ax.set_title(f'{func_name} Trial {t}')
-ax.set_ylabel("Proportion of Nodes Which Are Active")
-ax.set_xlabel("Generations")
-Path(f"../output/lgp/{func_name}/proportion_plot/").mkdir(parents=True, exist_ok=True)
-plt.savefig(f"../output/lgp/{func_name}/proportion_plot/proportion_plot_{t}.png")
+first_body_node = n_inp + bias.shape[0]
+bin_centers, hist_gens, avg_hist_list = change_histogram_plot(avg_hist_list, func_name, run_name, t, max_g)
 
-first_body_node = n_inp+n_bias+1
-print(first_body_node)
+p_A = alignment[best_i, 0]
+p_B = alignment[best_i, 1]
 
-Path(f"../output/lgp/{func_name}/best_program/").mkdir(parents=True, exist_ok=True)
-def print_individual(ind, a, b, fb_node = first_body_node):
-        def put_r(reg, fb_node = first_body_node):
-                if reg == 0:
-                        return f'R_0'
-                if reg > 0 and reg <= n_inp:
-                        return f'R_{reg}'
-                return f'R_{int(reg-fb_node+2)}'
-        registers = ind[:, 0].astype(np.int32)
-        operators = ind[:, 1].astype(np.int32)
-        operands = ind[:, 2:].astype(np.int32)
-
-        registers = list(map(put_r, registers))
-        operators = [bank_string[i] for i in operators]
-        with open(f"../output/lgp/{func_name}/best_program/best_{t}.txt", 'a') as f:
-                f.write('R\tOp\tI\n')
-        print("R\tOp\tI")
-        for i in range(len(registers)):
-                reg = registers[i]
-                op = operators[i]
-                ops = operands[i, :]
-                nums = []
-                for n in ops:
-                        #print(n)
-                        if n > 0 and n<=n_inp:
-                                nums.append(f'R_{n}')
-                        elif n == 0:
-                                nums.append(f'R_0')
-                        elif n > n_inp and n < fb_node:
-                                nums.append(bias[n-n_inp-1])
-                        else:
-                                nums.append(f'R_{n-fb_node+2}') 
-                with open(f"../output/lgp/{func_name}/best_program/best_{t}.txt", 'a') as f:
-                        f.write(f"{reg}\t{op}\t{nums}\n")       
-                print(f"{reg}\t{op}\t{nums}")
-        print("Scaling")
-        print(f"R_0 = {a}*R_0+{b}")
-        with open(f"../output/lgp/{func_name}/best_program/best_{t}.txt", 'a') as f:
-                f.write(f"R_0 = {a}*R_0+{b}\n\n")  
-                f.write(f'{ind}')
-
-import graphviz as gv
-dot = gv.Digraph(comment=f'trial {t}')
-print_individual(best_pop, best_a, best_b)
 p = effProg(max_d, best_pop, first_body_node)
+lgp_print_individual(p, p_A, p_B, 'lgp', func_name, bank_string, t, bias, n_inp, first_body_node)
 with open(f"../output/lgp/{func_name}/best_program/best_{t}.txt", 'a') as f:
-	f.write(f"\nEffective Instructions\n\n")  
-print(print_individual(p, best_a, best_b))
-
+    f.write(f"\nEffective Instructions\n\n")
+    f.write(f'{p}')
 print('effective program')
 print(p)
-with open(f"../output/lgp/{func_name}/log/output_{t}.pkl", "wb") as f:
-	pickle.dump(bias, f)
-	pickle.dump(best_pop, f)
-	pickle.dump(preds, f)
-	pickle.dump(np.round(best_fit, 4), f)
-	pickle.dump(len(p), f)
-	pickle.dump(fit_track, f)
-	pickle.dump([avg_1_1_change_list, avg_1_2_change_list, avg_2_1_change_list, avg_2_2_change_list], f)
-	pickle.dump([ret_1_1_avg_list, ret_1_2_avg_list, ret_2_1_avg_list, ret_2_2_avg_list], f)
-	pickle.dump(p_size, f)
-
-dot = draw_graph_thicc(p, best_a, best_b)
+saveResults(run_name, func_name, t, bias, best_pop, preds, best_fit, len(p), fit_track, avg_change_list, ret_avg_list,
+            p_size, bin_centers, hist_gens, avg_hist_list, mut_list, mut_cum,
+            xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro)
+print('run finished')
+dot = draw_graph_thicc(p, p_A, p_B)
 Path(f"../output/lgp/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)
 dot.render(f"../output/lgp/{func_name}/full_graphs/graph_{t}", view=False)
-
