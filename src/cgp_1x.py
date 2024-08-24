@@ -131,7 +131,6 @@ for g in range(1, max_g + 1):
     parents = select(pop, fitnesses, max_p)
 
 pop = parents + children
-print(train_x_bias)
 fit_temp = np.array([fitness_objects[i](train_x_bias, train_y, ind) for i, ind in zip(range(0, max_p + max_c), pop)])
 fitnesses, alignment = processFitness(fitness_objects, train_x_bias, train_y, pop, max_p, max_c)
 best_i, best_fit, best_pop, mut_list, mut_cum, xov_list, xov_cum, density_distro, preds, p_a, p_b = processAndPrintResults(
@@ -143,6 +142,7 @@ first_body_node = inputs + bias
 bin_centers, hist_gens, avg_hist_list = change_histogram_plot(avg_hist_list, func_name, run_name, t, max_g)
 n = plot_active_nodes(best_pop[0], best_pop[1], first_body_node, bank_string, biases, inputs, p_a, p_b, func_name,
                       run_name, t, opt=1)
+
 saveResults(run_name, func_name, t, biases, best_pop, preds, best_fit, n, fit_track, avg_change_list, ret_avg_list,
             p_size, bin_centers, hist_gens, avg_hist_list, mut_list, mut_cum,
             xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro)

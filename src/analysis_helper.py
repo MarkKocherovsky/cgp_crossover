@@ -2,13 +2,14 @@ import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def load_pickle_data(p):
     try:
         with open(p, "rb") as f:
-            return [pickle.load(f) for _ in range(14)]
+            return [pickle.load(f) for _ in range(15)]
     except EOFError:
         print(f'EOF Error at {p}')
-        return [None] * 14
+        return [None] * 15
 
 
 def update_logs(pickle_data):
@@ -16,8 +17,8 @@ def update_logs(pickle_data):
 
     mut_list_effect = mut_effect[0]
     mut_cumul_effect = mut_effect[1]
-    xov_list_effect = mut_effect[0]
-    xov_cumul_effect = mut_effect[1]
+    xov_list_effect = xov_effect[0]
+    xov_cumul_effect = xov_effect[1]
     sharp_in_list = sharp_list[0]
     sharp_out_list = sharp_list[1]
     sharp_in_std = sharp_std[0]
@@ -48,13 +49,13 @@ def update_logs(pickle_data):
     }
 
 
-def get_logs_cgp(base_path, max_e, f_name):
+def get_logs_cgp(base_path, max_e, problem_names):
     full_logs, full_fits, fit_tracks, active_nodes = [], [], [], []
     node_prop, avg_chg, avg_ret, p_sz_li, hist_li = [], [], [], [], []
     mut_cumul, mut_list, xov_cumul, xov_list = [], [], [], []
     sharp_in_mean, sharp_out_mean, sharp_in_std, sharp_out_std, den = [], [], [], [], []
 
-    for name in f_name:
+    for name in problem_names:
         print(f"Loading {base_path}{name}")
 
         logs, p_log, track_log, node_log, prop_log = [], [], [], [], []
@@ -139,23 +140,22 @@ def data_dict(data):
     }
 
 
-def load_all_data(base_paths, max_e, f_names):
-    return {key: data_dict(get_logs_cgp(base_paths[key], max_e, f_names[key])) for key in base_paths}
+def load_all_data(base_paths, max_e, f_names, problem_names):
+    return {key: data_dict(get_logs_cgp(base_paths[key], max_e, problem_names)) for key in base_paths}
 
 
 # Refactored by chatGPT
-def calculate_avg_and_std(data, axis=None):
-    """
-    Calculate the average and standard deviation across the axis=0
-    for each element in the input list.
-    """
-    ax = 0 if axis is None else axis
-    avgs = np.array([np.average(d, axis=ax) for d in data])
-    std_devs = np.array([np.std(d, axis=ax) for d in data])
+def calculate_avg_and_std(data, axis=1):
+    data = np.array(data)
+    if data.ndim == 1:
+        axis = 0  # Adjust to axis 0 if data is 1D
+    print(type(data))
+    avgs = np.array([np.nanmean(d, axis=axis) for d in data])
+    std_devs = np.array([np.nanstd(d, axis=axis) for d in data])
     return avgs, std_devs
 
 
-def get_avg_gens(data, axis=None):
+def get_avg_gens(data, axis=1):
     """
     Calculate the averages and standard deviations,
     then return the averages along with their corresponding error ribbons.
@@ -206,7 +206,8 @@ def configure_axes(ax, title, ylabel, method_names, y_bottom=1e-6):
     ax.set_ylim(bottom=y_bottom)
 
 
-def plot_box_plots(f_names, data_dicts, method_names, method_names_long, color_order, key, name, title, y_label):
+def plot_box_plots(f_names, problem_names, data_dicts, method_names, method_names_long, color_order, key, plot_name,
+                   title, y_label):
     """
     Create a figure with subplots for the fitness evaluation on SR problems.
 
@@ -222,17 +223,17 @@ def plot_box_plots(f_names, data_dicts, method_names, method_names_long, color_o
 
     legend_objects = None
 
-    for n, name in enumerate(f_names):
+    for n, name in enumerate(problem_names):
         data = [
             data_dicts['cgp_base'][key][n],
-            data_dicts['cgp_40'][key][n],
+            # data_dicts['cgp_40'][key][n],
             data_dicts['cgp_1x'][key][n],
-            data_dicts['cgp_vlen'][key][n],
-            data_dicts['lgp_1x'][key][n],
-            data_dicts['cgp_2x'][key][n],
-            data_dicts['lgp_2x'][key][n],
-            data_dicts['cgp_sgx'][key][n],
-            data_dicts['lgp_base'][key][n],
+            # data_dicts['cgp_vlen'][key][n],
+            # data_dicts['lgp_1x'][key][n],
+            # data_dicts['cgp_2x'][key][n],
+            # data_dicts['lgp_2x'][key][n],
+            # data_dicts['cgp_sgx'][key][n],
+            # data_dicts['lgp_base'][key][n],
         ]
 
         boxes = create_boxplot(axs[n], data, color_order, method_names)
@@ -245,7 +246,7 @@ def plot_box_plots(f_names, data_dicts, method_names, method_names_long, color_o
     fig.legend(legend_objects, method_names_long, fontsize=10, ncol=2, bbox_to_anchor=(0.5, 0.965), loc='upper center')
     fig.tight_layout(rect=[0, 0, 1, 0.92])
     plt.show()
-    fig.savefig(f"../output/{name}.png")
+    fig.savefig(f"../output/{plot_name}.png")
 
 
 def plot_with_error(ax, x_data, y_data, lower_bound, upper_bound, label, color, alpha=0.10):
@@ -262,8 +263,15 @@ def plot_with_error(ax, x_data, y_data, lower_bound, upper_bound, label, color, 
     - color: The color of the line and the ribbon.
     - alpha: The transparency of the ribbon.
     """
-    ax.plot(y_data, label=label, c=color)
+
+    # This is chatgpt's innovation
+    def flatten_if_needed(arr):
+        return arr.flatten() if arr.ndim > 1 else arr
+
+    y_data, lower_bound, upper_bound = map(flatten_if_needed, [y_data, lower_bound, upper_bound])
+
     ax.fill_between(x_data, lower_bound, upper_bound, color=color, alpha=alpha)
+    ax.plot(y_data, label=label, c=color)
 
 
 def configure_subplot(ax, title, ylabel, xlabel=None):
@@ -283,39 +291,57 @@ def configure_subplot(ax, title, ylabel, xlabel=None):
         ax.set_xlabel(xlabel, fontsize=10)
 
 
-def plot_over_generations(f_names, avgs, method_names_long, color_order, name, title, y_label):
+import matplotlib.pyplot as plt
+
+
+def plot_over_generations(f_names, problem_names, avgs, method_names_long, color_order, plot_name, title, y_label):
     """
     Create a figure with subplots for the similarity evaluation across methods.
 
     Parameters:
     - f_names: List of problem names (used for titles).
     - avgs: Dictionary of average retention data (per method).
-    - stds: Dictionary of standard deviation data (per method).
     - method_names_long: List of full method names for the legend.
     - color_order: List of colors corresponding to the methods.
-    - x_range: The range of x values (usually the range of generations).
+    - plot_name: Name of the file to save the plot.
+    - title: Title of the plot.
+    - y_label: Label for the y-axis.
     """
-    fig, axs = plt.subplots(4, 2, figsize=(9.75, 6.75))
+    n_problems = len(problem_names)
+    fig, axs = plt.subplots(n_problems, 2, figsize=(9.75, 6.75))
     fig.subplots_adjust(hspace=0.3)
     legend_objects = []
-    x_range = range(avgs[0][0].shape[0])  # Assuming all methods have the same number of generations
 
-    for n, ax in enumerate(axs.flat[:len(f_names)]):
+    # Get the number of generations from the first method
+    first_method_key = next(iter(avgs))  # Get the first key from the dictionary
+    x_range = range(avgs[first_method_key][0][0].shape[0])  # Access the first array in the tuple of the first method
+
+    first_method_key = next(iter(avgs))  # Get the first key from the dictionary
+    sample_data = np.array(avgs[first_method_key])
+    ndim = sample_data.ndim
+    x_range = range(sample_data.shape[-1])  # Assuming x-axis is the last dimension
+
+    for n, ax in enumerate(axs.flat[:len(problem_names)]):
         for method, color in zip(avgs.keys(), color_order):
+            avg_data = np.array(avgs[method])
+
+            # Create a tuple of slices based on the number of dimensions
+            slices = tuple([slice(None) if i in [0, *range(2, ndim)] else n for i in range(ndim)])
+            avg_data_to_plot = avg_data[slices]
             plot_with_error(
-                ax, x_range, avgs[method][n][0], avgs[method][n][1], avgs[method][n][2], label=method, color=color
+                ax, x_range, avg_data_to_plot[0], avg_data_to_plot[1], avg_data_to_plot[2],
+                label=method, color=color
             )
             if n == 0:  # Capture legend objects from the first subplot
                 legend_objects.append(ax.plot([], [], label=method, color=color)[0])
-
-        configure_subplot(ax, f_names[n], y_label, xlabel="Generations" if n > 5 else None)
+        configure_subplot(ax, problem_names[n], y_label, xlabel="Generations" if n > int(n_problems / 2) else None)
 
     axs.flat[-1].set_visible(False)
     fig.suptitle(title, fontsize=16)
     fig.legend(legend_objects, method_names_long, fontsize=10, loc='lower right', bbox_to_anchor=(1, 0.05), ncol=2)
     plt.show()
     fig.tight_layout()
-    fig.savefig(f"../output/{name}.png")
+    fig.savefig(f"../output/{plot_name}.png")
 
 
 def plot_individuals(avgs, f_names, method_names_long, color_order, name, title, y_label, x_range, n_methods=9,
@@ -337,59 +363,165 @@ def prepare_avgs(data, metric):
     - data: Dictionary of loaded data
     - metric: String indicating the metric we want to measure
     """
-    return {key: get_avg_gens(data[key][metric]) for key in data}
+    return {key: get_avg_gens(data[key][metric], axis=0) for key in data}
 
+
+import numpy as np
+
+
+# chatgpt whipped this up, it's some kind of magic
+def prepare_avgs_cumul(data, metric, n_problems):
+    """
+    Prepares averages and standard deviation values for cumulative data.
+
+    Parameters:
+    - data: Dictionary of loaded data.
+    - metric: String indicating the metric we want to measure.
+    - n_problems: Number of problems.
+    """
+
+    def slice_array(arr, n, m):
+        """
+        Helper function to dynamically slice arrays based on their number of dimensions.
+        """
+        ndim = arr.ndim
+        slices = [slice(None)] * (ndim - 2)  # Middle dimensions: keep all elements
+        return arr[(n,) + tuple(slices) + (m,)]
+
+    return {
+        key: {
+            n: {
+                stat: np.nanmean(slice_array(np.array(data[key][metric]), n, m), axis=0)
+                if stat.endswith('_avg') else np.nanstd(slice_array(np.array(data[key][metric]), n, m), axis=0)
+                for stat, m in zip(['d_avg', 'n_avg', 'b_avg', 'd_std', 'n_std', 'b_std'], [0, 1, 2, 0, 1, 2])
+            } for n in range(n_problems)
+        } for key in data
+    }
+
+
+def prepare_avgs_density_distro(data, n_problems):
+    """
+    Prepares averages and standard deviation values for density_distro data.
+
+    Parameters:
+    - data: Dictionary of loaded data.
+    - metric: String indicating the metric we want to measure.
+    - n_problems: Number of problems.
+    """
+
+    def slice_array(arr, n, m):
+        """
+        Helper function to dynamically slice arrays based on their number of dimensions.
+        """
+        result = []
+        for a in arr:
+            result.append(a[n][m])
+        return np.array(result)
+
+    metric = 'density_distro'
+    return {
+        key: {
+            n: {
+                stat: np.nanmean(slice_array(np.array(data[key][metric]), n, m), axis=0)
+                if stat.endswith('_avg') else np.nanstd(slice_array(np.array(data[key][metric]), n, m), axis=0)
+                for stat, m in zip(['d_avg', 'n_avg', 'b_avg', 'd_std', 'n_std', 'b_std'], ['d', 'n', 'b', 'd', 'n', 'b'])
+            } for n in range(n_problems)
+        } for key in data
+    }
 
 
 def prepare_avgs_multi(data, metric):
-    return {key: get_avg_gens(data[key][metric], axis=1) for key in data}
+    def average_over_time(arrays):
+        # Stack arrays and compute the mean over the first axis
+        stacked = np.stack(arrays, axis=0)
+        return np.mean(stacked, axis=0)
+
+    if metric != 'density_distro':
+        return {key: get_avg_gens(data[key][metric], axis=1) for key in data}
+    else:
+        result = {}
+        for key in data:
+            metric_data = data[key][metric]
+            if isinstance(metric_data, list) and all(isinstance(x, list) for x in metric_data):
+                # Initialize dictionaries to store lists of arrays
+                avg_dicts = {'b': [], 'n': [], 'd': []}
+
+                # Iterate over each list in the outer list
+                for sublist in metric_data:
+                    # Iterate over each dictionary in the sublist
+                    for item in sublist:
+                        if isinstance(item, dict):
+                            for sub_key in ['b', 'n', 'd']:
+                                if sub_key in item:
+                                    avg_dicts[sub_key].append(item[sub_key])
+
+                # Compute averages for each key
+                result[key] = {sub_key: average_over_time(avg_dicts[sub_key]) for sub_key in ['b', 'n', 'd']}
+            else:
+                raise TypeError(f"Unexpected data type for metric '{metric}' in key '{key}': {type(metric_data)}")
+        return result
 
 
-def plot_multiple_series(n_problems, n_methods, data, f_names, method_names_long, color_order, name, title, y_label):
+def plot_multiple_series(f_names, problem_names, drift_colors, drift_names, drift_categories, data, name, title,
+                         y_label, x_label=None, histogram=False):
     """
     Create a figure with subplots for multiple series across problems and methods.
 
     Parameters:
-    - n_problems: Number of rows (problems) in the subplot grid.
-    - n_methods: Number of columns (methods) in the subplot grid.
-    - data: List of data where each element is a tuple of three lists: (average, lower_bound, upper_bound).
     - f_names: List of problem names (used for titles).
+    - problem_names: List of problems (used for rows).
+    - data: Dictionary of data where each element is a tuple of three lists: (average, lower_bound, upper_bound).
     - method_names_long: List of full method names for the legend.
     - color_order: List of colors corresponding to the methods.
     - name: Filename to save the plot.
     - title: The title of the entire figure.
     - y_label: Label for the y-axis.
     """
+    n_problems = len(problem_names)
+    n_methods = len(f_names)
     fig, axs = plt.subplots(n_problems, n_methods, figsize=(9.75, 6.75))
     fig.subplots_adjust(hspace=0.3)
     legend_objects = []
 
-    for i in range(n_problems):
-        for j in range(n_methods):
+    for i, p_name in enumerate(problem_names):
+        for j, f_name in enumerate(f_names):
             ax = axs[i, j]
-            method_index = i * n_methods + j
-            if method_index >= len(data):
-                ax.set_visible(False)
-                continue
 
-            avg, lower_bound, upper_bound = data[method_index]
-            x_range = range(len(avg))
+            for k, series in enumerate(drift_categories):
+                avg = data[f_name][i][f'{series}_avg']
+                std = data[f_name][i][f'{series}_std']
+                upper_bound = avg + std
+                lower_bound = avg - std
+                x_range = range(len(avg))
+                if not histogram:
+                    ax.plot(avg, color=drift_colors[k], label=drift_names[k])
+                    ax.fill_between(x_range, lower_bound, upper_bound, color=drift_colors[k], alpha=0.3)
+                else:
+                    marker = ['*', 'o', 'v', '^', '<', '>']
+                    try:
+                        #ax.scatter(x_range, avg, color=drift_colors[k], label=drift_names[i], alpha=0.85, marker=marker[k])
+                        ax.errorbar(x_range, avg, yerr=[lower_bound, upper_bound], fmt=marker[k], color=drift_colors[k],
+                                    label=drift_names[k], capsize=3)
+                    except ValueError:
+                        print(f'ValueError in d_distro {f_name} {p_name}')
 
-            ax.plot(x_range, avg, color=color_order[method_index], label=f_names[i])
-            ax.fill_between(x_range, lower_bound, upper_bound, color=color_order[method_index], alpha=0.3)
-
-            if i == 0:  # Capture legend objects from the first row
-                legend_objects.append(ax.plot([], [], color=color_order[method_index])[0])
-
-            ax.set_title(f_names[i], fontsize=12)
+            if i == 0 and j == 0:  # Capture legend objects from the first subplot
+                legend_objects.extend([ax.plot([], [], color=color)[0] for color in drift_colors])
+            if i == 0:
+                print(f_name)
+                ax.set_title(f'{f_names[f_name]}\n{p_name}')
+            else:
+                ax.set_title(f'{p_name}')
+            ax.set_title(p_name, fontsize=12)
             if j == 0:
-                ax.set_ylabel(y_label, fontsize=10)
+                ax.set_ylabel(f'{y_label} {p_name}', fontsize=10)
             if i == n_problems - 1:
-                ax.set_xlabel("Generations", fontsize=10)
+                xlab = "Generations" if x_label is None else x_label
+                ax.set_xlabel(xlab, fontsize=10)
             ax.set_ylim(bottom=0)
 
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
     fig.suptitle(title, fontsize=16)
-    fig.legend(legend_objects, method_names_long, fontsize=10, loc='lower right', bbox_to_anchor=(1, 0.05), ncol=2)
+    fig.legend(legend_objects, drift_names, fontsize=10, loc='upper center', bbox_to_anchor=(0.5, 0.95), ncol=3)
     plt.show()
-    fig.tight_layout()
     fig.savefig(f"../output/{name}.png")

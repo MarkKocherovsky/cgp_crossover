@@ -157,6 +157,7 @@ class DriftImpact:
         self.mut_cum += drift_mut
         self.xov_cum += drift_xov
         self.mut_list.append(drift_mut.copy())
+        self.xov_list.append(drift_xov.copy())
 
         if opt == 1:
             return drift_per_parent_mut, drift_per_parent_xov
