@@ -44,16 +44,24 @@ def prepareConstants(train_x: np.ndarray, biases: np.ndarray) -> np.ndarray:
     return train_x_bias
 
 
-def initDensityDistro(max_n: int, operators: int, arity: int, mode: str = 'cgp', outputs:int = 0) -> dict:
+def initDensityDistro(max_n: int, operators: int, arity: int, max_g: int, mode: str = 'cgp', outputs:int = 0) -> dict:
     if mode == 'cgp':
         m = operators + arity
     else:
         m = 1
-    return {
-        'd': np.zeros(max_n * m+outputs, dtype=np.int32),
-        'n': np.zeros(max_n * m+outputs, dtype=np.int32),
-        'b': np.zeros(max_n * m+outputs, dtype=np.int32)
+
+    density_distro_list = {
+        'd': np.zeros((max_g,(max_n * m+outputs)), dtype=np.int32),
+        'n': np.zeros((max_g,(max_n * m+outputs)), dtype=np.int32),
+        'b': np.zeros((max_g,(max_n * m+outputs)), dtype=np.int32)
     }
+
+    density_distro = {
+        'd': np.zeros(max_n * m + outputs, dtype=np.int32),
+        'n': np.zeros(max_n * m + outputs, dtype=np.int32),
+        'b': np.zeros(max_n * m + outputs, dtype=np.int32)
+    }
+    return density_distro, density_distro_list
 
 
 def initFitness(max_p: int, max_c: int) -> (Fitness, np.ndarray):
@@ -218,7 +226,7 @@ def processAndPrintResults(t, fitnesses, pop, mut_impact, density_distro, train_
     density_distro['d'] = density_distro['d'] / np.sum(density_distro['d'])
     density_distro['n'] = density_distro['n'] / np.sum(density_distro['n'])
     density_distro['b'] = density_distro['b'] / np.sum(density_distro['b'])
-    print(density_distro)
+    #print(density_distro)
 
     if mode == 'cgp':  #this is weird for some reason
         pred_fitness = Fitness()
@@ -230,7 +238,7 @@ def processAndPrintResults(t, fitnesses, pop, mut_impact, density_distro, train_
 
 def saveResults(run_name, func_name, t, biases, best_pop, preds, best_fit, n, fit_track, avg_change_list, ret_avg_list,
                 p_size, bin_centers, hist_gens, avg_hist_list, mut_list, mut_cum,
-                xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro):
+                xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro, dd_list):
     with open(f"../output/{run_name}/{func_name}/log/output_{t}.pkl", "wb") as f:
         pickle.dump(biases, f)
         pickle.dump(best_pop, f)
@@ -247,21 +255,25 @@ def saveResults(run_name, func_name, t, biases, best_pop, preds, best_fit, n, fi
         pickle.dump([sharp_in_list, sharp_out_list], f)
         pickle.dump([sharp_in_std, sharp_out_std], f)
         pickle.dump(density_distro, f)
+        pickle.dump(dd_list, f)
 
 
-def associateDistro(drift_per_parent, retention, d_distro, density_distro, mode='normal'):
+def associateDistro(drift_per_parent, retention, d_distro, density_distro, dd_list, g, mode='normal'):
     drift_per_parent = np.array(drift_per_parent)
-
     d_distro = np.array(d_distro).astype(np.int32)
+    g = g-1
     if len(retention) < 1:
-        return density_distro
-    if mode == 'dnc':
+        return density_distro, dd_list
+    if mode == 'dnc': #I don't remember what this is for
         d_distro = np.sum(d_distro, axis = 1)
     for i, p_index in zip(range(drift_per_parent.shape[0]), list(retention)):
         if drift_per_parent[i] == 0:
             density_distro['d'] += d_distro[p_index, :]
+            dd_list['d'][g, :] = d_distro[p_index, :]
         elif drift_per_parent[i] == 2:
             density_distro['b'] += d_distro[p_index, :]
+            dd_list['b'][g, :] = d_distro[p_index, :]
         else:
             density_distro['n'] += d_distro[p_index, :]
-    return density_distro
+            dd_list['n'][g, :] = d_distro[p_index, :]
+    return density_distro, dd_list

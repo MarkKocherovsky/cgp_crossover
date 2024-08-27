@@ -54,7 +54,7 @@ f_names = {
     # 'lgp_base': "LGP-Uniform(40+40)"
 }
 
-problem_names = ['Koza 1', 'Koza 2']
+problem_names = ['Koza 1', 'Koza 2', 'Koza 3']
 
 all_data = load_all_data(base_paths, max_e, f_names, problem_names)
 
@@ -97,3 +97,8 @@ plot_over_generations(f_names, problem_names, sho_avgs, method_names_long, color
 den_avgs = prepare_avgs_density_distro(all_data, len(problem_names))
 plot_multiple_series(f_names, problem_names, drift_colors, drift_names, drift_categories, den_avgs, 'density_distro',
                      'Density Distribution for xover operators', 'Frequency', x_label="Crossover Index", histogram=True)
+# 'Density Distribution for Xover Operators Across Generations',
+den_list_avgs = prepare_avgs_density_list(all_data)
+plot_density_heatmap_split(f_names, problem_names, max_e, den_list_avgs,
+                     'density_distro_gens', 'Density Distribution for Xover Operators Across Generations',
+                     'Crossover Index', drift_names,'Generation')

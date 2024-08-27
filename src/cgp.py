@@ -51,7 +51,7 @@ train_x_bias = prepareConstants(train_x, biases)
 print("instantiating parent")
 # instantiate parent
 parent = generate_parents(1, max_n, bank, first_body_node=11, outputs=1, arity=2)
-density_distro = initDensityDistro(max_n, outputs, arity)
+density_distro, density_distro_list = initDensityDistro(max_n, outputs, arity, max_g)
 mut_impact = DriftImpact(neutral_limit=1e-3)
 
 fitness = Fitness()
@@ -143,4 +143,5 @@ n = plot_active_nodes(best_pop[0], best_pop[1], first_body_node, bank_string, bi
                       run_name, t, opt=1)
 saveResults(run_name, func_name, t, biases, best_pop, preds, best_fit, n, fit_track, avg_change_list, ret_avg_list,
             p_size, bin_centers, hist_gens, avg_hist_list, mut_list, mut_cum,
-            xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro)
+            xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro,
+            density_distro_list)

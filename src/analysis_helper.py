@@ -6,15 +6,14 @@ import matplotlib.pyplot as plt
 def load_pickle_data(p):
     try:
         with open(p, "rb") as f:
-            return [pickle.load(f) for _ in range(15)]
+            return [pickle.load(f) for _ in range(16)]
     except EOFError:
         print(f'EOF Error at {p}')
-        return [None] * 15
+        return [None] * 16
 
 
 def update_logs(pickle_data):
-    bias, ind, preds, p_fit, n, fit_track, average_change, average_retention, p_size, histograms, mut_effect, xov_effect, sharp_list, sharp_std, density = pickle_data
-
+    bias, ind, preds, p_fit, n, fit_track, average_change, average_retention, p_size, histograms, mut_effect, xov_effect, sharp_list, sharp_std, density, density_list = pickle_data
     mut_list_effect = mut_effect[0]
     mut_cumul_effect = mut_effect[1]
     xov_list_effect = xov_effect[0]
@@ -45,7 +44,8 @@ def update_logs(pickle_data):
         'sharp_in_std_log': sharp_in_std,
         'sharp_out_list_log': sharp_out_list,
         'sharp_out_std_log': sharp_out_std,
-        'den_log': density
+        'den_log': density,
+        'den_list': density_list
     }
 
 
@@ -53,7 +53,7 @@ def get_logs_cgp(base_path, max_e, problem_names):
     full_logs, full_fits, fit_tracks, active_nodes = [], [], [], []
     node_prop, avg_chg, avg_ret, p_sz_li, hist_li = [], [], [], [], []
     mut_cumul, mut_list, xov_cumul, xov_list = [], [], [], []
-    sharp_in_mean, sharp_out_mean, sharp_in_std, sharp_out_std, den = [], [], [], [], []
+    sharp_in_mean, sharp_out_mean, sharp_in_std, sharp_out_std, den, den_list = [], [], [], [], [], []
 
     for name in problem_names:
         print(f"Loading {base_path}{name}")
@@ -62,7 +62,7 @@ def get_logs_cgp(base_path, max_e, problem_names):
         change_log, retent_log, p_size_log, histog_log = [], [], [], []
         mut_cumul_log, mut_list_log, xov_cumul_log, xov_list_log = [], [], [], []
         sharp_in_list_log, sharp_out_list_log = [], []
-        sharp_in_std_log, sharp_out_std_log, den_log = [], [], []
+        sharp_in_std_log, sharp_out_std_log, den_log, den_list_log = [], [], [], []
 
         for e in range(1, max_e + 1):
             p = f'{base_path}{name}/log/output_{e}.pkl'
@@ -88,6 +88,7 @@ def get_logs_cgp(base_path, max_e, problem_names):
                 sharp_in_std_log.append(updated_logs['sharp_in_std_log'])
                 sharp_out_std_log.append(updated_logs['sharp_out_std_log'])
                 den_log.append(updated_logs['den_log'])
+                den_list_log.append(updated_logs['den_list'])
                 try:
                     histog_log.append(updated_logs['histog_log'])
                 except:
@@ -111,10 +112,11 @@ def get_logs_cgp(base_path, max_e, problem_names):
         sharp_in_std.append(sharp_in_std_log)
         sharp_out_std.append(sharp_out_std_log)
         den.append(den_log)
+        den_list.append(den_list_log)
 
     return [full_logs, np.array(full_fits), np.array(fit_tracks), np.array(active_nodes), np.array(node_prop),
             np.array(avg_chg), np.array(avg_ret), np.array(p_sz_li), hist_li, mut_list, mut_cumul, xov_list, xov_cumul,
-            sharp_in_mean, sharp_in_std, sharp_out_mean, sharp_out_std, den]
+            sharp_in_mean, sharp_in_std, sharp_out_mean, sharp_out_std, den, den_list]
 
 
 def data_dict(data):
@@ -136,7 +138,8 @@ def data_dict(data):
         'sharp_in_std': data[14],
         'sharp_out_mean': data[15],
         'sharp_out_std': data[16],
-        'density_distro': data[17]
+        'density_distro': data[17],
+        'density_list': data[18]
     }
 
 
@@ -218,7 +221,7 @@ def plot_box_plots(f_names, problem_names, data_dicts, method_names, method_name
     - method_names_long: List of full method names for the legend.
     - color_order: List of colors corresponding to the methods.
     """
-    fig, axs = plt.subplots(len(f_names), 1, figsize=(10.45, 12.1))
+    fig, axs = plt.subplots(len(problem_names), 1, figsize=(10.45, 12.1))
     fig.subplots_adjust(hspace=0)
 
     legend_objects = None
@@ -246,7 +249,7 @@ def plot_box_plots(f_names, problem_names, data_dicts, method_names, method_name
     fig.legend(legend_objects, method_names_long, fontsize=10, ncol=2, bbox_to_anchor=(0.5, 0.965), loc='upper center')
     fig.tight_layout(rect=[0, 0, 1, 0.92])
     plt.show()
-    fig.savefig(f"../output/{plot_name}.png")
+    fig.savefig(f"../output/{plot_name}.png", format='png')
 
 
 def plot_with_error(ax, x_data, y_data, lower_bound, upper_bound, label, color, alpha=0.10):
@@ -341,7 +344,7 @@ def plot_over_generations(f_names, problem_names, avgs, method_names_long, color
     fig.legend(legend_objects, method_names_long, fontsize=10, loc='lower right', bbox_to_anchor=(1, 0.05), ncol=2)
     plt.show()
     fig.tight_layout()
-    fig.savefig(f"../output/{plot_name}.png")
+    fig.savefig(f"../output/{plot_name}.png", format='png')
 
 
 def plot_individuals(avgs, f_names, method_names_long, color_order, name, title, y_label, x_range, n_methods=9,
@@ -364,9 +367,6 @@ def prepare_avgs(data, metric):
     - metric: String indicating the metric we want to measure
     """
     return {key: get_avg_gens(data[key][metric], axis=0) for key in data}
-
-
-import numpy as np
 
 
 # chatgpt whipped this up, it's some kind of magic
@@ -424,9 +424,34 @@ def prepare_avgs_density_distro(data, n_problems):
             n: {
                 stat: np.nanmean(slice_array(np.array(data[key][metric]), n, m), axis=0)
                 if stat.endswith('_avg') else np.nanstd(slice_array(np.array(data[key][metric]), n, m), axis=0)
-                for stat, m in zip(['d_avg', 'n_avg', 'b_avg', 'd_std', 'n_std', 'b_std'], ['d', 'n', 'b', 'd', 'n', 'b'])
+                for stat, m in
+                zip(['d_avg', 'n_avg', 'b_avg', 'd_std', 'n_std', 'b_std'], ['d', 'n', 'b', 'd', 'n', 'b'])
             } for n in range(n_problems)
         } for key in data
+    }
+
+
+def prepare_avgs_density_list(data):
+    """
+    Prepares average density lists for each problem in the data.
+
+    Parameters:
+    - data: Dictionary of loaded data
+
+    Returns:
+    - Averages of density lists organized by key, problem, and replicate.
+    """
+    metric = 'density_list'
+
+    return {
+        key: [
+            [
+                {cat: np.array(r[cat]) for cat in ['d', 'n', 'b']}
+                for r in p
+            ]
+            for p in problem_list[metric]
+        ]
+        for key, problem_list in data.items()
     }
 
 
@@ -499,7 +524,7 @@ def plot_multiple_series(f_names, problem_names, drift_colors, drift_names, drif
                 else:
                     marker = ['*', 'o', 'v', '^', '<', '>']
                     try:
-                        #ax.scatter(x_range, avg, color=drift_colors[k], label=drift_names[i], alpha=0.85, marker=marker[k])
+                        # ax.scatter(x_range, avg, color=drift_colors[k], label=drift_names[i], alpha=0.85, marker=marker[k])
                         ax.errorbar(x_range, avg, yerr=[lower_bound, upper_bound], fmt=marker[k], color=drift_colors[k],
                                     label=drift_names[k], capsize=3)
                     except ValueError:
@@ -524,4 +549,69 @@ def plot_multiple_series(f_names, problem_names, drift_colors, drift_names, drif
     fig.suptitle(title, fontsize=16)
     fig.legend(legend_objects, drift_names, fontsize=10, loc='upper center', bbox_to_anchor=(0.5, 0.95), ncol=3)
     plt.show()
-    fig.savefig(f"../output/{name}.png")
+    fig.savefig(f"../output/{name}.png", format='png')
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+def plot_density_heatmap_split(f_name_list, problem_names, replicates, data, name, title, y_label, drift_names, x_label=None):
+    """
+    Create split heatmaps showing the distribution of crossover points across generations
+    for each method ('d', 'n', 'b') with a color legend.
+
+    Parameters:
+    - f_names: List of method names (used for titles).
+    - problem_names: List of problems (used for rows).
+    - replicates: Number of replicates in the data.
+    - data: Dictionary of data structured as data[f_name][problem][replicate]['d'|'n'|'b'][generation][xover point].
+    - name: Filename to save the plot.
+    - title: The title of the entire figure.
+    - y_label: Label for the y-axis (crossover points).
+    - x_label: Label for the x-axis (generations) (optional).
+    """
+    f_names = f_name_list
+    del f_names['cgp_base']
+    n_problems = len(problem_names)
+    n_methods = len(f_names)
+    fig, axs = plt.subplots(n_problems, n_methods * 3, figsize=(18, 8))
+    fig.subplots_adjust(hspace=0.4, wspace=0.3)
+
+    method_names = ['d', 'n', 'b']
+    method_titles = {'d': 'Method D', 'n': 'Method N', 'b': 'Method B'}
+
+    for i, p_name in enumerate(problem_names):
+        for j, f_name in enumerate(f_names):
+
+            gens = len(data[f_name][j][0]['d'])  # Number of generations
+            zeros = len(data[f_name][j][0]['d'][0])  # Number of crossover points (bins for y-axis)
+
+            # Initialize 2D histogram arrays for each method
+            value_data = {method: np.zeros((gens, zeros)) for method in method_names}
+
+            for g in range(gens):
+                for method in method_names:
+                    for r in range(replicates):
+                        # Get crossover points for current generation and method
+                        xover_points = data[f_name][i][r][method][g]
+                        for point in range(len(xover_points)):
+                            value_data[method][g, point] = xover_points[point]
+
+            # Plot heatmaps for each method in separate subplots
+            #print(value_data)
+            for k, method in enumerate(method_names):
+                ax = axs[i, j * 3 + k]
+                cax = ax.imshow(value_data[method].T, aspect='auto', origin='lower',
+                                extent=[0, gens, 0, zeros], cmap='viridis')
+                ax.set_title(f"{f_names[f_name]}, {problem_names[i]} - {drift_names[k]}")
+                ax.set_xlabel(x_label or 'Generation')
+                if j == 0:
+                    ax.set_ylabel(y_label)
+                # Add a color bar (legend) next to the heatmap
+                fig.colorbar(cax, ax=ax, orientation='vertical', label='Count')
+
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
+    fig.suptitle(title, fontsize=16)
+    # fig.legend(legend_objects, drift_names, fontsize=10, loc='upper center', bbox_to_anchor=(0.5, 0.95), ncol=3)
+    plt.show()
+    fig.savefig(f"../output/{name}.png", format='png')

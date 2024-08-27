@@ -1,4 +1,4 @@
-#CGP 1 Point Crossover
+# CGP 1 Point Crossover
 from sys import argv
 
 from cgp_mutation import *
@@ -11,20 +11,20 @@ from similarity import *
 
 warnings.filterwarnings('ignore')
 print("started")
-t = int(argv[1])  #trial
+t = int(argv[1])  # trial
 print(f'trial {t}')
-max_g = int(argv[2])  #max generations
+max_g = int(argv[2])  # max generations
 print(f'generations {max_g}')
-max_n = int(argv[3])  #max body nodes
+max_n = int(argv[3])  # max body nodes
 print(f'max body nodes {max_n}')
-max_p = int(argv[4])  #max parents
+max_p = int(argv[4])  # max parents
 print(f'Parents {max_p}')
-max_c = int(argv[5])  #max children
+max_c = int(argv[5])  # max children
 print(f'children {max_c}')
 outputs = 1
 inputs = 1
 biases = np.arange(0, 10, 1).astype(np.int32)
-bias = biases.shape[0]  #number of biases
+bias = biases.shape[0]  # number of biases
 print(f'biases {biases}')
 arity = 2
 p_mut = float(argv[8])
@@ -59,7 +59,7 @@ mutate = basic_mutation
 select = tournament_elitism
 
 parents = generate_parents(max_p, max_n, bank, first_body_node=11, outputs=1, arity=2)
-density_distro = initDensityDistro(max_n, outputs, arity)
+density_distro, density_distro_list = initDensityDistro(max_n, outputs, arity, max_g)
 
 fitness_objects, fitnesses = initFitness(max_p, max_c)
 
@@ -70,7 +70,7 @@ fitnesses, alignment = processFitness(fitness_objects, train_x_bias, train_y, pa
 
 print(np.round(fitnesses, 4))
 
-#SAM-IN
+# SAM-IN
 noisy_x, noisy_y = getNoise(train_x_bias.shape, max_p, max_c, inputs, func, sharp_in_manager)
 sharpness = np.array(
     [fitness_objects[i](noisy_x[i], noisy_y[i], parent)[0] for i, parent in zip(range(0, max_p), parents)])
@@ -78,14 +78,14 @@ print(noisy_x.shape)
 print(train_x_bias.shape)
 sharp_in_list = [np.mean(sharpness)]
 sharp_in_std = [np.std(sharpness)]
-#SAM-OUT
+# SAM-OUT
 
 preds = [fitness_objects[i](train_x_bias, train_y, parent, opt=1)[0] for i, parent in zip(range(0, max_p), parents)]
 
 neighbor_map = np.array(
     [getNeighborMap(pred, sharp_out_manager, fitness_objects[i], train_y) for i, pred in zip(range(0, max_p), preds)])
 print(neighbor_map.shape)
-sharp_out_list = [np.mean(np.std(neighbor_map, axis=1) ** 2)]  #variance
+sharp_out_list = [np.mean(np.std(neighbor_map, axis=1) ** 2)]  # variance
 sharp_out_std = [np.std(np.std(neighbor_map, axis=1))]
 
 print(np.round(sharpness, 4))
@@ -97,7 +97,7 @@ best_i = getBestInd(fitnesses, max_p)
 p_size = [cgp_active_nodes(parents[best_i][0], parents[best_i][1])]
 
 mut_impact = DriftImpact(neutral_limit=1e-3)
-num_elites = 7  #for elite graph plotting
+num_elites = 7  # for elite graph plotting
 
 for g in range(1, max_g + 1):
     children, retention, d_distro = xover(deepcopy(parents), max_n, method='OnePoint')
@@ -119,7 +119,8 @@ for g in range(1, max_g + 1):
                                                                                   sharp_in_list, sharp_in_std,
                                                                                   sharp_out_manager, sharp_out_list,
                                                                                   sharp_out_std)
-    density_distro = associateDistro(drift_per_parent_xov, retention, d_distro, density_distro)
+    density_distro, density_distro_list = associateDistro(drift_per_parent_xov, retention, d_distro, density_distro,
+                                                          density_distro_list, g)
 
     best_i = getBestInd(fitnesses)
     best_fit = fitnesses[best_i]
@@ -134,7 +135,7 @@ pop = parents + children
 fit_temp = np.array([fitness_objects[i](train_x_bias, train_y, ind) for i, ind in zip(range(0, max_p + max_c), pop)])
 fitnesses, alignment = processFitness(fitness_objects, train_x_bias, train_y, pop, max_p, max_c)
 best_i, best_fit, best_pop, mut_list, mut_cum, xov_list, xov_cum, density_distro, preds, p_a, p_b = processAndPrintResults(
-    t, fitnesses, pop, mut_impact, density_distro, train_x_bias = train_x_bias, train_y = train_y, mode = 'cgp')
+    t, fitnesses, pop, mut_impact, density_distro, train_x_bias=train_x_bias, train_y=train_y, mode='cgp')
 run_name = 'cgp_1x'
 Path(f"../output/{run_name}/{func_name}/log/").mkdir(parents=True, exist_ok=True)
 
@@ -145,4 +146,5 @@ n = plot_active_nodes(best_pop[0], best_pop[1], first_body_node, bank_string, bi
 
 saveResults(run_name, func_name, t, biases, best_pop, preds, best_fit, n, fit_track, avg_change_list, ret_avg_list,
             p_size, bin_centers, hist_gens, avg_hist_list, mut_list, mut_cum,
-            xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro)
+            xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro,
+            density_distro_list)
