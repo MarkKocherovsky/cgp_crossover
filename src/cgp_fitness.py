@@ -133,7 +133,8 @@ class DriftImpact:
         self.xov_cum = np.array([0, 0, 0])
         self.neutral_limit = neutral_limit
 
-    def __call__(self, fitnesses, max_p, xov_parents, mut_parents, option='TwoParent', children=4, opt=0):
+    def __call__(self, fitnesses, xov_fitnesses, max_p, xov_parents, mut_parents, option='TwoParent', children=4,
+                 opt=0):
         drift_mut = np.array([0, 0, 0])
         drift_xov = np.array([0, 0, 0])
         drift_per_parent_mut = []
@@ -142,9 +143,9 @@ class DriftImpact:
         if option == 'TwoParent':
             for i in xov_parents:
                 p = min(fitnesses[i], fitnesses[i + 1])
-                c = min(fitnesses[i + max_p], fitnesses[i + 1 + max_p])
+                c = min(xov_fitnesses[i], xov_fitnesses[i + 1])
                 drift_xov, drift_per_parent_xov = self.get_drift_category(c, drift_xov, drift_per_parent_xov, p)
-            for i in mut_parents:
+            for i in mut_parents: # good question is what if it's in both, should I remove it from the mutation?
                 p = fitnesses[i]
                 c = fitnesses[i + max_p]
                 drift_mut, drift_per_parent_mut = self.get_drift_category(c, drift_mut, drift_per_parent_mut, p)

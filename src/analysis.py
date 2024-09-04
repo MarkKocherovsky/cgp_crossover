@@ -9,6 +9,7 @@ cgp_base_path = "../output/cgp/"
 lgp_base_path = "../output/lgp/"
 cgp_1x_path = "../output/cgp_1x/"
 cgp_vlen_path = "../output/cgp_vlen/"
+cgp_diversity_path = "../output/cgp_diversity/"
 lgp_1x_path = "../output/lgp_1x0/"
 lgp_2x_path = "../output/lgp_2x/"
 lgp_mut_path = "../output/lgp_mut/"
@@ -33,6 +34,7 @@ max_e = 3
 base_paths = {
     'cgp_base': cgp_base_path,
     'cgp_1x': cgp_1x_path,
+    'cgp_diversity': cgp_diversity_path
     # 'cgp_vlen': cgp_vlen_path,
     # 'cgp_2x': cgp_2x_path,
     # 'cgp_40': cgp_40_path,
@@ -46,6 +48,7 @@ f_names = {
     'cgp_base': "CGP(1+4)",
     # 'cgp_40': "CGP(16+64)",
     'cgp_1x': "CGP-OnePoint(40+40)",
+    'cgp_diversity': "CGP-OnePointFD(40+40)"
     # 'cgp_vlen': "CGP-OnePointVL(40+40)",
     # 'cgp_2x': "CGP-TwoPoint(40+40)",
     # 'cgp_sgx': "CGP-Subgraph(40+40)",

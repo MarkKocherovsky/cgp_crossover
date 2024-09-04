@@ -1,4 +1,4 @@
-# CGP 1 Point Crossover
+# CGP 1 Point Crossover with forced diversity
 from sys import argv
 
 from cgp_mutation import *
@@ -32,7 +32,7 @@ p_xov = float(argv[9])
 random.seed(t + 100)
 print(f'Seed = {t + 100}')
 
-run_name = 'cgp_1x'
+run_name = 'cgp_diversity'
 
 bank, bank_string = loadBank()
 
@@ -131,14 +131,14 @@ for g in range(1, max_g + 1):
 
     fit_track.append(best_fit)
     p_size.append(cgp_active_nodes(pop[best_i][0], pop[best_i][1]))
-    parents = select(pop, fitnesses, max_p)
+    parents = select(pop, fitnesses, max_p, replace=False)
 
 pop = parents + children
 fit_temp = np.array([fitness_objects[i](train_x_bias, train_y, ind) for i, ind in zip(range(0, max_p + max_c), pop)])
 fitnesses, alignment = processFitness(fitness_objects, train_x_bias, train_y, pop, max_p, max_c)
 best_i, best_fit, best_pop, mut_list, mut_cum, xov_list, xov_cum, density_distro, preds, p_a, p_b = processAndPrintResults(
     t, fitnesses, pop, mut_impact, density_distro, train_x_bias=train_x_bias, train_y=train_y, mode='cgp')
-run_name = 'cgp_1x'
+run_name = 'cgp_diversity'
 Path(f"../output/{run_name}/{func_name}/log/").mkdir(parents=True, exist_ok=True)
 
 first_body_node = inputs + bias

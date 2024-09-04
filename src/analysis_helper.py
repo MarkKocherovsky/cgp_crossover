@@ -232,6 +232,7 @@ def plot_box_plots(f_names, problem_names, data_dicts, method_names, method_name
             # data_dicts['cgp_40'][key][n],
             data_dicts['cgp_1x'][key][n],
             # data_dicts['cgp_vlen'][key][n],
+            data_dicts['cgp_diversity'][key][n]
             # data_dicts['lgp_1x'][key][n],
             # data_dicts['cgp_2x'][key][n],
             # data_dicts['lgp_2x'][key][n],

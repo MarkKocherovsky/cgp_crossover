@@ -52,7 +52,7 @@ print("instantiating parent")
 # instantiate parent
 parent = generate_parents(1, max_n, bank, first_body_node=11, outputs=1, arity=2)
 density_distro, density_distro_list = initDensityDistro(max_n, outputs, arity, max_g)
-mut_impact = DriftImpact(neutral_limit=1e-3)
+mut_impact = DriftImpact(neutral_limit=1e-5)
 
 fitness = Fitness()
 sharp_in_manager = SAM_IN(train_x_bias)
@@ -103,7 +103,7 @@ for g in range(1, max_g + 1):
     if any(np.isnan(c_fit)):  # Replace nans with positive infinity to screen them out
         nans = np.isnan(c_fit)
         c_fit[nans] = np.PINF
-    drift_per_parent_mut, drift_per_parent_xov = mut_impact(np.insert(c_fit, 0, p_fit), 1, [], mutated_inds, opt=1,
+    drift_per_parent_mut, drift_per_parent_xov = mut_impact(np.insert(c_fit, 0, p_fit), [], 1, [], mutated_inds, opt=1,
                                                             option='OneParent')
     # get average sharpness
     sharp_in_list, sharp_in_std, sharp_out_list, sharp_out_std = processSharpness(train_x_bias, 1, max_c,
@@ -131,7 +131,7 @@ pop = [parent] + children
 fitness_objects = [Fitness()] + fitness_objects
 fitnesses, alignment = processFitness(fitness_objects, train_x_bias, train_y, pop, max_p, max_c)
 best_i, best_fit, best_pop, mut_list, mut_cum, xov_list, xov_cum, density_distro, preds, p_a, p_b = processAndPrintResults(
-    t, fitnesses, pop, mut_impact, density_distro, train_x_bias = train_x_bias, train_y=train_y, mode='cgp')
+    t, fitnesses, pop, mut_impact, density_distro, train_x_bias=train_x_bias, train_y=train_y, mode='cgp')
 
 run_name = 'cgp'
 # print(list(train_y))
