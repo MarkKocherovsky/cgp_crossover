@@ -52,6 +52,7 @@ print("instantiating parent")
 # instantiate parent
 parent = generate_parents(1, max_n, bank, first_body_node=11, outputs=1, arity=2)
 density_distro, density_distro_list = initDensityDistro(max_n, outputs, arity, max_g)
+mut_density_distro, mut_distro_list = initDensityDistro(max_n, outputs, arity, max_g)
 mut_impact = DriftImpact(neutral_limit=1e-5)
 
 fitness = Fitness()
@@ -79,7 +80,7 @@ fitness_objects = [Fitness() for i in range(0, max_c)]
 run_name = 'cgp'
 
 for g in range(1, max_g + 1):
-    children, mutated_inds = zip(*[mutate(deepcopy(parent)) for _ in range(max_c)])
+    children, mutated_inds, mutation_list = zip(*[mutate(deepcopy(parent)) for _ in range(max_c)])
     children = list(children)
     c_fit, alignment = processFitness(fitness_objects, train_x_bias, train_y, children, 0, max_c)
     best_child_index = np.argmin(c_fit)
@@ -102,7 +103,7 @@ for g in range(1, max_g + 1):
     # print(c_fit)
     if any(np.isnan(c_fit)):  # Replace nans with positive infinity to screen them out
         nans = np.isnan(c_fit)
-        c_fit[nans] = np.PINF
+        c_fit[nans] = np.inf
     drift_per_parent_mut, drift_per_parent_xov = mut_impact(np.insert(c_fit, 0, p_fit), [], 1, [], mutated_inds, opt=1,
                                                             option='OneParent')
     # get average sharpness
@@ -113,6 +114,9 @@ for g in range(1, max_g + 1):
                                                                                   sharp_in_list, sharp_in_std,
                                                                                   sharp_out_manager, sharp_out_list,
                                                                                   sharp_out_std)
+    mut_density_distro, mut_distro_list = associateDistro(drift_per_parent_xov, mutated_inds, mutation_list,
+                                                          mut_density_distro,
+                                                          mut_distro_list, g)
 
     parent, p_fit, p_A, p_B = selectElite(parent, children, p_fit, c_fit, p_A, p_B, a, b)
 
@@ -144,4 +148,4 @@ n = plot_active_nodes(best_pop[0], best_pop[1], first_body_node, bank_string, bi
 saveResults(run_name, func_name, t, biases, best_pop, preds, best_fit, n, fit_track, avg_change_list, ret_avg_list,
             p_size, bin_centers, hist_gens, avg_hist_list, mut_list, mut_cum,
             xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro,
-            density_distro_list)
+            density_distro_list, mut_distro, mut_distro_list)

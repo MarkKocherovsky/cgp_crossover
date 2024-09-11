@@ -185,7 +185,7 @@ def twopoint_xover(parents, max_r, p_xov):  # 2 point crossover
     retention = []
     d_distro = np.zeros((len(parents), max_r))
     for i in range(0, len(parents), 2):
-        if random.random() < p_xov:
+        if random.random() > p_xov:
             c1 = parents[i].copy()
             c2 = parents[i + 1].copy()
         else:

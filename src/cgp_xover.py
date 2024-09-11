@@ -25,7 +25,7 @@ def adjust_outputs(out1, out2, i, j):
 
 
 def limit_values(out, ind_shape, first_body_node):
-    whr_o = np.where(out >= ind_shape[0]+first_body_node)
+    whr_o = np.where(out >= ind_shape[0] + first_body_node)
     out[whr_o] = ind_shape[0] + first_body_node - 1
     return out
 
@@ -39,14 +39,15 @@ def trim_individual(ind, max_n):
 
 
 def adjust_indices(ind, bank_len, first_body_node):
-    whr = np.array(np.where(ind[:, :-1] >= ind.shape[0]+first_body_node)).T
+    whr = np.array(np.where(ind[:, :-1] >= ind.shape[0] + first_body_node)).T
     for w in whr:
-        ind[w[0], w[1]] = np.random.randint(0, ind.shape[0]+first_body_node) if ind.shape[0] > 1 else 0
+        ind[w[0], w[1]] = np.random.randint(0, ind.shape[0] + first_body_node) if ind.shape[0] > 1 else 0
 
     ar = np.array(list(zip(*np.where(ind[:, -1] >= bank_len))))
     for a in ar:
         ind[a[0], -1] = np.random.randint(0, bank_len)
     return ind
+
 
 def prevent_recursion(ind, first_body_node):
     for i in range(ind.shape[0]):
@@ -55,8 +56,9 @@ def prevent_recursion(ind, first_body_node):
         for w in zip(*positions):
             # Set a new random value at the identified position to prevent recursion
             ind[i, w[0]] = np.random.randint(0, i + first_body_node) if ind.shape[0] > 1 else 0
-    
+
     return ind
+
 
 def xover_1x(p1, p2, max_n, first_body_node=11, fixed_length=True, bank_len=4):
     ind1, ind2 = np.array(p1[0]), np.array(p2[0])
@@ -101,8 +103,8 @@ def xover_2x(p1, p2, max_n, first_body_node=11, fixed_length=False, bank_len=4):
     d_distro = np.zeros(max_n * 3)
     s = p1[0].shape
 
-    i = random.randint(1, ind1.shape[0] - 1)
-    j = random.randint(i, ind1.shape[0] - 1)
+    i, j = sorted(random.sample(range(1, max_n), 2))
+
     d_distro[i] += 1
     d_distro[j] += 1
 
@@ -114,6 +116,20 @@ def xover_2x(p1, p2, max_n, first_body_node=11, fixed_length=False, bank_len=4):
     return [(ind1.reshape(s), out1), (ind2.reshape(s), out2), d_distro]
 
 
+def xover_uniform(p1, p2, max_n, first_body_node=11, fixed_length=False, bank_len=4):
+    out1, out2 = p1[1], p2[1]
+    ind1, ind2 = np.concatenate((p1[0].flatten(), out1)), np.concatenate((p2[0].flatten(), out2))
+    assert len(ind1) == len(ind2)
+    d_distro = np.zeros(max_n * 3 + 1)
+    s = p1[0].shape
+    genome_length = ind1.shape
+    mask = np.random.choice([True, False], size=genome_length, p=[0.5, 0.5])
+    ind1[mask], ind2[mask] = ind2[mask], ind1[mask].copy()
+    d_distro[mask] += 1
+
+    return [(ind1[:-out1.shape[0]].reshape(s), out1), (ind2[:-out2.shape[0]].reshape(s), out2), d_distro]
+
+
 def xover_sgx(p1, p2, max_n, inputs=1, first_body_node=11, fixed_length=False, bank_len=4):
     c1, c1_distro = SubgraphCrossover(p1, p2, max_n, inputs)
     c2, c2_distro = SubgraphCrossover(p2, p1, max_n, inputs)
@@ -121,13 +137,15 @@ def xover_sgx(p1, p2, max_n, inputs=1, first_body_node=11, fixed_length=False, b
     return c1, c2, d_distro
 
 
-def xover(parents, max_n, method='None', p_xov=0.5, first_body_node=11, fixed_length=True, bank_len=4):
+def xover(parents, max_n, method='None', p_xov=0.5, first_body_node=11, fixed_length=True, bank_len=4,
+          shape_override=None):
     children = []
-    d_distro = np.zeros((len(parents), max_n * 3))
+    d_distro = np.zeros((len(parents), max_n * 3)) if shape_override is None else np.zeros(shape_override)
     methods = {
         'None': 'None',
         'OnePoint': xover_1x,
         'TwoPoint': xover_2x,
+        'Uniform': xover_uniform,
         'Subgraph': xover_sgx,
     }
 

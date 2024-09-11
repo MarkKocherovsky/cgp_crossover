@@ -4,35 +4,41 @@ from copy import deepcopy
 from cgp_parents import generate_single_instruction
 
 
-def mutate_node(ind, out, i, arity, in_size, bank_len):
+def mutate_node(ind, out, i, arity, in_size, bank_len, density):
     if i >= ind.shape[0]:  # output node
+        density[i] += 1
         i -= ind.shape[0]
         out[i] = random.randint(0, ind.shape[0] + in_size)
+
     else:  # body node
         j = int(ind.shape[1] * random.random_sample())
         if j < arity:
             ind[i, j] = random.randint(0, i + in_size)
         else:
             ind[i, j] = random.randint(0, bank_len)
-    return (ind, out)
+        density[i * ind.shape[1] + j] += 1
+    return (ind, out), density
 
 
 def mutate_1_plus_4(individual, len_bank=4, arity=2, in_size=11):
     ind, out = individual
+    density = np.zeros(ind.shape[0] * ind.shape[1] + out.shape[0])
     i = int((ind.shape[0] + out.shape[0]) * random.random_sample())
-    return mutate_node(ind, out, i, arity, in_size, len_bank), [i]
+    new_ind, density = mutate_node(ind, out, i, arity, in_size, len_bank, density)
+    return new_ind, density, [i]
 
 
 def basic_mutation(subjects, arity=2, in_size=11, p_mut=0.025, bank_len=4):
     mutated_individuals = []
+    density = np.zeros((len(subjects), subjects[0][0].shape[0] * subjects[0][0].shape[1] + 1))
     for m in range(len(subjects)):
         if random.random() < p_mut:
             mutant = deepcopy(subjects[m])
             ind, out = mutant
             i = int((ind.shape[0] + out.shape[0]) * random.random_sample())
-            subjects[m] = mutate_node(ind, out, i, arity, in_size, bank_len)
+            subjects[m], density[m] = mutate_node(ind, out, i, arity, in_size, bank_len, density[m])
             mutated_individuals.append(m)
-    return subjects, mutated_individuals
+    return subjects, mutated_individuals, density
 
 
 def macromicro_mutation(subjects, arity=2, in_size=11, p_mut=0.025, bank_len=4, n_max=64):

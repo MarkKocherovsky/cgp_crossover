@@ -2,13 +2,15 @@ from multiparent_dnc import NeuralCrossover
 import torch
 import numpy as np
 from copy import deepcopy
+
+
 class NeuralCrossoverWrapper:
     def __init__(self, embedding_dim, sequence_length, num_embeddings, get_fitness_function, running_mean_decay=0.99,
                  batch_size=32, load_weights_path=None, freeze_weights=False, learning_rate=1e-3, epsilon_greedy=0.1,
-                 use_scheduler=False, use_device='cpu', adam_decay=0, clip_grads=False, n_parents=2):
+                 use_scheduler=False, use_device='cpu', adam_decay=0, clip_grads=False, n_parents=2, uniform=True):
         self.device = use_device
         self.neural_crossover = NeuralCrossover(embedding_dim, embedding_dim, num_embeddings, sequence_length,
-                                                n_parents=n_parents, device=use_device).to(
+                                                n_parents=n_parents, device=use_device, uniform=uniform).to(
             self.device)
         self.running_mean_decay = running_mean_decay
         self.optimizer = torch.optim.Adam(self.neural_crossover.parameters(), lr=learning_rate, weight_decay=adam_decay)
@@ -25,6 +27,9 @@ class NeuralCrossoverWrapper:
         self.use_scheduler = use_scheduler
         self.clip_grads = clip_grads
         self.acc_batch_length = 0
+        if not uniform:
+            assert n_parents == 2, "One Point Crossover can only have two Parents!"
+        self.uniform = uniform
 
         if self.load_weights_path is not None:
             self.neural_crossover.load_state_dict(torch.load(self.load_weights_path))
@@ -100,21 +105,45 @@ class NeuralCrossoverWrapper:
         return torch.gather(parents_matrix.permute(1, 2, 0), dim=2,
                             index=selected_crossovers_indices.unsqueeze(-1)).squeeze(-1), s_i
 
+    def combine_parents_one_point(self, parents_matrix):
+        """
+        Uses the neural crossover to output probability distribution and choose a crossover point
+        """
+        if self.freeze_weights:
+            self.neural_crossover.eval()
+
+        parents_matrix = parents_matrix.to(self.device)
+        attention_values, selected_crossovers_index = self.neural_crossover(parents_matrix,
+                                                                            epsilon_greedy=self.epsilon_greedy,
+                                                                            uniform=False)
+        crossover_point = selected_crossovers_index[0]
+        # chatgpt: Assuming selected_crossovers_indices is already defined and potentially nested
+        child1 = torch.cat((parents_matrix[0, :crossover_point], parents_matrix[1, crossover_point:]), dim=0)
+        child2 = torch.cat((parents_matrix[1, :crossover_point], parents_matrix[0, crossover_point:]), dim=0)
+
+        # Process attention and solutions
+        s_i = np.row_stack(np.array(deepcopy(selected_crossovers_index)).astype(int))
+        self.sampled_action_space.append(attention_values)
+        self.sampled_solutions.append(selected_crossovers_index)
+
+        return child1, child2, s_i
+
     def update_batch_stack(self, fitness_values):
         """
         Updates the batch stack.
         """
         self.batch_stack_fitness_values.append(fitness_values)
 
-    def get_crossover(self, parents_matrix):
+    def get_crossover(self, parents_matrix, x_func=None):
         """
         Uses the neural crossover to select the crossover points from the parents.
         Then performs one step of training on the neural crossover.
         :param parents_matrix: parents to crossover
         :return: resulting crossover individuals
+        :x_func: crossover function
         """
         parents_matrix = torch.Tensor(parents_matrix).type(torch.LongTensor)
-        selected_crossover_func = self.combine_parents_uniform
+        selected_crossover_func = self.combine_parents_uniform if x_func is None else x_func
 
         child1, distro1 = selected_crossover_func(parents_matrix)
         child2, distro2 = selected_crossover_func(parents_matrix)
@@ -139,12 +168,12 @@ class NeuralCrossoverWrapper:
         parents_grouped = np.array(list(zip(*parents_pairs)))
         parents_matrix = torch.cat([torch.unsqueeze(torch.tensor(group), 0) for group in parents_grouped],
                                    dim=0)
-        #parents_matrix = parents_matrix.unsqueeze(0)
+        # parents_matrix = parents_matrix.unsqueeze(0)
         self.acc_batch_length += parents_matrix.shape[1]
         child1, child2, distro1, distro2 = self.get_crossover(parents_matrix)
         child1 = np.array(child1)
         child2 = np.array(child2)
-        return list(zip(child1, child2)), np.concatenate((distro1, distro2), axis = 0)
+        return list(zip(child1, child2)), np.concatenate((distro1, distro2), axis=0)
 
     def save_weights(self, path):
         torch.save(self.neural_crossover.state_dict(), path)

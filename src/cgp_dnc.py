@@ -43,6 +43,12 @@ run_name = 'cgp_dnc'
 bank = (add, sub, mul, div)
 bank_string = ("+", "-", "*", "/")
 
+uniform = True if int(argv[8]) == 1 else False
+if not uniform: #ik if I wanted to do two point this would have to be changed stfu
+    run_name = 'cgp_dnc_one_point'
+
+
+
 func_bank = Collection()
 print(func_bank.func_list)
 func = func_bank.func_list[int(argv[5])]
@@ -84,7 +90,7 @@ ncs = NeuralCrossoverWrapper(embedding_dim=64, sequence_length=params_dict['ind_
                              get_fitness_function=lambda ind: fitness(train_x_bias, train_y, ind),
                              batch_size=4, freeze_weights=True,
                              load_weights_path=None, learning_rate=1e-4,
-                             epsilon_greedy=0.3, use_scheduler=False, use_device='cpu', n_parents=2)
+                             epsilon_greedy=0.3, use_scheduler=False, use_device='cpu', n_parents=2, uniform)
 ga_class = SelectionGA(**params_dict, random_state=t + 42)
 PATH_TO_EXP = 'dnc/'
 data = ga_class.fit(PATH_TO_EXP, train_x_bias, train_y, fitness, crossover_func=ncs.cross_pairs)

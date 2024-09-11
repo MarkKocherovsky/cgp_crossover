@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from sequence_linear_embedding import SequenceLinearEmbedding
 from pointer_encoder import PointerEncoder
@@ -6,7 +7,7 @@ from pointer_decoder import PointerDecoder
 
 class NeuralCrossover(torch.nn.Module):
     def __init__(self, input_size, hidden_size, n_embeddings, ind_length, num_layers=1, dropout=0, n_parents=2,
-                 device='cuda'):
+                 device='cuda', uniform=True):
         super(NeuralCrossover, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -19,6 +20,7 @@ class NeuralCrossover(torch.nn.Module):
         self.initial_trainable_input = torch.nn.Parameter(torch.randn(1, input_size))
         self.ind_length = ind_length
         self.device = device
+        self.uniform = uniform
 
     def forward(self, parents_matrix, epsilon_greedy=0.1):
         """
@@ -76,4 +78,7 @@ class NeuralCrossover(torch.nn.Module):
         # y: (batch_size, seq_len)
         attention_values = torch.stack(attention_values, dim=1)
         distributions_samples = torch.stack(distributions_samples, dim=1)
+        if not self.uniform:
+            rng = np.array(range(len(attention_values)))
+            attention_values = np.atleast_1d(np.random.choice(rng, p=attention_values))
         return attention_values, distributions_samples
