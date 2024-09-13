@@ -7,10 +7,10 @@ from copy import deepcopy
 class NeuralCrossoverWrapper:
     def __init__(self, embedding_dim, sequence_length, num_embeddings, get_fitness_function, running_mean_decay=0.99,
                  batch_size=32, load_weights_path=None, freeze_weights=False, learning_rate=1e-3, epsilon_greedy=0.1,
-                 use_scheduler=False, use_device='cpu', adam_decay=0, clip_grads=False, n_parents=2, uniform=True):
+                 use_scheduler=False, use_device='cpu', adam_decay=0, clip_grads=False, n_parents=2, xover="Uniform"):
         self.device = use_device
         self.neural_crossover = NeuralCrossover(embedding_dim, embedding_dim, num_embeddings, sequence_length,
-                                                n_parents=n_parents, device=use_device, uniform=uniform).to(
+                                                n_parents=n_parents, device=use_device, xover=xover).to(
             self.device)
         self.running_mean_decay = running_mean_decay
         self.optimizer = torch.optim.Adam(self.neural_crossover.parameters(), lr=learning_rate, weight_decay=adam_decay)
@@ -27,9 +27,11 @@ class NeuralCrossoverWrapper:
         self.use_scheduler = use_scheduler
         self.clip_grads = clip_grads
         self.acc_batch_length = 0
-        if not uniform:
+        self.xover = xover
+        if xover == "OnePoint":
             assert n_parents == 2, "One Point Crossover can only have two Parents!"
-        self.uniform = uniform
+        elif xover == "TwoPoint":
+            assert 2 <= n_parents <= 3, "Two Point Crossover needs at least two parents"
 
         if self.load_weights_path is not None:
             self.neural_crossover.load_state_dict(torch.load(self.load_weights_path))
@@ -96,7 +98,8 @@ class NeuralCrossoverWrapper:
 
         parents_matrix = parents_matrix.to(self.device)
         attention_values, selected_crossovers_indices = self.neural_crossover(parents_matrix,
-                                                                              epsilon_greedy=self.epsilon_greedy)
+                                                                              epsilon_greedy=self.epsilon_greedy,
+                                                                              xover="Uniform")
         import numpy as np
         # chatgpt: Assuming selected_crossovers_indices is already defined and potentially nested
         s_i = np.row_stack(np.array(deepcopy(selected_crossovers_indices)).astype(int))
@@ -113,13 +116,26 @@ class NeuralCrossoverWrapper:
             self.neural_crossover.eval()
 
         parents_matrix = parents_matrix.to(self.device)
+        print("combining parents 1 point")
         attention_values, selected_crossovers_index = self.neural_crossover(parents_matrix,
                                                                             epsilon_greedy=self.epsilon_greedy,
-                                                                            uniform=False)
+                                                                            xover=self.xover)
         crossover_point = selected_crossovers_index[0]
         # chatgpt: Assuming selected_crossovers_indices is already defined and potentially nested
-        child1 = torch.cat((parents_matrix[0, :crossover_point], parents_matrix[1, crossover_point:]), dim=0)
-        child2 = torch.cat((parents_matrix[1, :crossover_point], parents_matrix[0, crossover_point:]), dim=0)
+        if self.xover == "OnePoint":
+            child1 = torch.cat((parents_matrix[0, :crossover_point], parents_matrix[1, crossover_point:]), dim=0)
+            child2 = torch.cat((parents_matrix[1, :crossover_point], parents_matrix[0, crossover_point:]), dim=0)
+        elif self.xover == "TwoPoint":
+            child1 = torch.cat((parents_matrix[0, :crossover_point[0]],
+                                parents_matrix[1, crossover_point[0]:crossover_point[1]],
+                                parents_matrix[0, crossover_point[1]:]))
+            child2 = torch.cat((parents_matrix[1, :crossover_point[0]],
+                                parents_matrix[0, crossover_point[0]:crossover_point[1]],
+                                parents_matrix[1, crossover_point[1]:]))
+        else:
+            raise KeyError(
+                f"src/dnc/multiparent_wrapper.py::NeuralCrossoverWrapper::combine_parents_one_point\nXover method {self.xover} not found!"
+            )
 
         # Process attention and solutions
         s_i = np.row_stack(np.array(deepcopy(selected_crossovers_index)).astype(int))

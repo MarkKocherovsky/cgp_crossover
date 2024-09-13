@@ -134,8 +134,8 @@ p_size = np.array(p_size)
 pop = [parent] + children
 fitness_objects = [Fitness()] + fitness_objects
 fitnesses, alignment = processFitness(fitness_objects, train_x_bias, train_y, pop, max_p, max_c)
-best_i, best_fit, best_pop, mut_list, mut_cum, xov_list, xov_cum, density_distro, preds, p_a, p_b = processAndPrintResults(
-    t, fitnesses, pop, mut_impact, density_distro, train_x_bias=train_x_bias, train_y=train_y, mode='cgp')
+best_i, best_fit, best_pop, mut_list, mut_cum, xov_list, xov_cum, density_distro, mut_Density_distro, preds, p_a, p_b = processAndPrintResults(
+    t, fitnesses, pop, mut_impact, density_distro, mut_density_distro, train_x_bias=train_x_bias, train_y=train_y, mode='cgp')
 
 run_name = 'cgp'
 # print(list(train_y))
@@ -148,4 +148,4 @@ n = plot_active_nodes(best_pop[0], best_pop[1], first_body_node, bank_string, bi
 saveResults(run_name, func_name, t, biases, best_pop, preds, best_fit, n, fit_track, avg_change_list, ret_avg_list,
             p_size, bin_centers, hist_gens, avg_hist_list, mut_list, mut_cum,
             xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro,
-            density_distro_list, mut_distro, mut_distro_list)
+            density_distro_list, mut_density_distro, mut_distro_list)
