@@ -3,8 +3,8 @@ import pandas as pd
 from cgp_operators import *
 
 
-def generate_model(max_size: int, inputs: int, constants: list, arity: int, outputs: int, n_operations: int,
-                   function_bank: tuple, fixed_length: bool = True):
+def generate_model(max_size: int, inputs: int, constants: list | np.ndarray, arity: int, outputs: int,
+                   n_operations: int, function_bank: tuple, fixed_length: bool = True):
     """
     @param function_bank:
     @param n_operations: number of operations
@@ -13,13 +13,14 @@ def generate_model(max_size: int, inputs: int, constants: list, arity: int, outp
     @param constants: list of constants
     @param arity: number of arguments
     @param outputs: number of outputs
+    @param fixed_length: whether the model has to be exactly max_size. If false, the model can be <= max_size
     """
 
     # Ensure constants is a list, even if tuple was provided
     constants = list(constants) if not isinstance(constants, list) else constants
 
     # Initialize input nodes with 'Input' and 'Value' columns
-    input_values = [('Input', 0)] * inputs + [('Input', const) for const in constants]
+    input_values = [('Input', 0)] * inputs + [('Constant', const) for const in constants]
     input_dataframe = pd.DataFrame(data=input_values, columns=['NodeType', 'Value'])
 
     # Generate function body nodes with random operations and operands
@@ -27,10 +28,14 @@ def generate_model(max_size: int, inputs: int, constants: list, arity: int, outp
     last_body_node = max_size + first_body_node
 
     # Randomly populate the 'Operator' and 'Operand' columns
+    model_size = max_size if fixed_length else np.random.randint(1, max_size)
+
+    # Generate body nodes
     body = np.hstack([
-        np.random.randint(0, n_operations, (max_size, 1)),  # Random operators
-        np.random.randint(0, last_body_node, (max_size, arity))  # Random operands
+        np.random.randint(0, n_operations, (model_size, 1)),  # Random operators
+        np.array([np.random.randint(0, row_idx + first_body_node, arity) for row_idx in range(model_size)])  # Random operands
     ])
+
     columns = ['Operator'] + [f'Operand{i}' for i in range(arity)]
     body_dataframe = pd.DataFrame(data=body, columns=columns)
     body_dataframe.insert(0, 'NodeType', 'Function')
@@ -40,8 +45,8 @@ def generate_model(max_size: int, inputs: int, constants: list, arity: int, outp
     body_dataframe[columns[1:]] = body_dataframe[columns[1:]].astype(int)
 
     # Define output nodes with random connections to body nodes
-    output_values = [('Output', node) for node in np.random.randint(0, last_body_node, outputs)]
-    output_dataframe = pd.DataFrame(data=output_values, columns=['NodeType', 'Value'])
+    output_values = [('Output', 0, node) for node in np.random.randint(0, last_body_node, outputs)]
+    output_dataframe = pd.DataFrame(data=output_values, columns=['NodeType', 'Value', 'Operand0'])
 
     # Ensure Value column in output nodes is integer
     output_dataframe['Value'] = output_dataframe['Value'].astype(int)
@@ -49,7 +54,3 @@ def generate_model(max_size: int, inputs: int, constants: list, arity: int, outp
     # Combine input, function body, and output dataframes into the final model
     model = pd.concat([input_dataframe, body_dataframe, output_dataframe], ignore_index=True)
     return model
-
-
-model = generate_model(8, 1, np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).astype(np.int32), 2, 1, 4, (add, sub, mul, div))
-print(model)
