@@ -5,10 +5,11 @@ from scipy.stats import pearsonr
 
 
 def correlation(predictions, ground_truth):
-    if not np.all(np.isfinite(predictions)):
+    if not np.all(np.isfinite(predictions)) or np.all(predictions == predictions[0]) or np.all(ground_truth == ground_truth[0]):
         return np.inf
 
     r, _ = pearsonr(predictions, ground_truth)
+    r = r[0]
     return 1 - r ** 2 if np.isfinite(r) else 1
 
 

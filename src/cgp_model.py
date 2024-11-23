@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+from numpy import random
 from cgp_generator import generate_model
 from cgp_operators import add, sub, mul, div
 from fitness_functions import correlation, align
@@ -8,13 +9,14 @@ from fitness_functions import correlation, align
 
 def _validate_model(model):
     """Ensure the provided model is valid."""
-    required_columns = {'NodeType', 'Operator', 'Operand', 'Value'}
+    required_columns = {'NodeType', 'Operator', 'Operand0', 'Value'}
     assert isinstance(model, pd.DataFrame), "Pre-built model must be a Pandas DataFrame."
     assert required_columns.issubset(model.columns), f"Model must contain the required columns: {required_columns}"
 
 
 class CGP:
-    def __init__(self, model=None, fixed_length=True, fitness_function='Correlation', **kwargs):
+    def __init__(self, model=None, fixed_length=True, fitness_function='Correlation', mutation_type='Point', **kwargs):
+        self.mutation = None
         self.slope = None
         self.intercept = None
         self.fitness = None
@@ -30,6 +32,9 @@ class CGP:
             self._initialize_from_model()
         else:
             self._initialize_from_kwargs(kwargs)
+        self.first_body_node = self.inputs + len(self.constants)
+        self.last_body_node = self.inputs + len(self.constants) + self.max_size
+        self._choose_mutation(mutation_type)
 
     def _initialize_from_model(self):
         """Initialize attributes from a pre-built model."""
@@ -132,3 +137,65 @@ class CGP:
         self.fitness = self.fitness_function(predictions, ground_truth)
         if self.fitness_function == correlation:
             self.slope, self.intercept = align(predictions, ground_truth)
+        return self.fitness
+
+    def get_active_nodes(self):
+        # Start with output nodes
+        output_nodes = self.model[self.model['NodeType'] == 'Output']
+        active_nodes = set()  # Use a set to avoid duplicates
+
+        # Recursively find all active nodes
+        def trace_dependencies(current_node_index):
+            node = self.model.loc[current_node_index]
+            if node['NodeType'] == 'Function':
+                # Add the function node to active nodes
+                active_nodes.add(current_node_index)
+                # Trace its operands
+                operands = node.filter(regex='Operand').dropna()
+                for operand in operands:
+                    operand_index = int(operand)
+                    if operand_index not in active_nodes:
+                        trace_dependencies(operand_index)
+
+        # Trace all output nodes
+        for node_index in output_nodes['Operand0']:
+            trace_dependencies(node_index)
+
+        return list(active_nodes)
+
+    def _choose_mutation(self, mutation_type):
+        """Select and assign the mutation function based on the mutation type."""
+        mutation_type = mutation_type.lower()
+        possible_mutation_functions = {
+            'point': self._point_mutation
+        }
+        if mutation_type not in possible_mutation_functions:
+            raise AttributeError(f'{mutation_type} is an invalid mutation operator.')
+        self.mutation = possible_mutation_functions[mutation_type]
+
+
+    def _point_mutation(self):
+        """Simple point mutation on function and output nodes."""
+        # Mutate only function and output nodes
+        mutation_index = random.randint(self.first_body_node, self.last_body_node)
+        node = self.model.loc[mutation_index]  # Corrected from loc(mutation_index) to loc[mutation_index]
+
+        if node['NodeType'] == 'Function':
+            mutation_column = random.choice(['Operator'] + [f'Operand{n}' for n in range(self.arity)])
+
+            if mutation_column == 'Operator':
+                node.at[mutation_column] = random.choice(self.function_bank)
+            elif mutation_column.startswith('Operand'):
+                node.at[mutation_column] = random.randint(0, mutation_index)
+            else:
+                raise AttributeError(f'Column {mutation_column} not recognized for Point Mutation')
+
+        elif node['NodeType'] == 'Output':
+            mutation_column = random.choice([f'Operand{n}' for n in range(self.outputs)])
+            node[mutation_column] = random.randint(0, self.last_body_node)
+
+    def mutate(self):
+        """Perform mutation using the assigned mutation function."""
+        if self.mutation is None:
+            raise ValueError("Mutation function is not selected. Call _choose_mutation() first.")
+        self.mutation()
