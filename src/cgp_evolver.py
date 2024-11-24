@@ -2,6 +2,7 @@ from copy import copy
 
 import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
 
 from cgp_model import CGP
 from fitness_functions import correlation
@@ -11,6 +12,7 @@ from fitness_functions import correlation
 
 
 def _get_quartiles(data):
+    data = np.where(data == np.inf, 1, data)
     return np.quantile(data, [0, 0.25, 0.5, 0.75, 1])
 
 
@@ -96,7 +98,7 @@ class CartesianGP:
                    'Best Model Size', 'Min Model Size', 'Model Size 1st Quartile', 'Median Model Size',
                    'Model Size 3rd Quartile', 'Max Model Size']
 
-        metrics_initialized = np.zeros((self.max_g, len(metrics)))
+        metrics_initialized = np.zeros((self.max_g + 1, len(metrics)))
         self.metrics = pd.DataFrame(metrics_initialized, columns=metrics)
 
         # Sanitize inputs
@@ -127,10 +129,10 @@ class CartesianGP:
             'n_point': self._n_point_xover
         }
         self.fitness_function = possible_fitness_functions.get(fitness_function.lower())
-        self.xover = possible_xover_functions.get(self.xover_type.lower())
+        self.xover = possible_xover_functions.get(self.xover_type.lower()) if self.xover_type is not None else None
         self.selection = possible_selection_functions.get(self.selection_type.lower())
         self._setup_tournament_and_elite(kwargs)
-        self._setup_n_point_xover(kwargs)
+        self._setup_n_point_xover(kwargs) if self.xover_type == 'n_point' else None
         if self.fitness_function is None:
             raise KeyError(f"{fitness_function} is an invalid fitness function.")
         if self.selection is None:
@@ -341,9 +343,11 @@ class CartesianGP:
             else:
                 selected_parents = self.population
 
-            children = self.crossover(selected_parents, xover_rate, g)
+            children = self.crossover(selected_parents, xover_rate,
+                                      g) if self.xover_type is not None else selected_parents
 
             # perform mutation
+            # TODO: mutation that can create new children
             for child_key in children:
                 if np.random.rand() < mutation_rate:
                     children[child_key].mutate()
@@ -351,17 +355,27 @@ class CartesianGP:
             # get fitnesses
             selected_parents.update(children)  # Merge the dictionaries
             self.population = selected_parents.copy()  # Create a copy of the updated selected_parents
-
+            print([m.print_model() for m in self.population.values()])
+            exit()
             self._get_fitnesses()
             self._clear_fitnesses()
             self._record_metrics(g)
             if g % step_size == 0:
                 self._report_generation(g)
+        return self.metrics
 
-evolver = CartesianGP(parents=12, children=12, max_generations=100, mutation='point', selection='tournament',
-                      xover='n_point', fixed_length=True, fitness_function='Correlation',
+
+np.random.seed(1)
+evolver = CartesianGP(parents=1, children=4, max_generations=1000, mutation='point', selection='elite',
+                      xover=None, fixed_length=True, fitness_function='Correlation',
                       model_parameters={'max_size': 16},
                       solution_threshold=0.05, n_points=1, tournament_size=4)
 x = np.array([0, 1, 2, 3, 4, 5, 6])
 y = (x ** 2).reshape(-1, 1)  # fix this
-evolver.fit(x, y, 10, 0.5, 0.5)
+metrics = evolver.fit(x, y, 50, 0.5, 1.0)
+
+fig, ax = plt.subplots()
+ax.plot(metrics['Min Fitness'], label='Best Fitness')
+ax.plot(metrics['Median Fitness'], label='Median Fitness')
+ax.set_yscale('log')
+plt.savefig('plt.png')

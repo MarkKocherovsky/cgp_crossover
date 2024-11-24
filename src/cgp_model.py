@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
-
 from numpy import random
+
 from cgp_generator import generate_model
 from cgp_operators import add, sub, mul, div
 from fitness_functions import correlation, align
@@ -26,6 +26,11 @@ class CGP:
         else:
             raise ValueError(f'Invalid Fitness Function: {fitness_function}')
 
+        # Set the function bank and number of operations
+        self.function_bank = kwargs.get('function_bank', (add, sub, mul, div))
+        self.n_operations = len(self.function_bank)
+        assert self.n_operations >= 1, 'There has to be at least one operator.'
+
         if model is not None:
             _validate_model(model)
             self.model = model
@@ -33,7 +38,8 @@ class CGP:
         else:
             self._initialize_from_kwargs(kwargs)
         self.first_body_node = self.inputs + len(self.constants)
-        self.last_body_node = self.inputs + len(self.constants) + self.max_size
+        self.last_body_node = self.inputs + len(self.constants) + self.max_size - 1
+
         self._choose_mutation(mutation_type)
 
     def _initialize_from_model(self):
@@ -43,7 +49,6 @@ class CGP:
         self.outputs = len(self.model['NodeType'][self.model['NodeType'] == 'Output'])
         self.max_size = len(self.model) - self.inputs - len(self.constants)
         self.n_operations = self.model['Operator'].nunique()
-        self.function_bank = tuple(self.model['Operator'].unique())
         self.arity = len(self.model.filter(regex='Operand').columns)
 
     def _initialize_from_kwargs(self, kwargs):
@@ -62,15 +67,10 @@ class CGP:
         self.max_size = kwargs.get('max_size', 16)
         assert self.max_size >= 1, 'There has to be at least one instruction.'
 
-        # Set the function bank and number of operations
-        self.function_bank = kwargs.get('function_bank', (add, sub, mul, div))
-        self.n_operations = len(self.function_bank)
-        assert self.n_operations >= 1, 'There has to be at least one operator.'
-
         # Generate a new model based on the provided or default parameters
         self.model = generate_model(
-            self.max_size, self.inputs, self.constants, self.arity, self.outputs,
-            self.n_operations, self.function_bank, self.fixed_length
+            self.max_size, self.inputs, self.constants, self.arity, self.outputs, self.n_operations,
+            self.function_bank, self.fixed_length,
         )
 
     def print_model(self):
@@ -107,9 +107,17 @@ class CGP:
         if node_type == 'Function':
             # Retrieve operand values recursively
             new_operands = [self._get_node_value(val) for val in new_node.filter(regex='Operand')]
-            return new_node['Operator'](*new_operands)
+            try:
+                return new_node['Operator'](*new_operands)
+            except TypeError as e:
+                print(e)
+                print(self.model)
+                print(*new_operands)
+                print(new_node['Operator'])
+                exit()
 
-        # Handle invalid node types
+        # Handle invalid node type
+        print(self.model)
         raise ValueError(f"Invalid node type: {node_type}")
 
     def _run(self):
@@ -173,26 +181,25 @@ class CGP:
             raise AttributeError(f'{mutation_type} is an invalid mutation operator.')
         self.mutation = possible_mutation_functions[mutation_type]
 
-
     def _point_mutation(self):
         """Simple point mutation on function and output nodes."""
         # Mutate only function and output nodes
         mutation_index = random.randint(self.first_body_node, self.last_body_node)
-        node = self.model.loc[mutation_index]  # Corrected from loc(mutation_index) to loc[mutation_index]
 
-        if node['NodeType'] == 'Function':
+        # Access the row and determine the mutation
+        if self.model.at[mutation_index, 'NodeType'] == 'Function':
             mutation_column = random.choice(['Operator'] + [f'Operand{n}' for n in range(self.arity)])
 
             if mutation_column == 'Operator':
-                node.at[mutation_column] = random.choice(self.function_bank)
+                self.model.at[mutation_index, mutation_column] = random.choice(self.function_bank)
             elif mutation_column.startswith('Operand'):
-                node.at[mutation_column] = random.randint(0, mutation_index)
+                self.model.at[mutation_index, mutation_column] = random.randint(0, mutation_index)
             else:
                 raise AttributeError(f'Column {mutation_column} not recognized for Point Mutation')
 
-        elif node['NodeType'] == 'Output':
+        elif self.model.at[mutation_index, 'NodeType'] == 'Output':
             mutation_column = random.choice([f'Operand{n}' for n in range(self.outputs)])
-            node[mutation_column] = random.randint(0, self.last_body_node)
+            self.model.at[mutation_index, mutation_column] = random.randint(0, self.last_body_node)
 
     def mutate(self):
         """Perform mutation using the assigned mutation function."""
