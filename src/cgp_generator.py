@@ -33,13 +33,14 @@ def generate_model(max_size: int, inputs: int, constants: list | np.ndarray, ari
     # Generate body nodes
     body = np.hstack([
         np.random.randint(0, n_operations, (model_size, 1)),  # Random operators
-        np.array([np.random.randint(0, row_idx + first_body_node, arity) for row_idx in range(model_size)])  # Random operands
+        np.array([np.random.randint(0, row_idx + first_body_node, arity) for row_idx in range(model_size)]),  # Random operands
+        np.zeros((model_size, 1))
     ])
 
-    columns = ['Operator'] + [f'Operand{i}' for i in range(arity)]
+    columns = ['Operator'] + [f'Operand{i}' for i in range(arity)] + ['Active']
     body_dataframe = pd.DataFrame(data=body, columns=columns)
     body_dataframe.insert(0, 'NodeType', 'Function')
-    body_dataframe['Operator'] = [function_bank[op] for op in body_dataframe['Operator']]
+    body_dataframe['Operator'] = [function_bank[int(op)] for op in body_dataframe['Operator']]
 
     # Ensure Operand columns are integers
     body_dataframe[columns[1:]] = body_dataframe[columns[1:]].astype(int)

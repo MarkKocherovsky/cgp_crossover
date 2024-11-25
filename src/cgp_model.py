@@ -15,12 +15,14 @@ def _validate_model(model):
 
 
 class CGP:
-    def __init__(self, model=None, fixed_length=True, fitness_function='Correlation', mutation_type='Point', **kwargs):
+    def __init__(self, model=None, fixed_length=True, fitness_function='Correlation', mutation_type='Point',
+                 parent_keys=None, **kwargs):
         self.mutation = None
         self.slope = None
         self.intercept = None
         self.fitness = None
         self.fixed_length = fixed_length
+        self.parent_keys = parent_keys
         if fitness_function == 'Correlation':
             self.fitness_function = correlation
         else:
@@ -37,17 +39,19 @@ class CGP:
             self._initialize_from_model()
         else:
             self._initialize_from_kwargs(kwargs)
-        self.first_body_node = self.inputs + len(self.constants)
-        self.last_body_node = self.inputs + len(self.constants) + self.max_size - 1
+        self.first_body_node = self.inputs + len(self.model[self.model['NodeType'] == 'Constant'])
+        self.last_body_node = self.inputs + len(self.model[self.model['NodeType'] == 'Constant']) + self.max_size - 1
 
         self._choose_mutation(mutation_type)
 
+    def set_parent_key(self, parent_keys):
+        self.parent_keys = parent_keys
     def _initialize_from_model(self):
         """Initialize attributes from a pre-built model."""
         self.constants = self.model['NodeType'][self.model['NodeType'] == 'Constants']
         self.inputs = len(self.model['NodeType'][self.model['NodeType'] == 'Input'])
         self.outputs = len(self.model['NodeType'][self.model['NodeType'] == 'Output'])
-        self.max_size = len(self.model) - self.inputs - len(self.constants)
+        self.max_size = len(self.model[self.model['NodeType'] == 'Function'])
         self.n_operations = self.model['Operator'].nunique()
         self.arity = len(self.model.filter(regex='Operand').columns)
 
@@ -107,6 +111,7 @@ class CGP:
         if node_type == 'Function':
             # Retrieve operand values recursively
             new_operands = [self._get_node_value(val) for val in new_node.filter(regex='Operand')]
+            self.model.loc[operand, 'Active'] = 1  # sets as active node
             try:
                 return new_node['Operator'](*new_operands)
             except TypeError as e:
@@ -117,12 +122,12 @@ class CGP:
                 exit()
 
         # Handle invalid node type
-        print(self.model)
         raise ValueError(f"Invalid node type: {node_type}")
 
     def _run(self):
         # Get the rows where NodeType is 'Output'
         output_nodes = self.model[self.model['NodeType'] == 'Output']
+        self.model['Active'] = 0  # resets all active node markers in case something has changed
 
         # Update the 'Value' column with computed values
         new_values = [self._get_node_value(o) for o in output_nodes['Operand0']]
@@ -148,28 +153,10 @@ class CGP:
         return self.fitness
 
     def get_active_nodes(self):
-        # Start with output nodes
-        output_nodes = self.model[self.model['NodeType'] == 'Output']
-        active_nodes = set()  # Use a set to avoid duplicates
+        return self.model.loc(self.model['Active'] == 1)
 
-        # Recursively find all active nodes
-        def trace_dependencies(current_node_index):
-            node = self.model.loc[current_node_index]
-            if node['NodeType'] == 'Function':
-                # Add the function node to active nodes
-                active_nodes.add(current_node_index)
-                # Trace its operands
-                operands = node.filter(regex='Operand').dropna()
-                for operand in operands:
-                    operand_index = int(operand)
-                    if operand_index not in active_nodes:
-                        trace_dependencies(operand_index)
-
-        # Trace all output nodes
-        for node_index in output_nodes['Operand0']:
-            trace_dependencies(node_index)
-
-        return list(active_nodes)
+    def count_active_nodes(self):
+        return len(self.model[self.model['Active'] == 1])
 
     def _choose_mutation(self, mutation_type):
         """Select and assign the mutation function based on the mutation type."""
@@ -184,7 +171,7 @@ class CGP:
     def _point_mutation(self):
         """Simple point mutation on function and output nodes."""
         # Mutate only function and output nodes
-        mutation_index = random.randint(self.first_body_node, self.last_body_node)
+        mutation_index = random.randint(self.first_body_node, self.last_body_node + self.outputs + 1)
 
         # Access the row and determine the mutation
         if self.model.at[mutation_index, 'NodeType'] == 'Function':
