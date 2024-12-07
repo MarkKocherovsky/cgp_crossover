@@ -1,12 +1,11 @@
 from copy import copy
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd
+from Bio.Align import PairwiseAligner, Seq
 
-from matplotlib import pyplot as plt
-from Bio.Align import PairwiseAligner
 from cgp_model import CGP
-from copy import deepcopy
 from fitness_functions import correlation
 
 
@@ -40,12 +39,92 @@ def _split(m, points: [int]):
     return parts
 
 
+def pairwise_minkowski_distance(xa, xb, p=2):
+    """
+    Computes pairwise Minkowski distance between two collections of 1D arrays.
+    :param xa: First 2D array or 1D array
+    :param xb: Second 2D array or 1D array
+    :param p: Minkowski distance parameter
+    :return: Pairwise Minkowski distances as a 2D array
+    """
+    xa = np.atleast_2d(xa)  # Ensure XA is 2D
+    xb = np.atleast_2d(xb)  # Ensure XB is 2D
+    distance = np.sum(np.abs(xa[:, None] - xb) ** p, axis=-1) ** (1 / p)
+    return distance[0, 0]
+
+
+def get_score(p_to_t, p_to_m, m_to_t):
+    """
+
+    @param p_to_t: distance from parent to target
+    @param p_to_m: distance from potential mate to parent
+    @param m_to_t: distance from potential mate to target
+    """
+    if p_to_m == 0:
+        return np.inf
+    return (m_to_t / p_to_m) * (1 + np.abs(m_to_t - p_to_t))
+
+
+def clean_values(model, x_train, include_output=False):
+    """
+    Gets the values matrix for each
+    @param model: CGP model
+    @param x_train: list of x inputs
+    @param include_output: if output values are included in the set
+    @return: matrix of values with rows as node numbers and columns as inputs
+    """
+    model_length = len(model.model.loc[model.model['NodeType'] == 'Function'])
+    if include_output:
+        model_length += len(model.model.loc[model.model['NodeType'] == 'Output'])
+    number_of_inputs = x_train.shape[0]
+    values_matrix = np.zeros((model_length, number_of_inputs))
+    # Extract function values and ensure they are absolute
+    for i, input_value in enumerate(x_train):
+        model(input_value)  # run the value
+        function_values = model.model.loc[model.model['NodeType'] == 'Function', 'Value'].to_numpy()
+
+        # Include output values if specified
+        if include_output:
+            output_count = len(model.model.loc[model.model['NodeType'] == 'Output'])
+            output_values = np.zeros(output_count)
+            values = np.concatenate([function_values, output_values], axis=1)
+        else:
+            values = function_values
+        values_matrix[:, i] = values
+    # assume every function nodes starts initialized at 0
+    values_matrix[~np.isfinite(values_matrix)] = 0
+    return values_matrix
+
+
+"""
+Uy, N. Q., Hien, N. T., Hoai, N. X., & O’Neill, M. (2010). Improving the generalisation ability of genetic
+ programming with semantic similarity based crossover. In Genetic Programming: 13th European Conference, 
+ EuroGP 2010, Istanbul, Turkey, April 7-9, 2010. Proceedings 13 (pp. 184-195). Springer Berlin Heidelberg.
+"""
+
+
+# instead of picking a point at random, we get the SSD of all points and then later can pick N according to operator
+# , alpha=1e-4, beta=0.4
+def get_ssd(v_matrix_1, v_matrix_2):
+    assert v_matrix_1.shape == v_matrix_2.shape, "Internal Semantic Matrices must be the same size"
+    return np.sum(np.abs(v_matrix_1 - v_matrix_2), axis=1) / v_matrix_1.shape[1]
+
+
+def get_weights(ssd_matrix: np.ndarray, alpha: float = 1e-4, beta: float = 0.4, epsilon: float = 0.0):
+    # Set weights to zero where conditions are met
+    weight_matrix = np.where((ssd_matrix < alpha) | (ssd_matrix >= beta), epsilon, ssd_matrix)
+    total = np.sum(weight_matrix)
+
+    # Normalize weights or use uniform distribution if the sum is zero
+    return weight_matrix / total if total != 0 else np.full_like(ssd_matrix, 1 / ssd_matrix.size)
+
+
 class CartesianGP:
     def _missing_key_error(self, key):
         raise KeyError(f"'{key}' is required but was not provided.")
 
     def _setup_n_point_xover(self, kwargs):
-        if 'n_point' in self.xover_type:
+        if 'n_point' in self.xover_type or 'semantic' in self.xover_type:
             self.n_points = _validate_int_param(
                 'n_points',
                 kwargs.get('n_points') or self._missing_key_error('n_points'),
@@ -84,14 +163,17 @@ class CartesianGP:
         self.mutation_can_make_children = None
         self.best_model = None
         self.weights = None
+        self.semantic = False
+        self.xover_index = {'deleterious': None, 'neutral': None, 'beneficial': None}
+        self.mut_index = None
         self.max_p = parents
         self.max_c = children
         self.max_g = max_generations
-        self.mutation_type = mutation
-        self.xover_type = xover
+        self.mutation_type = mutation.lower()
+        self.xover_type = xover.lower()
         self.model_kwargs = model_parameters
         self.fixed_length = fixed_length
-        self.selection_type = selection
+        self.selection_type = selection.lower()
         self.solution_threshold = solution_threshold
         self.ff_string = fitness_function
 
@@ -110,14 +192,6 @@ class CartesianGP:
             raise ValueError("Must have at least one parent.")
         if self.max_c < 1:
             raise ValueError("Must have at least one child.")
-        if self.mutation_type not in ['point']:
-            raise ValueError(f"Invalid mutation type: {self.mutation_type}")
-        if self.selection_type not in ['elite', 'tournament', 'elite tournament']:
-            raise ValueError(f"Invalid selection type: {self.selection_type}")
-        if self.xover_type not in [None, 'n_point', 'uniform']:
-            raise ValueError(f"Invalid crossover type: {self.xover_type}")
-        if self.model_kwargs is not None and not isinstance(self.model_kwargs, dict):
-            raise TypeError("Model parameters must be a dictionary.")
 
         # Get fitness, mutation, xover, and selection
         possible_fitness_functions = {
@@ -126,24 +200,39 @@ class CartesianGP:
         possible_selection_functions = {
             'elite': self.elite_selection,
             'tournament': self.tournament_selection,
-            'elite tournament': self.elite_tournament_selection
+            'elite tournament': self.elite_tournament_selection,
+            'competent tournament': self.competent_tournament_selection
         }
 
         possible_xover_functions = {
             'n_point': self._n_point_xover,
-            'uniform': self._uniform_xover
+            'uniform': self._uniform_xover,
+            'subgraph': self._subgraph_xover,
+            'semantic n_point': self._n_point_xover,
+            'semantic uniform': self._uniform_xover,
+            # 'semantic uniform': self._semantic_uniform_xover
         }
+        if self.mutation_type not in ['point']:
+            raise ValueError(f"Invalid mutation type: {self.mutation_type}")
+        if self.selection_type not in possible_selection_functions:
+            raise ValueError(f"Invalid selection type: {self.selection_type}")
+        if self.xover_type.lower() not in possible_xover_functions:
+            raise ValueError(f"Invalid crossover type: {self.xover_type}")
+        if 'semantic' in self.xover_type:
+            self.semantic = True
+        if self.model_kwargs is not None and not isinstance(self.model_kwargs, dict):
+            raise TypeError("Model parameters must be a dictionary.")
         self.fitness_function = possible_fitness_functions.get(fitness_function.lower())
         self.xover = possible_xover_functions.get(self.xover_type.lower()) if self.xover_type is not None else None
         self.selection = possible_selection_functions.get(self.selection_type.lower())
         self._setup_tournament_and_elite(kwargs)
-        self._setup_n_point_xover(kwargs) if self.xover_type == 'n_point' else None
+        self._setup_n_point_xover(kwargs) if ('n_point' in self.xover_type) else None
         if self.fitness_function is None:
             raise KeyError(f"{fitness_function} is an invalid fitness function.")
         if self.selection is None:
             raise KeyError(f"{self.selection_type} is an invalid selection operator.")
 
-        if kwargs.get('mutation_breeding', False) or (self.max_p == 1 and self.max_c > 1):
+        if kwargs.get('mutation_breeding', False) or (self.max_p == 1 and self.max_c > 1) or self.xover_type is None:
             self.mutation_can_make_children = True
         else:
             self.mutation_can_make_children = False
@@ -173,11 +262,11 @@ class CartesianGP:
 
         while len(new_population) < n_to_select:
             # Randomly select contestants for the tournament
-            contestants = np.random.choice(
-                population_keys,
-                size=self.tournament_size,
-                replace=False
-            )
+            # Sample tournament contestants
+            if len(population_keys) > self.tournament_size:
+                contestants = np.random.choice(population_keys, size=self.tournament_size, replace=False)
+            else:
+                contestants = population_keys  # Use all available keys if not enough
 
             # Get the fitness values for the contestants
             contestant_fitnesses = {key: self.fitnesses[key] for key in contestants}
@@ -193,6 +282,69 @@ class CartesianGP:
                 population_keys.remove(best_individual)
 
         return new_population
+
+    """
+        Tomasz P Pawlak and Krzysztof Krawiec. Competent Geometric Semantic
+        Genetic Programming for Symbolic Regression and Boolean Function Synthesis.
+        Evolutionary Computation, 26(2):177–212, 2018
+    """
+
+    def competent_tournament_selection(self, n_to_select=None, population_keys=None):
+        # Set default values
+        n_to_select = n_to_select or self.max_p
+        population_keys = population_keys or list(self.population.keys())
+        target = self.y.flatten()  # Ground truth from Pawlak and Krawiec, 2018
+
+        # Precompute distances from the target for all individuals
+        parent_semantic_list = self._determine_parent_semantics()
+        target_distances = {key: pairwise_minkowski_distance(predictions, target, p=2) for key, predictions in
+                            parent_semantic_list.items()}
+
+        new_population = {}
+
+        while len(new_population) < n_to_select:
+            # Select the first parent via regular tournament selection
+            first_parent_key, first_parent = next(
+                iter(self.tournament_selection(n_to_select=1, population_keys=population_keys).items()))
+
+            parent_semantics = parent_semantic_list[first_parent_key]
+            parent_distance_to_target = target_distances[first_parent_key]
+
+            # Sample tournament contestants
+            if len(population_keys) > self.tournament_size:
+                contestants = np.random.choice(population_keys, size=self.tournament_size, replace=False)
+            else:
+                contestants = population_keys  # Use all available keys if not enough
+
+            scores = {}
+
+            for key in contestants:
+                contestant_semantics = parent_semantic_list[key]
+                distance_to_parent = pairwise_minkowski_distance(parent_semantics, contestant_semantics, p=2)
+                distance_to_target = target_distances[key]
+                scores[key] = get_score(parent_distance_to_target, distance_to_parent, distance_to_target)
+
+            # Select the contestant with the best score
+            second_parent_key = min(scores, key=scores.get)
+            new_population[first_parent_key] = first_parent
+            new_population[second_parent_key] = self.population[second_parent_key]
+
+            # Remove selected contestant from future tournaments
+            population_keys.remove(second_parent_key)
+
+        return new_population
+
+    def _determine_parent_semantics(self):
+        # essentially what I want to do is organize by distance of node values
+        parent_predictions = {}
+        # loop over each existing parent and get the predictions output
+        for p in self.population:
+            predictions = self.population[p](self.x)
+            # Check if predictions is not already in parent_predictions values
+            if not any(np.array_equal(predictions, v) for v in parent_predictions.values()):
+                parent_predictions[p] = predictions.flatten()
+
+        return parent_predictions
 
     def elite_tournament_selection(self, n_elites=None):
         """
@@ -216,12 +368,16 @@ class CartesianGP:
         return elite_population
 
     """
-    Crossover Algorithms
+    Crossover Operators
     """
 
     def crossover(self, selected_parents: dict, xover_rate: float, gen: int):  # we're assuming two parents for now
-        parent_list = list(selected_parents.values())
-        name_list = list(selected_parents.keys())
+        new_parents = {k: [v] for k, v in selected_parents.items()}  # Wrap in lists for uniformity
+
+        # Flatten the new_parents structure for further use
+        parent_list = [item for sublist in new_parents.values() for item in sublist]
+        name_list = [name for name, sublist in new_parents.items() for _ in sublist]
+
         children = {}
         n_c = 0
         while len(children) < self.max_c:
@@ -229,7 +385,11 @@ class CartesianGP:
                 p1 = parent_list[p]
                 p2 = parent_list[p + 1]
                 if np.random.rand() < xover_rate:
-                    c1, c2 = self.xover(p1, p2, self.weights)
+                    if self.xover_type == 'Subgraph':
+                        c1 = self.xover(p1, p2, gen)
+                        c2 = self.xover(p2, p1, gen)
+                    else:
+                        c1, c2 = self.xover(p1, p2, gen=gen, weights=self.weights)
                 else:
                     c1, c2 = copy(p1), copy(p2)
                 children[f'Child_{n_c}_g{gen}'], children[f'Child_{n_c + 1}_g{gen}'] = c1, c2
@@ -247,12 +407,18 @@ class CartesianGP:
         @return: children
         """
 
-        def get_crossover_points(parent, first_index):
+        def get_crossover_points(parent, first_index, xover_weights=None, include_output=False):
             """Generate sorted crossover points for a parent."""
-            possible_indices = range(first_index, len(parent.model))
-            return np.sort(np.random.choice(possible_indices, size=self.n_points, replace=False))
+            if include_output:
+                n_outputs = 0
+            else:
+                n_outputs = parent.outputs
+            possible_indices = range(first_index, len(parent.model) - n_outputs)
+            if np.sum(xover_weights) == 0:
+                xover_weights = None  # `None` makes np.random.choice default to uniform probabilities
+            return np.sort(np.random.choice(possible_indices, size=self.n_points, replace=False, p=xover_weights))
 
-        def interleave(p1_sections, p2_sections, columns):
+        def interleave(p1_sections, p2_sections):
             """Interleave parts from two parents, alternating between p1 and p2 sections."""
             child1_parts = [
                 p1_sections[i] if i % 2 == 0 else p2_sections[i]
@@ -276,28 +442,36 @@ class CartesianGP:
             print(p2.model)
             raise AttributeError
 
-        columns = list(p1.model.columns)
-
         # Generate crossover points
+        fb_node = min(p1.first_body_node, p2.first_body_node)
+        weights = None
+        if self.semantic:
+            vmat_1 = clean_values(p1, self.x)
+            vmat_2 = clean_values(p2, self.x)
+            ssd = get_ssd(vmat_1, vmat_2)
+            weights = get_weights(ssd)
+
         if self.fixed_length:
-            xover_points_p1 = xover_points_p2 = get_crossover_points(p1, first_index_p1)
+            xover_points_p1 = xover_points_p2 = get_crossover_points(p1, first_index_p1, weights)
         else:
-            xover_points_p1 = get_crossover_points(p1, first_index_p1)
-            xover_points_p2 = get_crossover_points(p2, first_index_p2)
+            xover_points_p1 = get_crossover_points(p1, first_index_p1, weights)
+            xover_points_p2 = get_crossover_points(p2, first_index_p2, weights)
+        p1.xover_index[xover_points_p1 - fb_node] += 1
+        p2.xover_index[xover_points_p2 - fb_node] += 1
 
         # Split parents into parts
         p1_parts = _split(p1.model, xover_points_p1)
         p2_parts = _split(p2.model, xover_points_p2)
 
         # Interleave and return children
-        child1, child2 = interleave(p1_parts, p2_parts, columns)
+        child1, child2 = interleave(p1_parts, p2_parts)
         c1 = CGP(model=child1, fixed_length=self.fixed_length, fitness_function=self.ff_string,
                  mutation_type=self.mutation_type)
         c2 = CGP(model=child2, fixed_length=self.fixed_length, fitness_function=self.ff_string,
                  mutation_type=self.mutation_type)
         return c1, c2
 
-    def _uniform_xover(self, p1, p2, weights=None, **kwargs):
+    def _uniform_xover(self, p1, p2, gen, weights=None, **kwargs):
         """
         performs uniform crossover
         @param p1: First Parent
@@ -305,18 +479,111 @@ class CartesianGP:
         @param weights: weights for choosing if an instruction is swapped, should be ((n_operations, [p, 1-p]))
         @return: children
         """
-        weights = weights if weights is not None else np.full((len(p1.model), 2), 0.5)
+        weights = None
+        n_outputs = 0  # outputs allowed to xover
+        if self.semantic:
+            vmat_1 = clean_values(p1, self.x)
+            vmat_2 = clean_values(p2, self.x)
+            ssd = get_ssd(vmat_1, vmat_2)
+            weights = get_weights(ssd, epsilon=0.001)
+            n_outputs = p1.outputs
         c1 = deepcopy(p1)
         c2 = deepcopy(p2)
         fb_node = min(c1.first_body_node, c2.first_body_node)
-        m_len = min(len(c1.model), len(c2.model))
-        swap = [True, False]
-        for i in range(fb_node, m_len):
-            if np.random.choice(swap, p=weights[i, :]):
-                c1.model.loc[i] = deepcopy(p2.model.loc[i])
-                c2.model.loc[i] = deepcopy(p1.model.loc[i])
-
+        assert len(c1.model) == len(c2.model), 'Parents in Uniform Xover have to be the same length.'
+        possible_indices = list(range(fb_node, len(c1.model) - n_outputs))
+        swapped_indices = np.sort(
+            np.random.choice(possible_indices, (len(possible_indices) // 2,), p=weights, replace=False))
+        for i in swapped_indices:
+            c1.model.loc[i] = deepcopy(p2.model.loc[i])
+            c2.model.loc[i] = deepcopy(p1.model.loc[i])
+            c1.xover_index[i - fb_node] += 1
+            c2.xover_index[i - fb_node] += 1
         return c1, c2
+
+    # Kalkreuth, R. (2021). Reconsideration and extension of Cartesian genetic programming
+    # (Doctoral dissertation, Technical University of Dortmund, Germany).
+    def _subgraph_xover(self, p1: CGP, p2: CGP, gen: int, **kwargs):
+        def random_node_number(n_i, I=None, n_f=None, m=None):
+            n_r = []  # random list and function node numbers
+            if n_f is not None:
+                if m is not None:
+                    n_m = n_f[n_f <= m]
+                    if len(n_m) == 0:
+                        n_r.append(np.random.randint(0, n_i))
+                    else:
+                        n_r.append(np.random.choice(n_m))
+                else:
+                    n_r.append(np.random.choice(n_f))
+
+            if I is not None:
+                n_r.append(np.random.choice(I))
+
+            return np.random.choice(n_r)
+
+        def determine_crossover_point(m1, m2):
+            a, b, c, d = min(m1), max(m1), min(m2), max(m2)
+            if a >= b:
+                b += 1  # should always return a
+            if c >= d:
+                d += 1
+            cp1, cp2 = np.random.randint(a, b), np.random.randint(c, d)
+            return min(cp1, cp2)
+
+        def neighborhood_connect(nf, nb, model):
+            model.loc[nb, 'Operand0'] = nf
+            return model
+
+        def random_active_connect(n_i, n_a, c_p, model):
+            operand_list = model.filter(regex='Operand').columns
+            input_nodes = model[
+                (model['NodeType'] == 'Constant') | (model['NodeType'] == 'Input')
+                ].index.to_list()
+
+            for n in n_a:
+                if n > c_p:
+                    for operand in operand_list:
+                        if model.loc[n, operand] not in n_a:
+                            model.loc[n, operand] = random_node_number(n_i, I=input_nodes, n_f=n_a, m=c_p)
+            for index, row in model[model['NodeType'] == 'Output'].iterrows():
+                if row['Operand0'] not in n_a:
+                    model.at[index, 'Operand0'] = random_node_number(input_nodes, n_a)
+
+            return model
+
+        def ensure_active_nodes(parent):
+            active_nodes = np.array(parent.get_active_nodes().index.to_list())
+            while len(active_nodes) < 1:  # If there are no active nodes, mutate until you get one
+                parent.mutate()
+                parent.fit([0, 0, 0], [0, 0, 0])
+                active_nodes = np.array(parent.get_active_nodes().index.to_list())
+            return parent.model.copy(), active_nodes
+
+        # Ensure active nodes for both parents
+        g1, m1 = ensure_active_nodes(p1)
+        g2, m2 = ensure_active_nodes(p2)
+
+        xover_point = determine_crossover_point(m1, m2)  # determine the crossover point
+        if xover_point <= 0:
+            xover_point = 0
+        g0 = pd.concat([g1.loc[0:xover_point - 1], g2.loc[xover_point:]], ignore_index=True)  # Create new model
+        fb_node = min(p1.first_body_node, p2.first_body_node)
+
+        n_a1 = m1[m1 <= xover_point]
+        n_a2 = m2[m2 > xover_point]
+
+        if len(n_a1) > 0 and len(n_a2) > 0:  # check if both lists contain active function node numbers
+            n_f, n_b = n_a1[-1], n_a2[0]  # determine the nodes immediately surrounding the crossover point
+            g0 = neighborhood_connect(n_f, n_b, g0)  # perform neighborhood connect
+
+        n_a = np.concat((n_a1, n_a2))
+        if len(n_a) > 0:  # check if any function nodes are active
+            g0 = random_active_connect((p1.inputs + len(p1.constants)), n_a, xover_point, g0)  # random active connect
+
+        g0 = CGP(model=g0, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+                 mutation_type=self.mutation_type)
+        g0.xover_index[xover_point - fb_node] += 1
+        return g0
 
     def _get_fitnesses(self):
         for p in self.population:
@@ -329,13 +596,14 @@ class CartesianGP:
     Data Recording/Reporting
     """
 
-    def _analyze_similarity(self):
+    def _group_parents_and_children(self):
+        """Group parents and their children."""
         # Collect individuals where `parent_key` is not None
         individuals_with_parents = [
             ind for ind in self.population.values() if ind.parent_keys is not None
         ]
 
-        # Find all unique parents (as tuples for consistency in sets)
+        # Find all unique parent pairs
         unique_parent_pairs = {
             tuple(ind.parent_keys) for ind in individuals_with_parents
         }
@@ -353,6 +621,36 @@ class CartesianGP:
 
             # Combine parents and children into the group
             parent_child_groups[parent_pair] = (parent_individuals, children)
+
+        return parent_child_groups
+
+    def _compare_child_parents(self):
+        parent_child_groups = self._group_parents_and_children()
+        for parent_pair, (parents, children) in parent_child_groups.items():
+            if not parents or not children:
+                continue
+            for child in children:
+                if child.better_than_parents is None:
+                    if any(child.fitness > parent.fitness for parent in parents):
+                        child.better_than_parents = 'deleterious'
+                    elif any(child.fitness < parent.fitness for parent in parents):
+                        child.better_than_parents = 'beneficial'
+
+    def _box_distribution(self, gen):
+        individuals_with_parents = [
+            ind for ind in self.population.values() if ind.parent_keys is not None
+        ]
+        for ind in individuals_with_parents:
+            if ind.better_than_parents == 'beneficial':
+                self.xover_index['beneficial'][gen - 1, :] = ind.xover_index
+            elif ind.better_than_parents == 'deleterious':
+                self.xover_index['deleterious'][gen - 1, :] = ind.xover_index
+            else:
+                self.xover_index['neutral'][gen - 1, :] = ind.xover_index
+            ind.xover_index = np.zeros(ind.xover_index.shape)  # prepare for next generation
+
+    def _analyze_similarity(self):
+        parent_child_groups = self._group_parents_and_children()
 
         # Iterate through parent-child groups to calculate similarity scores
         similarity_scores = []
@@ -421,6 +719,7 @@ class CartesianGP:
 
         # Update current generation with fitness statistics
         current_gen = self.metrics.loc[gen]
+        pd.set_option('display.float_format', '{:.2e}'.format)  # Set global display format for floats
         for label, value in fitness_labels:
             current_gen[label] = value
 
@@ -430,8 +729,10 @@ class CartesianGP:
         print('################')
 
     def save_metrics(self, filename=None):
-        filename = filename if filename is not None else 'statistics.csv'
-        self.metrics.to_csv(filename)
+        filename = filename if filename is not None else 'statistics'
+        self.metrics.to_csv(f'{filename}.csv')
+        [np.savetxt(f'xover_density_{filename}_{cat}.csv', self.xover_index[cat].astype(np.int32), delimiter=",") for
+         cat in ['deleterious', 'neutral', 'beneficial']]
 
     def _mutate(self, models, gen, mutation_rate):
         if self.mutation_can_make_children:  # Reproduction through mutation
@@ -442,29 +743,53 @@ class CartesianGP:
                     if np.random.rand() < mutation_rate or self.max_p == 1:
                         ref_model = deepcopy(models[model])
                         ref_model.mutate()
+                        if f'Child_{n_c}_g{gen}' not in models:
+                            p_key = model
+                        else:
+                            p_key = models[model].parent_keys
                         children[f'Child_{n_c}_g{gen}'] = deepcopy(ref_model)
+                        children[f'Child_{n_c}_g{gen}'].set_parent_key([p_key])
                         del ref_model
                         n_c += 1
             models.update(children)
-            return models
+            return deepcopy(models)
         else:  # Mutate models in-place
             for model_key, model in models.items():
                 if np.random.rand() < mutation_rate:
                     model.mutate()
             return deepcopy(models)
 
-    def _get_similarity_score(self, m1, m2):
-        try:
-            # Concatenate the two DataFrames along the first axis
-            all_active = np.concatenate((m1.values, m2.values), axis=0)
-        except ValueError:
-            # If concatenation fails, return a score of 0
-            return 0
+    @staticmethod
+    def _get_similarity_score(model1, model2):
+        m1 = deepcopy(model1)
+        m2 = deepcopy(model2)
+
+        def _map_functions(mo1, mo2):
+            # Combine unique operators from both dataframes
+            functions = pd.unique(pd.concat([mo1['Operator'], mo2['Operator']]))
+
+            # Create a mapping dictionary
+            # You can replace this logic with a more sophisticated mapping rule
+            function_map = {func: i for i, func in enumerate(functions)}
+
+            # Apply the mapping to both dataframes
+            mo1['Operator'] = mo1['Operator'].map(function_map)
+            mo2['Operator'] = mo2['Operator'].map(function_map)
+
+            mo1 = mo1.query("NodeType != 'Input' and NodeType != 'Constant'")
+            mo1 = mo1.drop(['Value', 'NodeType', 'Active'], axis=1)
+
+            mo2 = mo2.query("NodeType != 'Input' and NodeType != 'Constant'")
+            mo2 = mo2.drop(['Value', 'NodeType', 'Active'], axis=1)
+
+            return mo1, mo2
+
+        m1, m2 = _map_functions(m1, m2)
 
         # Ensure rows are comparable and of the same length
         try:
-            sequence1 = list(all_active[0])  # First row
-            sequence2 = list(all_active[1])  # Second row
+            sequence1 = m1.values[:, 0:].tolist()  # First row
+            sequence2 = m2.values[:, 0:].tolist()  # Second row
         except IndexError:
             # If there are not enough rows, return 0
             return 0
@@ -481,8 +806,17 @@ class CartesianGP:
         aligner.extend_gap_score = -2
 
         # Perform the alignment and calculate the score
-        # TODO: Fix this
-        score = aligner.score(sequence1, sequence2)
+        # Convert sequences to strings and handle non-string values
+        sequence1 = [str(int(y)) if pd.notna(y) else "" for x in sequence1 for y in x]
+        sequence2 = [str(int(y)) if pd.notna(y) else "" for x in sequence2 for y in x]
+
+        # Create Biopython sequences
+        seq1 = Seq("".join(sequence1))
+        seq2 = Seq("".join(sequence2))
+
+        score = aligner.score(seq1, seq2)
+        if not np.isfinite(score):
+            score = 0.0
 
         # Return the alignment score
         return score
@@ -507,26 +841,49 @@ class CartesianGP:
         self._record_metrics(0)
         self._report_generation(0)
 
+        model_size = self.model_kwargs.get('max_size', -1)
+        if model_size < 0:
+            model_size = self.population['Model_0'].max_size
+        model_size += self.population['Model_0'].outputs
+        self.xover_index = {key: np.zeros((self.max_g, model_size)) for key in self.xover_index}
+        genes_per_instruction = self.population['Model_0'].arity + 1  # for the operator
+        self.mut_index = np.zeros((self.max_g, model_size * genes_per_instruction))
         # get parents for generation
         for g in range(1, self.max_g + 1):
-            if g > 1:
+            if g > 1 or (g <= 1 and self.xover_type == 'semantic'):  # parents in semantic xover need to be ordered
                 selected_parents = self.selection()
             else:
                 selected_parents = self.population
 
-            children = {}  # just so pycharm stops bitching
             if not self.mutation_can_make_children:
                 children = (
                     self.crossover(selected_parents, xover_rate, g)
                     if self.xover_type is not None
                     else selected_parents
                 )
-                children = self._mutate(children, g, mutation_rate)
+                # Add the original children to selected_parents
                 selected_parents.update(children)
-                self.population = selected_parents  # Merge the dictionaries
+                self.population = copy(selected_parents)
+                self._get_fitnesses()
+                # Compare child and parent (assuming this method is handling comparisons for other purposes)
+                self._compare_child_parents()
+                self._box_distribution(g)
+
+                # Mutate the children (don't mutate the parents)
+                mutated_children = self._mutate(children, g, mutation_rate)
+                self._get_fitnesses()
+                # Remove original children before updating with mutated children
+                # Assuming children are stored with the same keys
+                # selected_parents = {k: v for k, v in selected_parents.items() if k not in mutated_children}
+
+                # Update selected_parents with mutated children only
+                selected_parents.update(mutated_children)
+                self.population = copy(selected_parents)
+
             else:
                 self.population = self._mutate(selected_parents, g, mutation_rate)
-
+                self._compare_child_parents()
+                self._box_distribution(g)
             # get fitnesses
             self._get_fitnesses()
             self._clear_fitnesses()
@@ -537,14 +894,16 @@ class CartesianGP:
 
 
 np.random.seed(1)
-evolver = CartesianGP(parents=8, children=16, max_generations=50, mutation='point', selection='elite tournament',
-                      xover='uniform', fixed_length=True, fitness_function='Correlation',
-                      model_parameters={'max_size': 24},
-                      solution_threshold=0.05, n_points=1, tournament_size=8, n_elites=2, mutation_breeding=False)
-x = np.array([0, 1, 2, 3, 4, 5, 6])
-y = (x ** 2).reshape(-1, 1)  # fix this
-best_model = evolver.fit(x, y, 10, 1.0, 1.0)
-evolver.save_metrics()
+evolution_module = CartesianGP(parents=8, children=8, max_generations=100, mutation='point',
+                               selection='competent tournament',
+                               xover='semantic n_point', fixed_length=True, fitness_function='Correlation',
+                               model_parameters={'max_size': 128},
+                               solution_threshold=0.05, n_points=1, tournament_size=4, n_elites=2,
+                               mutation_breeding=False)
+x = np.array([0, 0.1, 0.2, 0.4, 0.5, 0.6, 0.8, 0.9, 0.94])
+y = (x ** 6 - 2 * x ** 4 + x ** 2).reshape(-1, 1)  # fix this
+best_model = evolution_module.fit(x, y, 10, 1.0, 1.0)
+evolution_module.save_metrics()
 
 best_model.print_model()
 best_model.to_csv()

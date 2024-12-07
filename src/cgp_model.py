@@ -23,6 +23,8 @@ class CGP:
         self.fitness = None
         self.fixed_length = fixed_length
         self.parent_keys = parent_keys
+        self.better_than_parents = None
+
         if fitness_function == 'Correlation':
             self.fitness_function = correlation
         else:
@@ -41,14 +43,18 @@ class CGP:
             self._initialize_from_kwargs(kwargs)
         self.first_body_node = self.inputs + len(self.model[self.model['NodeType'] == 'Constant'])
         self.last_body_node = self.inputs + len(self.model[self.model['NodeType'] == 'Constant']) + self.max_size - 1
-
+        self.xover_index = np.zeros(self.max_size + self.outputs)
         self._choose_mutation(mutation_type)
 
     def set_parent_key(self, parent_keys):
         self.parent_keys = parent_keys
+
+    def better_than_parents(self):
+        return self.better_than_parents
+
     def _initialize_from_model(self):
         """Initialize attributes from a pre-built model."""
-        self.constants = self.model['NodeType'][self.model['NodeType'] == 'Constants']
+        self.constants = self.model['NodeType'][self.model['NodeType'] == 'Constant']
         self.inputs = len(self.model['NodeType'][self.model['NodeType'] == 'Input'])
         self.outputs = len(self.model['NodeType'][self.model['NodeType'] == 'Output'])
         self.max_size = len(self.model[self.model['NodeType'] == 'Function'])
@@ -99,6 +105,8 @@ class CGP:
             outputs = np.array([self._compute_single_input(datum) for datum in data])
         else:
             outputs = np.array([self._compute_multiple_inputs(datum) for datum in data])
+        if self.slope is not None and self.intercept is not None:
+            outputs = outputs * self.slope + self.intercept
         return outputs
 
     def _get_node_value(self, operand):
@@ -113,7 +121,8 @@ class CGP:
             new_operands = [self._get_node_value(val) for val in new_node.filter(regex='Operand')]
             self.model.loc[operand, 'Active'] = 1  # sets as active node
             try:
-                return new_node['Operator'](*new_operands)
+                self.model.loc[operand, 'Value'] = new_node['Operator'](*new_operands)
+                return self.model.loc[operand, 'Value']
             except TypeError as e:
                 print(e)
                 print(self.model)
@@ -128,6 +137,7 @@ class CGP:
         # Get the rows where NodeType is 'Output'
         output_nodes = self.model[self.model['NodeType'] == 'Output']
         self.model['Active'] = 0  # resets all active node markers in case something has changed
+        self.model.loc[self.model['NodeType'] == 'Function', 'Value'] = 0  # resets all function values
 
         # Update the 'Value' column with computed values
         new_values = [self._get_node_value(o) for o in output_nodes['Operand0']]
@@ -153,7 +163,7 @@ class CGP:
         return self.fitness
 
     def get_active_nodes(self):
-        return self.model.loc(self.model['Active'] == 1)
+        return self.model[self.model['Active'] == 1]
 
     def count_active_nodes(self):
         return len(self.model[self.model['Active'] == 1])
