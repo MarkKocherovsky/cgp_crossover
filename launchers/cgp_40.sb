@@ -2,7 +2,7 @@
 
 #Mark Kocherovsky
 
-#SBATCH --time=24:00:00
+#SBATCH --time=1-12:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 
@@ -11,11 +11,38 @@
 #SBATCH -e "err\/%x-%j.txt"
 #SBATCH --mem=4G
 
+
 module purge
-cd $HOME
 module load Conda/3
-conda init bash
+
+# Debugging
+echo "Conda base path: $(conda info --base)"
+echo "Available environments:"
+ls $(conda info --base)/envs
+
+# Manually source conda if needed
+source ~/.bashrc
 conda activate cgp
+
+# Verify activation
+if [[ "$(which python3)" != "/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3" ]]; then
+    echo "Error: Conda environment 'cgp' not properly activated!"
+    exit 1
+fi
+
+# Debugging Conda and environment
+echo "Conda info:"
+conda info
+echo "Conda environment list:"
+conda env list | grep numpy
+echo "PYTHONPATH: $PYTHONPATH"
+echo "Environment variables:"
+env | grep -i conda
+
+# Run the script
+cd /mnt/home/kocherov/Documents/cgp/src/
+echo "trial $t"
+
 
 t=$1
 g=$2
@@ -26,6 +53,6 @@ f=$6
 ft=$7
 cd /mnt/home/kocherov/Documents/cgp/src/
 echo "trial $t"
-python3 -u cgp_40.py $t $g $n $p $c $f $ft
+/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u cgp_40.py $t $g $n $p $c $f $ft
 conda deactivate
 

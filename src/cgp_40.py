@@ -40,11 +40,8 @@ print(train_x)
 f = int(argv[7])
 fits = FitCollection()
 fit = fits.fit_list[f]
-print(f)
-print(fits.fit_list)
 fit_name = fits.name_list[f]
 print('Fitness Function')
-print(fit)
 print(fit_name)
 
 alignment = np.zeros((max_p + max_c, 2))
@@ -54,16 +51,12 @@ train_x_bias = np.zeros((train_x.shape[0], biases.shape[0] + 1))
 train_x_bias[:, 0] = train_x
 train_x_bias[:, 1:] = biases
 print(train_x_bias)
-#print(train_x_bias)
-#print(inputs+bias+max_n)
-#print("instantiating parent")
-#instantiate parents
-#test = run_output(ind_base, output_nodes, np.array([10.0]))
 
+#instantiate parents
 mutate = mutate_1_plus_4
 select = tournament_elitism
 parents = generate_parents(max_p, max_n, bank, first_body_node=11, outputs=1, arity=2)
-density_distro = initDensityDistro(max_n, outputs, arity)
+density_distro, density_distro_list = initDensityDistro(max_n, outputs, arity, max_g)
 
 fitness_objects = [Fitness() for i in range(0, max_p + max_c * max_p)]
 fitnesses = np.zeros((max_p + max_c * max_p), )
@@ -96,13 +89,9 @@ sharp_out_std = [np.std(np.std(neighbor_map, axis=1))]
 print(np.round(sharpness, 4))
 print(np.round(np.std(neighbor_map, axis=1) ** 2, 4))
 
-fit_track = []
-ret_avg_list = []  #best parent best child
-ret_std_list = []
-
-avg_change_list = []  #best parent best child
-avg_hist_list = []
-std_change_list = []
+fit_track, ret_avg_list, ret_std_list, avg_change_list, avg_hist_list, std_change_list, div_list, fit_mean = initTrackers()
+operators = 1
+mut_density_distro, mut_distro_list = initDensityDistro(max_n, operators, arity, max_g, outputs = 1)
 
 best_i = np.argmin(fitnesses[:max_p])
 p_size = [cgp_active_nodes(parents[best_i][0], parents[best_i][1])]
@@ -110,7 +99,8 @@ p_size = [cgp_active_nodes(parents[best_i][0], parents[best_i][1])]
 mut_impact = DriftImpact(neutral_limit=1e-3)
 
 for g in range(1, max_g + 1):
-    children, mutated_inds = zip(*[mutate(deepcopy(parent)) for parent in parents for _ in range(0, max_c)])
+    children, mutation_list = zip(*[mutate(deepcopy(parent)) for parent in parents for _ in range(0, max_c)])
+    mutated_inds = list(range(0, max_p))
     pop = parents + list(children)
     fit_temp = np.array(
         [fitness_objects[i](train_x_bias, train_y, ind) for i, ind in zip(list(range(0, max_p + max_c * max_p)), pop)])
@@ -119,7 +109,7 @@ for g in range(1, max_g + 1):
     if any(np.isnan(fitnesses)):  #Replace nans with positive infinity to screen them out
         nans = np.isnan(fitnesses)
         fitnesses[nans] = np.PINF
-    drift_per_parent_mut, drift_per_parent_xov = mut_impact(fitnesses, max_p, [], mutated_inds, opt=1,
+    drift_per_parent_mut, drift_per_parent_xov = mut_impact(fitnesses, [], max_p, [], mutated_inds, opt=1,
                                                             option='OneParent')
     ret = []
     chg = []
@@ -166,7 +156,18 @@ for g in range(1, max_g + 1):
     out_sharpness = np.std(neighbor_map, axis=1) ** 2
     sharp_out_list.append(np.mean(out_sharpness))  #variance
     sharp_out_std.append(np.std(out_sharpness))
+    for parent in range(max_p):
+        mut_density_distro, mut_distro_list = associateDistro(
+            drift_per_parent_mut[parent, :max_c].tolist(),
+            [parent] * max_c,
+            mutation_list,
+            mut_density_distro,
+            mut_distro_list,
+            g
+        )
 
+    div_list.append(semantic_diversity(fitnesses))
+    fit_mean.append(np.nanmean(fitnesses))
     best_i = np.argmin(fitnesses)
     best_fit = fitnesses[best_i]
     fit_track.append(best_fit)
@@ -180,9 +181,8 @@ for g in range(1, max_g + 1):
 
 pop = parents + list(children)
 fitnesses, alignment = processFitness(fitness_objects, train_x_bias, train_y, pop, max_p, max_c)
-best_i, best_fit, best_pop, mut_list, mut_cum, xov_list, xov_cum, density_distro, preds, p_a, p_b = processAndPrintResults(
-    t, fitnesses, pop, mut_impact, density_distro, train_x_bias = train_x_bias, train_y = train_y, mode = 'cgp')
-
+best_i, best_fit, best_pop, mut_list, mut_cum, xov_list, xov_cum, density_distro, mut_density_distro, preds, p_a, p_b = processAndPrintResults(
+    t, fitnesses, pop, mut_impact, density_distro, mut_density_distro, train_x_bias=train_x_bias, train_y=train_y, mode='cgp')
 run_name = 'cgp_40'
 # print(list(train_y))
 Path(f"../output/{run_name}/{func_name}/log/").mkdir(parents=True, exist_ok=True)
@@ -193,4 +193,5 @@ n = plot_active_nodes(best_pop[0], best_pop[1], first_body_node, bank_string, bi
                       run_name, t, opt=1)
 saveResults(run_name, func_name, t, biases, best_pop, preds, best_fit, n, fit_track, avg_change_list, ret_avg_list,
             p_size, bin_centers, hist_gens, avg_hist_list, mut_list, mut_cum,
-            xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro)
+            xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro,
+            density_distro_list, mut_density_distro, mut_distro_list, div_list, fit_mean)

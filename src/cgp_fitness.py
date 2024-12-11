@@ -1,32 +1,39 @@
 import warnings
-
 from scipy.stats import pearsonr
-
 from cgp_operators import *
+from numpy.polynomial.polyutils import RankWarning  # Correct import for RankWarning
 
 
 def rmse(preds, reals):
     return np.sqrt(np.mean((preds - reals) ** 2))
 
 
-def corr(preds, reals):
-    if any(np.isnan(preds)) or any(np.isinf(preds)):
-        return np.PINF
-    r = pearsonr(preds, reals)[0]
+def corr(preds, reals): 
+    # Check for NaN or infinity values in preds
+    preds = preds.flatten()
+    reals = reals.flatten()
+    if np.isnan(preds).any() or np.isinf(preds).any():
+        return np.inf
+    # Calculate Pearson correlation
+    r = pearsonr(preds, reals)[0]  # Pearson correlation coefficient    
+    # Return the fitness score, handle NaN correctly
     return 1 - r ** 2 if not np.isnan(r) else 1
 
 
 def align(preds, reals):
+    preds = preds.flatten()
+    reals = reals.flatten()
     if not all(np.isfinite(preds)):
         return 1.0, 0.0
     try:
         with warnings.catch_warnings():
-            warnings.simplefilter('ignore', np.RankWarning)
+            warnings.simplefilter('ignore', RankWarning)
             align_values = np.round(np.polyfit(preds, reals, 1, rcond=1e-16), decimals=14)
-    except:
+    except Exception as e:
+        print('cgp_fitness.py::align')
+        print(e)
         return 1.0, 0.0
     return align_values[0], align_values[1]
-
 
 def change(new, old):
     return (new - old) / old
@@ -41,7 +48,7 @@ class Fitness:
         self.bank = None
         self.arity = None
 
-    def __call__(self, data, target, individual, fit_function=corr, bank=(add, sub, mul, div), arity=2, opt=0):
+    def __call__(self, data, target, individual, arity, fit_function=corr, bank=(add, sub, mul, div),  opt=0):
         self.data = data
         self.target = target
         self.individual = individual
@@ -64,12 +71,18 @@ class Fitness:
             args = [inp_nodes[cur_node[j]] if cur_node[j] < inp_size else self.run(
                 self.individual[0][cur_node[j] - inp_size], inp_nodes) for j in range(self.arity)]
             return self.bank[cur_node[-1]](*args)
-        except RecursionError:
+        except RecursionError as e:
+            print('cgp_fitness.py::Fitness::run')
+            print(e)
             print(self.individual)
-            raise ValueError(f'Input Node = {cur_node}')
-        except IndexError:
+            print(f'inp_size: {inp_size}')
+            print(f'Input Node = {cur_node}')
+            exit(1)
+        except IndexError as e:
+            print('cgp_fitness.py::Fitness::run')
+            print(e)
             print(cur_node)
-            raise IndexError()
+            
 
     def run_output(self, inp_nodes):
         out_nodes = np.atleast_1d(self.individual[1])
@@ -97,7 +110,6 @@ class Fitness:
         data = np.atleast_1d(data)
         targ = np.atleast_1d(targ)
         out_x = np.zeros(data.shape[0])
-
         for x in range(data.shape[0]):
             in_val = [data[x]] if len(data.shape) <= 1 else data[x, :]
             with np.errstate(invalid='raise'):
@@ -110,6 +122,7 @@ class Fitness:
             try:
                 a, b = align(out_x, targ)
             except (OverflowError, FloatingPointError):
+                print('here2')
                 return np.nan, 1.0, 0.0
 
         new_x = out_x * a + b
@@ -126,14 +139,14 @@ class FitCollection:
 
 # Add xover impact
 class DriftImpact:
-    def __init__(self, neutral_limit=0.1):
+    def __init__(self, neutral_limit=0.001):
         self.mut_list = []
         self.mut_cum = np.array([0, 0, 0])
         self.xov_list = []
         self.xov_cum = np.array([0, 0, 0])
         self.neutral_limit = neutral_limit
 
-    def __call__(self, fitnesses, max_p, xov_parents, mut_parents, option='TwoParent', children=4, opt=0):
+    def __call__(self, fitnesses, xov_fitnesses, max_p, xov_parents, mut_parents, option='TwoParent', children=4, opt=0):
         drift_mut = np.array([0, 0, 0])
         drift_xov = np.array([0, 0, 0])
         drift_per_parent_mut = []
@@ -142,22 +155,24 @@ class DriftImpact:
         if option == 'TwoParent':
             for i in xov_parents:
                 p = min(fitnesses[i], fitnesses[i + 1])
-                c = min(fitnesses[i + max_p], fitnesses[i + 1 + max_p])
+                c = min(xov_fitnesses[i], xov_fitnesses[i + 1])
                 drift_xov, drift_per_parent_xov = self.get_drift_category(c, drift_xov, drift_per_parent_xov, p)
             for i in mut_parents:
-                p = fitnesses[i]
+                p = xov_fitnesses[i]
                 c = fitnesses[i + max_p]
                 drift_mut, drift_per_parent_mut = self.get_drift_category(c, drift_mut, drift_per_parent_mut, p)
         elif option == 'OneParent':  # only uses mutation
             for i in range(max_p):
                 p = fitnesses[i]
-                c = min(fitnesses[i * children: i * children + children])
-                drift_mut, drift_per_parent_mut = self.get_drift_category(c, drift_mut, drift_per_parent_mut, p)
-
+                c = fitnesses[i * children: i * children + children]
+                for child in c:
+                    # Call get_drift_category for each child and update drift_mut and drift_per_parent_mut
+                    drift_mut, drift_per_parent_mut = self.get_drift_category(child, drift_mut, drift_per_parent_mut, p)
+            drift_per_parent_mut = np.array(drift_per_parent_mut).reshape((max_p, children))
         self.mut_cum += drift_mut
         self.xov_cum += drift_xov
         self.mut_list.append(drift_mut.copy())
-
+        self.xov_list.append(drift_xov.copy())
         if opt == 1:
             return drift_per_parent_mut, drift_per_parent_xov
 

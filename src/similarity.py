@@ -5,11 +5,11 @@ from alignment.vocabulary import Vocabulary
 from effProg import *
 
 
-def find_similarity(child, parent, c_out=[], p_out=[], mode='cgp', method='distance'):
+def find_similarity(child, parent, first_body_node, c_out=[], p_out=[], mode='cgp', method='distance'):
     return {
         'proportion': find_similarity_prop,
         'distance': find_similarity_distance
-    }[method](child, parent, c_out, p_out, mode)
+    }[method](child, parent, first_body_node, c_out, p_out, mode)
 
 
 def get_similarity_score(c, p):
@@ -30,19 +30,19 @@ def get_similarity_score(c, p):
     return score
 
 
-def find_similarity_distance(child, parent, c_out=[], p_out=[], mode='cgp'):
+def find_similarity_distance(child, parent, first_body_node, c_out=[], p_out=[], mode='cgp'):
     if mode == 'cgp':
-        c_active = child[np.array(cgp_active_nodes(child, c_out, opt=3), dtype=np.int32)]
-        p_active = parent[np.array(cgp_active_nodes(parent, p_out, opt=3), dtype=np.int32)]
+        c_active = child[np.array(cgp_active_nodes(child, c_out, first_body_node, opt=3), dtype=np.int32)]
+        p_active = parent[np.array(cgp_active_nodes(parent, p_out, first_body_node, opt=3), dtype=np.int32)]
     elif mode == 'lgp':
         c_active, p_active = effProg(4, child), effProg(4, parent)
     return get_similarity_score(c_active, p_active)
 
 
-def find_similarity_prop(child, parent, c_out=[], p_out=[], mode='cgp'):
+def find_similarity_prop(child, parent, first_body_node, c_out=[], p_out=[], mode='cgp'):
     if mode == 'cgp':
-        c_active = np.array(cgp_active_nodes(child, c_out, opt=1), dtype=np.int32)
-        p_active = np.array(cgp_active_nodes(parent, p_out, opt=1), dtype=np.int32)
+        c_active = np.array(cgp_active_nodes(child, c_out, first_body_node, opt=1), dtype=np.int32)
+        p_active = np.array(cgp_active_nodes(parent, p_out, first_body_nde, opt=1), dtype=np.int32)
         retention = np.intersect1d(c_active, p_active)
     elif mode == 'lgp':
         c_active, p_active = effProg(4, child), effProg(4, parent)

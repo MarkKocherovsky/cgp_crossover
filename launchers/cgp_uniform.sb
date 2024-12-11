@@ -1,0 +1,55 @@
+#!/bin/bash
+
+#SBATCH --time=1-12:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --job-name=kocherov_cgp_uniform_run
+#SBATCH -o "logs/%x-%j.txt"
+#SBATCH -e "err/%x-%j.txt"
+#SBATCH --mem=8G
+
+module purge
+module load Conda/3
+
+# Debugging
+echo "Conda base path: $(conda info --base)"
+echo "Available environments:"
+ls $(conda info --base)/envs
+
+# Manually source conda if needed
+source ~/.bashrc
+conda activate cgp
+
+# Verify activation
+if [[ "$(which python3)" != "/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3" ]]; then
+    echo "Error: Conda environment 'cgp' not properly activated!"
+    exit 1
+fi
+
+# Debugging Conda and environment
+echo "Conda info:"
+conda info
+echo "Conda environment list:"
+conda env list
+echo "PYTHONPATH: $PYTHONPATH"
+echo "Environment variables:"
+env | grep -i conda
+
+# Run the script
+cd /mnt/home/kocherov/Documents/cgp/src/
+echo "trial $t"
+
+t=$1
+g=$2
+n=$3
+p=$4
+c=$5
+f=$6
+ft=$7
+pm=$8
+pc=$9
+
+# Run the script using the absolute path to Python in the activated environment
+/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u cgp_uniform.py $t $g $n $p $c $f $ft $pm $pc
+conda deactivate
+

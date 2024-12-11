@@ -56,7 +56,7 @@ def effProg(n_calc, prog_long, fb_node=12):  #Wolfgang gave this to me
 import graphviz as gv
 
 
-def draw_graph(ind, i_a, i_b, fb_node=12, n_inp=1, max_d=4, n_bias=10, bias=np.arange(0, 10, 1).astype(np.int32),
+def draw_graph(ind, i_a, i_b, fb_node, n_inp, max_d=4, n_bias=10, bias=np.arange(0, 10, 1).astype(np.int32),
                bank_string=("+", "-", "*", "/")):
     dot = gv.Digraph()
     #print(a)
@@ -134,7 +134,7 @@ def get_thiccness(ind, fb_node=12, max_d=4, operators=4):
     return from_operator, to_operator
 
 
-def draw_graph_thicc(ind, i_a, i_b, fb_node=12, n_inp=1, max_d=4, n_bias=10, bias=np.arange(0, 10, 1).astype(np.int32),
+def draw_graph_thicc(ind, i_a, i_b, fb_node, n_inp, max_d=4, n_bias=10, bias=np.arange(0, 10, 1).astype(np.int32),
                      bank_string=("+", "-", "*", "/")):
     f_mat, t_mat = get_thiccness(ind)
     dot = gv.Digraph()
@@ -190,13 +190,13 @@ def percent_change(new, old):
         return np.nan
 
 
-def cgp_active_nodes(ind_base, output_nodes, outputs=1, first_body_node=11, opt=0):
+def cgp_active_nodes(ind_base, output_nodes, first_body_node, outputs=1, opt=0):
     active_nodes = []
-
+    output_nodes = np.atleast_1d(output_nodes)
     def plot_body_node(n_node, arity=2):
         node = ind_base[n_node - first_body_node]
         for a in range(arity):
-            prev_node = node[a]
+            prev_node = node.flatten()[a]
             if prev_node not in active_nodes:
                 active_nodes.append(prev_node)  #count active nodes
             if prev_node >= first_body_node:  #inputs
@@ -220,8 +220,8 @@ def cgp_active_nodes(ind_base, output_nodes, outputs=1, first_body_node=11, opt=
         return (active_nodes[active_nodes >= first_body_node] - first_body_node)
 
 
-def cgp_graph(inputs, bias, ind_base, output_nodes, p_A, p_B, func_name, run_name, t, max_n=64, first_body_node=11,
-              arity=2, biases=list(range(0, 10)), bank_string=['+', '-', '*', '/']):
+def cgp_graph(inputs, bias, ind_base, output_nodes, p_A, p_B, func_name, run_name, t, max_n, first_body_node,
+              arity, biases=list(range(0, 10)), bank_string=['+', '-', '*', '/']):
     max_n = ind_base.shape[0]
     dot = gv.Digraph()
     for i in range(inputs):
@@ -256,7 +256,7 @@ def cgp_graph(inputs, bias, ind_base, output_nodes, p_A, p_B, func_name, run_nam
 
 
 def plot_active_nodes(ind_base, output_nodes, first_body_node, bank_string, biases, inputs, p_A, p_B, func_name,
-                      run_name, t, arity=2, opt=0):
+                      run_name, t, arity, opt=0):
     outputs = len(output_nodes)
     active_graph = gv.Digraph(strict=True)
     active_nodes = []
@@ -312,7 +312,7 @@ def plot_active_nodes(ind_base, output_nodes, first_body_node, bank_string, bias
     return active_node_num
 
 
-def lgp_print_individual(ind, a, b, run_name, func_name, bank_string, t, bias, n_inp=1, fb_node=12):
+def lgp_print_individual(ind, a, b, run_name, func_name, bank_string, t, bias, n_inp, fb_node):
     Path(f"../output/{run_name}/{func_name}/best_program/").mkdir(parents=True, exist_ok=True)
     ind = np.atleast_2d(ind)
 

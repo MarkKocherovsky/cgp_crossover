@@ -9,7 +9,7 @@ def rmse(preds, reals):
 
 def corr(preds, reals):
     if any(np.isnan(preds)) or any(np.isinf(preds)):
-        return np.PINF
+        return np.inf
     r = pearsonr(preds, reals)[0]
     if np.isnan(r):
         r = 0

@@ -17,7 +17,7 @@ if module_path not in sys.path:
 
 from cgp_ga import *
 from multiparent_wrapper import NeuralCrossoverWrapper
-
+print(argv)
 print("started")
 t = int(argv[1])  #trial
 print(f'trial {t}')
@@ -33,28 +33,55 @@ biases = np.arange(0, 10, 1).astype(np.int32)
 bias = biases.shape[0]  #number of biases
 print(f'biases {biases}')
 arity = 2
-p_mut = float(argv[6])
-p_xov = float(argv[7])
+p_mut = float(argv[8])
+print(f'p_mut: {p_mut}')
+p_xov = float(argv[9])
+print(f'p_xov: {p_xov}')
 random.seed(t + 420)
 print(f'Seed = {t + 420}')
-
-run_name = 'cgp_dnc'
-
+xover_type = int(argv[10])
+xover_list = ["Uniform", "OnePoint", "TwoPoint"]
+try:
+    learning_rate = float(argv[11])
+except:
+    learning_rate = 1e-4
+try:
+    xover = xover_list[xover_type]
+    print(xover)
+    run_name = f'cgp_dnc_{xover}_embedding_high'
+except IndexError:
+    print('cgp_dnc.py:\t unknown Crossover Type')
+    xover = 'OnePoint'
+    run_name = 'cgp_dnc_OnePoint'
+run_name = f'{run_name}_lr_{learning_rate:.1e}'
+print(run_name)
 bank = (add, sub, mul, div)
 bank_string = ("+", "-", "*", "/")
 
 func_bank = Collection()
-print(func_bank.func_list)
-func = func_bank.func_list[int(argv[5])]
-func_name = func_bank.name_list[int(argv[5])]
-train_x = func.x_dom
-train_y = func.y_test
-train_x_bias = np.zeros((train_x.shape[0], biases.shape[0] + 1))
-train_x_bias[:, 0] = train_x
-train_x_bias[:, 1:] = biases
+dims = int(argv[6])
+n_points = int(argv[7])
+func, func_name, func_dims = getFunction(int(argv[5]), dims)
+inputs = func_dims
 
-print(train_x)
+first_body_node = inputs + bias
+train_x, train_y = getXY(dims, n_points, func)
+if dims == 1:
+    train_x = train_x.flatten()
+    train_y = train_y.flatten()
+
+load_parents = False
+if load_parents:
+    run_name += '_parents'
+    print('opening data/cgp_parents.pkl')
+    with open('data/cgp_parents.pkl', 'rb') as f:
+        parents = pickle.load(f)
+else:
+    parents = None
+
+train_x_bias = prepareConstants(train_x, biases)
 n_items = len(train_x_bias)
+
 params_dict = {
     'n_generations': max_g,
     'population_size': max_p,
@@ -79,15 +106,15 @@ alignment[:, 0] = 1.0
 torch.manual_seed(t + 420)
 fitness = Fitness()
 ncs = NeuralCrossoverWrapper(embedding_dim=64, sequence_length=params_dict['ind_length'] * 3 + 1,
-                             num_embeddings=180 + 1,
+                             num_embeddings=250,
                              running_mean_decay=0.95,
-                             get_fitness_function=lambda ind: fitness(train_x_bias, train_y, ind),
-                             batch_size=4, freeze_weights=True,
-                             load_weights_path=None, learning_rate=1e-4,
-                             epsilon_greedy=0.3, use_scheduler=False, use_device='cpu', n_parents=2)
+                             get_fitness_function=lambda ind: fitness(train_x_bias, train_y, ind, arity),
+                             batch_size=820, freeze_weights=True,
+                             load_weights_path=None, learning_rate=learning_rate,
+                             epsilon_greedy=0.2, use_scheduler=False, use_device='cpu', n_parents=2, xover=xover)
 ga_class = SelectionGA(**params_dict, random_state=t + 42)
 PATH_TO_EXP = 'dnc/'
-data = ga_class.fit(PATH_TO_EXP, train_x_bias, train_y, fitness, crossover_func=ncs.cross_pairs)
+data = ga_class.fit(PATH_TO_EXP, train_x_bias, train_y, fitness, crossover_func=ncs.cross_pairs, parents=parents, first_body_node=first_body_node)
 best_pop = data[0]
 fit_track = data[1]
 best_fit = fit_track[-1]
@@ -101,7 +128,12 @@ sharp_out_list = data[8]
 sharp_in_std = data[9]
 sharp_out_std = data[10]
 density_distro = data[11]
-preds, p_A, p_B = fitness(train_x_bias, train_y, best_pop, opt=1)
+density_distro_list = data[12]
+mut_density_distro = data[13]
+mut_density_distro_list = data[14]
+div_list = data[15]
+fit_mean = data[16]
+preds, p_A, p_B = fitness(train_x_bias, train_y, best_pop, arity, opt=1)
 
 mut_cum, mut_list, xov_cum, xov_list = mut_impact.returnLists(option=0)
 
@@ -110,8 +142,15 @@ Path(f"../output/{run_name}/{func_name}/log/").mkdir(parents=True, exist_ok=True
 first_body_node = inputs + bias
 bin_centers, hist_gens, avg_hist_list = change_histogram_plot(avg_hist_list, func_name, run_name, t, max_g)
 n = plot_active_nodes(best_pop[0], best_pop[1], first_body_node, bank_string, biases, inputs, p_A, p_B, func_name,
-                      run_name, t, opt=1)
+                      run_name, t, arity, opt=1)
+print(p_size)
 saveResults(run_name, func_name, t, biases, best_pop, preds, best_fit, n, fit_track, avg_change_list, ret_avg_list,
             p_size, bin_centers, hist_gens, avg_hist_list, mut_list, mut_cum,
-            xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro)
-
+            xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro, density_distro_list, mut_density_distro, mut_density_distro_list, div_list, fit_mean)
+print('mutation')
+print(mut_density_distro)
+print('xover')
+print(density_distro)
+xovers = density_distro['d']+density_distro['n'] + density_distro['b']
+xovers = sum(xovers)
+print(f'# xovers = {xovers}, expected amount = {p_xov*max_p/2*max_g}')

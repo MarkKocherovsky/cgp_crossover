@@ -77,7 +77,7 @@ parents = parent_generator()
 
 train_x_bias = prepareConstants(train_x, bias)
 
-density_distro = initDensityDistro(max_r, n_out, arity, mode='lgp')
+density_distro, density_distro_list = initDensityDistro(max_r, n_out, arity, max_g, mode='lgp')
 
 fitnesses = np.zeros((max_p + max_c), )
 fitness_evaluator = Fitness(train_x, bias, train_y, parents, func, bank, n_inp, max_d, fit, arity)
@@ -117,20 +117,21 @@ mut_impact = DriftImpact(neutral_limit=1e-3)
 
 for g in range(1, max_g + 1):
     children, retention, d_distro = xover(deepcopy(parents), max_r, p_xov, 'uniform')
+    xov_fitness_evaluator = Fitness(train_x, bias, train_y, children, func, bank, n_inp, max_d, fit, arity)
     children, mutated_inds = mutate(deepcopy(children), max_c, max_r, max_d, bank, inputs=1, n_bias=10, arity=2)
     pop = parents + children
     fitness_evaluator = Fitness(train_x, bias, train_y, pop, func, bank, n_inp, max_d, fit, arity)
     fitnesses, alignment[:, 0], alignment[:, 1] = fitness_evaluator()
-    drift_per_parent_mut, drift_per_parent_xov = mut_impact(fitnesses, max_p, retention, mutated_inds, opt=1)
+    xov_fitnesses, _, _ = xov_fitness_evaluator()
+    drift_per_parent_mut, drift_per_parent_xov = mut_impact(fitnesses, xov_fitnesses, max_p, retention, mutated_inds, opt=1)
     avg_hist_list, avg_change_list, std_change_list, ret_avg_list, ret_std_list = processRetention(retention, pop,
-                                                                                                   fitnesses, max_p,
+                                                                                                   fitnesses, xov_fitnesses, max_p,
                                                                                                    avg_hist_list,
                                                                                                    avg_change_list,
                                                                                                    std_change_list,
                                                                                                    ret_avg_list,
-                                                                                                   ret_std_list, g,
-                                                                                                   mode='lgp')
-
+                                                                                                   ret_std_list, g, mode='lgp')
+ 
     sharp_in_list, sharp_in_std, sharp_out_list, sharp_out_std = processSharpnessLGP(train_x, train_x_bias, alignment,
                                                                                      max_p,
                                                                                      max_c, n_inp, func, bank, n_inp,
@@ -141,7 +142,7 @@ for g in range(1, max_g + 1):
                                                                                      sharp_out_manager,
                                                                                      sharp_out_list, sharp_out_std,
                                                                                      train_y)
-    density_distro = associateDistro(drift_per_parent_xov, retention, d_distro, density_distro)
+    density_distro, density_distro_list = associateDistro(drift_per_parent_xov, retention, d_distro, density_distro, density_distro_list, g)
     best_i = getBestInd(fitnesses)
     best_fit = fitnesses[best_i]
     if g % 100 == 0:
@@ -171,9 +172,11 @@ with open(f"../output/lgp/{func_name}/best_program/best_{t}.txt", 'a') as f:
     f.write(f'{p}')
 print('effective program')
 print(p)
+
 saveResults(run_name, func_name, t, bias, best_pop, preds, best_fit, len(p), fit_track, avg_change_list, ret_avg_list,
             p_size, bin_centers, hist_gens, avg_hist_list, mut_list, mut_cum,
-            xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro)
+            xov_list, xov_cum, sharp_in_list, sharp_out_list, sharp_in_std, sharp_out_std, density_distro, density_distro_list)
+
 print('run finished')
 dot = draw_graph_thicc(p, p_A, p_B)
 Path(f"../output/lgp/{func_name}/full_graphs/").mkdir(parents=True, exist_ok=True)

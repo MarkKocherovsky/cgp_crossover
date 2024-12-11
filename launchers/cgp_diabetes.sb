@@ -1,0 +1,50 @@
+#!/bin/bash
+
+#SBATCH --time=3:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --job-name=kocherov_diabetes_2xvl_run
+#SBATCH -o "logs/%x-%j.txt"
+#SBATCH -e "err/%x-%j.txt"
+#SBATCH --mem=8G
+
+module purge
+module load Conda/3
+
+# Debugging
+echo "Conda base path: $(conda info --base)"
+
+# Manually source conda if needed
+source ~/.bashrc
+conda activate cgp
+
+# Verify activation
+if [[ "$(which python3)" != "/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3" ]]; then
+    echo "Error: Conda environment 'cgp' not properly activated!"
+    exit 1
+fi
+
+# Run the script
+cd /mnt/home/kocherov/Documents/cgp/src/real_world/
+pwd
+echo "trial $t"
+
+t=$1
+g=$2
+n=$3
+p=$4
+c=$5
+f=$6
+pm=$7
+pc=$8
+
+# Run the script using the absolute path to Python in the activated environment
+
+#/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u cgp.py $t $g $n 4
+/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u cgp_vlen.py $t $g $n $p $c 0.5 0.025 2
+#/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u cgp_div.py $t $g $n $p $c 0.5 0.025 3
+#/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u cgp_dnc.py $t $g $n $p 0.5 0.025 0 0.0001
+#/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u cgp_dnc.py $t $g $n $p 0.5 0.025 1 0.0001
+#/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u cgp_sgx.py $t $g $n $p $c 0.5 0.025
+#/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u cgp_real.py $t $g $n $p $c 0.5 0.025
+conda deactivate

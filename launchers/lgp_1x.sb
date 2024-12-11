@@ -8,13 +8,37 @@
 
 #SBATCH --job-name=kocherov_lgp_1x_run
 #SBATCH -o "logs\/%x-%j.txt"
+#SBATCH -e "err\/%x-%j.txt"
 #SBATCH --mem=2G
 
-module purge
-cd $HOME
-module load Conda/3
-conda init bash
+
+echo "Conda base path: $(conda info --base)"
+echo "Available environments:"
+ls $(conda info --base)/envs
+
+# Manually source conda if needed
+source ~/.bashrc
 conda activate cgp
+
+# Verify activation
+if [[ "$(which python3)" != "/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3" ]]; then
+    echo "Error: Conda environment 'cgp' not properly activated!"
+    exit 1
+fi
+
+# Debugging Conda and environment
+echo "Conda info:"
+conda info
+echo "Conda environment list:"
+conda env list
+echo "PYTHONPATH: $PYTHONPATH"
+echo "Environment variables:"
+env | grep -i conda
+
+# Run the script
+cd /mnt/home/kocherov/Documents/cgp/src/
+echo "trial $t"
+
 echo $*
 t=$1
 echo $t
@@ -40,6 +64,6 @@ echo $fl
 echo $rn
 echo "$rn"
 cd /mnt/home/kocherov/Documents/cgp/launchers/
-python3 -u ../src/lgp_1x.py $t $g $r $d $p $c $f $ft $pm $px $rn $fl
+/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python -u ../src/lgp_1x.py $t $g $r $d $p $c $f $ft $pm $px $rn $fl
 conda deactivate
 

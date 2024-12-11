@@ -12,9 +12,9 @@ ft=1
 pm=0.025
 px=0.5
 
-for f in {1..1}
+for f in {2..2}
 do
-	for t in {51..51}
+	for t in {15 28}
 	do
 		sbatch lgp.sb $t $g $r $d $p $c $f $ft $pm $px
 		#python3 ../src/lgp.py $t $g $r $d $p $c $f &

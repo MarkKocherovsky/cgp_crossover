@@ -2,7 +2,7 @@
 
 #Mark Kocherovsky
 
-#SBATCH --time=1-12:00:00
+#SBATCH --time=3:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 
@@ -11,11 +11,21 @@
 #SBATCH --mem=8G
 
 module purge
-#cd $HOME
-cd /mnt/home/kocherov/Documents/cgp/src/
 module load Conda/3
-conda init
+
+# Manually source conda if needed
+source ~/.bashrc
 conda activate cgp
+
+# Verify activation
+if [[ "$(which python3)" != "/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3" ]]; then
+    echo "Error: Conda environment 'cgp' not properly activated!"
+    exit 1
+fi
+
+# Run the script
+cd /mnt/home/kocherov/Documents/cgp/src/
+echo "trial $t"
 
 t=$1
 g=$2
@@ -23,11 +33,14 @@ n=$3
 p=$4
 c=$5
 f=$6
-ft=$7
-pm=$8
-pc=$9
-cd /mnt/home/kocherov/Documents/cgp/src/
-echo "trial $t"
-python3 -u cgp_vlen.py $t $g $n $p $c $f $ft $pm $pc
-conda deactivate
+dims=$7
+points=$8
+pm=$9
+shift
+shift
+pc=$8
+xov=$9
 
+# Run the script using the absolute path to Python in the activated environment
+/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u cgp_vlen.py $t $g $n $p $c $f $dims $points $pm $pc $xov
+conda deactivate

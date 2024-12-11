@@ -11,7 +11,7 @@ from numpy import random
 #m: Upper node number limit, null by default
 #I List of input nodes, null by default
 #N_F List of number of body nodes [x, x+1,...,x_n]
-def RandomNodeNumber(n_i=1, I=None, N_f=None, m=None):
+def RandomNodeNumber(n_i, I=None, N_f=None, m=None):
     if N_f is None:
         N_f = []
     if I is None:
@@ -80,11 +80,10 @@ def DetermineCrossoverPoint(P1, P2, M1, M2):
         return -1
 
 
-def DetermineActiveNodes(individual, first_body_node=11, arity=2):
+def DetermineActiveNodes(individual, first_body_node, arity=2):
     active_nodes = []
     ind = individual[0]
     output_nodes = individual[1]
-
     def get_body_node(n_node):
         node = ind[n_node - first_body_node]
         for a in range(arity):
@@ -100,9 +99,9 @@ def DetermineActiveNodes(individual, first_body_node=11, arity=2):
             get_body_node(node)
             if node not in active_nodes:
                 active_nodes.append(node)
-        else:
-            if node not in active_nodes:
-                active_nodes.append(node)
+        #else:
+        #    if node not in active_nodes:
+        #        active_nodes.append(node)
     return active_nodes
 
 
@@ -110,24 +109,25 @@ def DetermineActiveNodes(individual, first_body_node=11, arity=2):
 #P1 Genome of the first parent
 #P2 Genome of the second parent
 #n_i Number of Inputs
-def SubgraphCrossover(P1, P2, max_n, n_i=1, first_body_node=11, arity=2):
-    density_distro = np.zeros(max_n*3)
+def SubgraphCrossover(P1, P2, max_n, first_body_node, n_i=1, arity=2):
+    density_distro = np.zeros(max_n)
     G1 = P1[0].copy()  #store the genome of parent p1 in g1
     G2 = P2[0].copy()  #store the genome of parent p2 in g2
     O1 = P1[1].copy()
     O2 = P2[1].copy()
 
-    M1 = DetermineActiveNodes([G1, O1])
-    M2 = DetermineActiveNodes([G2, O2])
-    #print(M1, M2)
     n_g = G1.shape[0]  #Determine Number of Genes
+    C_P = -1
+    while C_P < 0:
+        M1 = DetermineActiveNodes([G1, O1], first_body_node)
+        M2 = DetermineActiveNodes([G2, O2], first_body_node)
 
-    C_P = DetermineCrossoverPoint(G1, G2, M1, M2)  #Determine Crossover Point
-    if C_P < 0:  #if neither have active nodes
-        print("No Active Nodes?")
-        print(G1, O1)
-        print(G2, O2)
-        return (G1, O1)
+        C_P = DetermineCrossoverPoint(G1, G2, M1, M2)  #Determine Crossover Point
+        if C_P < 0:  #if neither have active nodes
+            for o, ou in enumerate(O1):
+                O1[o] = random.randint(first_body_node, max_n+first_body_node)
+            for o, Ou in enumerate(O2):
+                O2[o] = random.randint(first_body_node, max_n+first_body_node)
     p_c = C_P + 1 - first_body_node
     density_distro[p_c] += 1
     G0 = np.concatenate((G1[:p_c], G2[p_c:]),
@@ -159,7 +159,7 @@ def SubgraphCrossover(P1, P2, max_n, n_i=1, first_body_node=11, arity=2):
 #nF: Number of the first active node before the crossover point
 #nB: Number of the first active node behind the crossover point
 #G0: Offspring Genome
-def NeighborhoodConnect(nF, nB, G0, first_body_node=11, arity=2):
+def NeighborhoodConnect(nF, nB, G0, first_body_node, arity=2):
     #print('neighborhood connect')
     #print(nF)
     #print(nB)
@@ -185,7 +185,7 @@ def NeighborhoodConnect(nF, nB, G0, first_body_node=11, arity=2):
 # CP: The Crossover Point
 # G0: Genome of the Offspring
 # O: Output Nodes
-def RandomActiveConnect(n_i, NA, CP, G0, O, first_body_node=11, arity=2):
+def RandomActiveConnect(n_i, NA, CP, G0, O, first_body_node, arity=2):
     #print('random active connect')
     I = []  #get input nodes
     for n in G0:

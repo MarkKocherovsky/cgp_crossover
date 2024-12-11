@@ -56,6 +56,8 @@ def onepoint_xover(parents, max_r, p_xov, fixed_length):  # 1 point crossover
             try:
                 if p1.shape[0] > 2 and p2.shape[0] > 2:
                     s = [random.randint(1, p1.shape[0] - 1), random.randint(1, p2.shape[0] - 1)]
+                elif p1.shape[0] == 2 and p2.shape[0] == 2:
+                    s = [1, 1]
                 elif p1.shape[0] == 2:
                     s = [1, random.randint(1, p2.shape[0] - 1)]
                 elif p2.shape[0] == 2:

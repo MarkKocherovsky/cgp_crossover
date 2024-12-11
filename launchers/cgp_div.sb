@@ -1,0 +1,44 @@
+#!/bin/bash
+
+#SBATCH --time=12:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --job-name=kocherov_cgp_diversity_run_subgraph_long
+#SBATCH -o "logs/%x-%j.txt"
+#SBATCH -e "err/%x-%j.txt"
+#SBATCH --mem=8G
+
+module purge
+module load Conda/3
+
+# Manually source conda if needed
+source ~/.bashrc
+conda activate cgp
+
+# Verify activation
+if [[ "$(which python3)" != "/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3" ]]; then
+    echo "Error: Conda environment 'cgp' not properly activated!"
+    exit 1
+fi
+
+# Run the script
+cd /mnt/home/kocherov/Documents/cgp/src/
+echo "trial $t"
+
+t=$1
+g=$2
+n=$3
+p=$4
+c=$5
+f=$6
+dims=$7
+points=$8
+pm=$9
+shift
+shift
+pc=$8
+xov=$9
+
+# Run the script using the absolute path to Python in the activated environment
+/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u cgp_diversity.py $t $g $n $p $c $f $dims $points $pm $pc $xov
+conda deactivate

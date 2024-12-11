@@ -1,4 +1,4 @@
-from copy import deepcopy
+from copy import deepcopy, copy
 
 import numpy as np
 from numpy import random
@@ -14,7 +14,7 @@ class SAM:
 
 
 class SAM_IN(SAM):
-    def __init__(self, dataset, n_inp=1, epsilon=0.2, choice_prop=1.00):
+    def __init__(self, dataset, n_inp=1, epsilon=0.01, choice_prop=1.00):
         self.n_inp = n_inp
         self.dataset = dataset
         super().__init__(epsilon, choice_prop)
@@ -35,9 +35,14 @@ class SAM_IN(SAM):
             reshaped = True
         if std == 'None':
             std = self.get_std()
-
         total_size = vec.shape[0]  #total number of samples
         sample_size = np.round(total_size * self.choice_prop).astype(np.int32)
+        #if self.choice_prop > 1.0:
+        #    remainder = int((self.choice_prop-int(self.choice_prop))*total_size)
+        #    new_dataset = np.concatenate([vec for _ in range(int(self.choice_prop))])
+        #    new_dataset = np.concatenate((new_dataset, vec[:remainder]))
+        #    vec = copy(new_dataset)
+        #    del(new_dataset)
         samples = random.choice(np.arange(0, total_size, 1, dtype=np.int32), sample_size)
         for s in samples:
             for f in range(self.n_inp):  #does not include constants
@@ -66,11 +71,12 @@ class SAM_IN(SAM):
 
 
 class SAM_OUT(SAM):
-    def __init__(self, epsilon=1.0):
+    def __init__(self, epsilon=0.01):
         super().__init__(epsilon)
 
     def _get_std(self, predictions, low_bound=1e-2):
-        return max(np.std(predictions), low_bound)
+        return np.std(predictions)
+        #return max(np.std(predictions), low_bound)
 
     def perturb(self, predictions, num_neighbors=25):
         std = self._get_std(predictions)
