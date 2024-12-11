@@ -25,7 +25,7 @@ class CGP:
         self.parent_keys = parent_keys
         self.better_than_parents = None
 
-        if fitness_function == 'Correlation':
+        if fitness_function.lower() == 'correlation':
             self.fitness_function = correlation
         else:
             raise ValueError(f'Invalid Fitness Function: {fitness_function}')
