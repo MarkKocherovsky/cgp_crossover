@@ -50,6 +50,7 @@ mutation_rate = args.mutation_rate
 selection_type = args.selection_type
 fitness_function = args.fitness_function
 test_problem_key = args.test_problem_key
+problem_dimensions = args.problem_dimensions
 n_points = args.n_points
 tournament_size = args.tournament_size
 n_elites = args.n_elites
@@ -77,7 +78,7 @@ print(f"Number of Elites: {n_elites}")
 # initialize problem data
 
 problem_list = Collection()
-test_function = problem_list(test_problem_key, n_dims=1)
+test_function = problem_list(test_problem_key, n_dims=problem_dimensions)
 train_x, test_x, train_y, test_y = test_function.return_points()
 
 # establish output path
@@ -118,4 +119,4 @@ if test_x is not None:
 
 evolution_module.save_metrics(run_path)
 best_model.print_model()
-best_model.to_csv(f'{run_path}/best_model')
+best_model.to_csv(f'{run_path}/best_model.csv')

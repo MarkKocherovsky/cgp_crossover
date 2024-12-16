@@ -94,7 +94,7 @@ class CartesianGP:
         possible_selection_functions = {
             'elite': self.elite_selection,
             'tournament': self.tournament_selection,
-            'elite tournament': self.elite_tournament_selection,
+            'elite_tournament': self.elite_tournament_selection,
             'competent tournament': self.competent_tournament_selection
         }
 
@@ -102,8 +102,8 @@ class CartesianGP:
             'n_point': self._n_point_xover,
             'uniform': self._uniform_xover,
             'subgraph': self._subgraph_xover,
-            'semantic n_point': self._n_point_xover,
-            'semantic uniform': self._uniform_xover,
+            'semantic_n_point': self._n_point_xover,
+            'semantic_uniform': self._uniform_xover,
             # 'semantic uniform': self._semantic_uniform_xover
         }
         if self.mutation_type not in ['point']:
@@ -279,7 +279,7 @@ class CartesianGP:
                 p1 = parent_list[p]
                 p2 = parent_list[p + 1]
                 if np.random.rand() < xover_rate:
-                    if self.xover_type == 'Subgraph':
+                    if self.xover_type.lower() == 'subgraph':
                         c1 = self.xover(p1, p2, gen)
                         c2 = self.xover(p2, p1, gen)
                     else:
@@ -785,11 +785,3 @@ class CartesianGP:
             if g % step_size == 0:
                 self._report_generation(g)
         return self.best_model
-
-
-np.random.seed(1)
-evolution_module = CartesianGP(parents=16, children=16, max_generations=1000, mutation='point',
-                               selection='competent tournament',
-                               xover='semantic n_point', fixed_length=True, fitness_function='Correlation',
-                               model_parameters={'max_size': 32}, n_points=1, tournament_size=6, n_elites=2,
-                               mutation_breeding=False)

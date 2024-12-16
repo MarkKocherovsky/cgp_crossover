@@ -75,49 +75,49 @@ class TwoDimensionalFunction(Function):  # functions that will always be 2-dimen
 
 
 koza_1 = OneDimensionalFunction(
-    name='Koza 1',
+    name='Koza1',
     x_domain=[-1, 1],
     function=lambda x: x ** 4 + x ** 3 + x ** 2 + x,
     points=20
 )
 
 koza_2 = OneDimensionalFunction(
-    name='Koza 2',
+    name='Koza2',
     x_domain=[-1, 1],
     function=lambda x: x ** 5 - 2 * x ** 3 + x,
     points=20
 )
 
 koza_3 = OneDimensionalFunction(
-    name='Koza 3',
+    name='Koza3',
     x_domain=[-1, 1],
     function=lambda x: x ** 6 - 2 * x ** 4 + x ** 2,
     points=20
 )
 
 nguyen_4 = OneDimensionalFunction(
-    name='Nguyen 4',
+    name='Nguyen4',
     x_domain=[-1, 1],
     function=lambda x: x ** 6 + x ** 5 + x ** 4 + x ** 3 + x ** 2 + x,
     points=20
 )
 
 nguyen_5 = OneDimensionalFunction(
-    name='Nguyen 5',
+    name='Nguyen5',
     x_domain=[-1, 1],
     function=lambda x: sin(x ** 2) * cos(x) - 1,
     points=20
 )
 
 nguyen_6 = OneDimensionalFunction(
-    name='Nguyen 6',
+    name='Nguyen6',
     x_domain=[-1, 1],
     function=lambda x: sin(x) + sin(x + x ** 2),
     points=20
 )
 
 nguyen_7 = OneDimensionalFunction(
-    name='Nguyen 7',
+    name='Nguyen7',
     x_domain=[0, 2],
     function=lambda x: log(x + 1) + log(x ** 2 + 1),
     points=20
@@ -146,14 +146,14 @@ cross_in_tray = TwoDimensionalFunction(
 )
 
 drop_wave = TwoDimensionalFunction(
-    name='Drop Wave',
+    name='DropWave',
     x_domain=[-5.12, 5.12],
     function=lambda x1, x2: -(1 + cos(12 * distance((x1, x2)))) / (0.5 * (x1 ** 2 + x2 ** 2) + 2),
     points=40
 )
 
 holder_table = TwoDimensionalFunction(
-    name='Holder Table',
+    name='HolderTable',
     x_domain=[-10, 10],
     function=lambda x1, x2: -(sin(x1) * cos(x2) * exp(abs(1 - distance((x1, x2)) / pi))),
     points=40
@@ -167,14 +167,14 @@ eggholder = TwoDimensionalFunction(
 )
 
 schaffer2 = TwoDimensionalFunction(
-    name='Schaffer 2',
+    name='Schaffer2',
     x_domain=[-100, 100],
     function=lambda x1, x2: 0.5 + (sin(x1 ** 2 - x2 ** 2) ** 2 - 0.5) / (1 + 0.001 * (x1 ** 2 + x2 ** 2)) ** 2,
     points=40
 )
 
 schaffer4 = TwoDimensionalFunction(
-    name='Schaffer 4',
+    name='Schaffer4',
     x_domain=[-100, 100],
     function=lambda x1, x2: 0.5 + (cos(sin(abs(x1 ** 2 - x2 ** 2))) ** 2 - 0.5) / (
             1 + 0.001 * (x1 ** 2 + x2 ** 2)) ** 2,
@@ -191,21 +191,21 @@ schubert = TwoDimensionalFunction(
 )
 
 bohachevsky1 = TwoDimensionalFunction(
-    name='Bohachevsky 1',
+    name='Bohachevsky1',
     x_domain=[-100, 100],
     function=lambda x1, x2: x1 ** 2 + 2 * x2 ** 2 - 0.3 * cos(3 * pi * x1) - 0.4 * cos(4 * pi * x2) + 0.7,
     points=40
 )
 
 bohachevsky2 = TwoDimensionalFunction(
-    name='Bohachevsky 2',
+    name='Bohachevsky2',
     x_domain=[-100, 100],
     function=lambda x1, x2: x1 ** 2 + 2 * x2 ** 2 - 0.3 * cos(3 * pi * x1) * 0.4 * cos(4 * pi * x2) + 0.3,
     points=40
 )
 
 bohachevsky3 = TwoDimensionalFunction(
-    name='Bohachevsky 3',
+    name='Bohachevsky3',
     x_domain=[-100, 100],
     function=lambda x1, x2: x1 ** 2 + 2 * x2 ** 2 - 0.3 * cos(3 * pi * x1 + 4 * pi * x2) + 0.3,
     points=40
@@ -233,21 +233,21 @@ mccormick = TwoDimensionalFunction(
 )
 
 threehumpcamel = TwoDimensionalFunction(
-    name='Three-Hump Camel',
+    name='Three-Hump-Camel',
     x_domain=[-5, 5],
     function=lambda x1, x2: 2 * x1 ** 2 - 1.05 * x1 ** 4 + x1 ** 6 / 4 + x1 * x2 + x2 ** 2,
     points=40
 )
 
 sixhumpcamel = TwoDimensionalFunction(
-    name='Six-Hump Camel',
+    name='Six-Hump-Camel',
     x_domain=[[-3, 3], [-2, 2]],
     function=lambda x1, x2: (4 - 2.1 * x1 ** 2 + x1 ** 4 / 3) + x1 * x2 + (-4 + 4 * x2 ** 2) * x2,
     points=40
 )
 
 de_ong = TwoDimensionalFunction(
-    name='De Ong',
+    name='DeOng',
     x_domain=[-65.536, 65.536],
     function=lambda x1, x2: (
         lambda A: 1 / (0.002 + np.sum(1 / (np.arange(1, 26) + (x1 - A[0, :]) ** 6 + (x2 - A[1, :]) ** 6))))(
@@ -296,7 +296,7 @@ goldstein_price = TwoDimensionalFunction(
 )
 
 power_sum = Function(
-    name='Power Sum',
+    name='PowerSum',
     x_domain=[0, 4],
     dimensions=4,
     function=lambda x1, x2, x3, x4: np.sum([
@@ -412,7 +412,7 @@ def perm(n_dim):
 
 def hyper_ellipsoid(n_dim):
     hyper_ellipsoid_function = Function(
-        name='Hyper Ellipsoid',
+        name='HyperEllipsoid',
         x_domain=[-65.536, 65.536],
         dimensions=n_dim,
         function=lambda *xs: np.sum([np.sum([np.atleast_1d(xs)[j] ** 2 for j in range(i)]) for i in range(n_dim)]),
@@ -423,7 +423,7 @@ def hyper_ellipsoid(n_dim):
 
 def different_powers(n_dim):
     different_powers_function = Function(
-        name='Different Powers',
+        name='DifferentPowers',
         x_domain=[-1, 1],
         dimensions=n_dim,
         function=lambda *xs: np.sum([abs(np.atleast_1d(xs)[i]) ** (i + 2) for i in range(n_dim)]),
@@ -502,47 +502,47 @@ class Collection:
         self.function_list = {
             'Ackley': ackley,
             'Beale': beale,
-            'Bohachevsky 1': bohachevsky1,
-            'Bohachevsky 2': bohachevsky2,
-            'Bohachevsky 3': bohachevsky3,
+            'Bohachevsky1': bohachevsky1,
+            'Bohachevsky2': bohachevsky2,
+            'Bohachevsky3': bohachevsky3,
             'Booth': booth,
             'Branin': branin,
             'Bukin': bukin,
             'Coleville': coleville,
             'Cross-in-Tray': cross_in_tray,
-            'De Ong': de_ong,
-            'Different Powers': different_powers,
+            'DeOng': de_ong,
+            'DifferentPowers': different_powers,
             'Dixon-Price': dixon_price,
-            'Drop Wave': drop_wave,
+            'DropWave': drop_wave,
             'Easom': easom,
             'Eggholder': eggholder,
             'Forrester': forrester,
             'Goldstein-Price': goldstein_price,
             'Griewank': griewank,
-            'Holder Table': holder_table,
-            'Hyper Ellipsoid': hyper_ellipsoid,
-            'Koza 1': koza_1,
-            'Koza 2': koza_2,
-            'Koza 3': koza_3,
+            'HolderTable': holder_table,
+            'HyperEllipsoid': hyper_ellipsoid,
+            'Koza1': koza_1,
+            'Koza2': koza_2,
+            'Koza3': koza_3,
             'Levy': levy,
             'Matyas': matyas,
             'McCormick': mccormick,
             'Michaelewiz': michaelewiz,
-            'Nguyen 4': nguyen_4,
-            'Nguyen 5': nguyen_5,
-            'Nguyen 6': nguyen_6,
-            'Nguyen 7': nguyen_7,
+            'Nguyen4': nguyen_4,
+            'Nguyen5': nguyen_5,
+            'Nguyen6': nguyen_6,
+            'Nguyen7': nguyen_7,
             'Perm': perm,
-            'Power Sum': power_sum,
+            'PowerSum': power_sum,
             'Rastrigin': rastrigin,
             'Rosenbrock': rosenbrock,
-            'Schaffer 2': schaffer2,
-            'Schaffer 4': schaffer4,
+            'Schaffer2': schaffer2,
+            'Schaffer4': schaffer4,
             'Schubert': schubert,
             'Schwefel': schwefel,
-            'Six-Hump Camel': sixhumpcamel,
+            'Six-Hump-Camel': sixhumpcamel,
             'Sphere': sphere,
-            'Three-Hump Camel': threehumpcamel,
+            'Three-Hump-Camel': threehumpcamel,
             'Trid': trid,
             'Zakharov': zakharov
         }
@@ -550,6 +550,11 @@ class Collection:
     def __call__(self, function_name, n_dims=1):
         assert function_name in self.function_list, f'{function_name} not a valid function.'
         try:
-            return self.function_list.get(function_name(n_dims))
+            f = self.function_list[function_name]
+            if not isinstance(f, OneDimensionalFunction) and not isinstance(f, TwoDimensionalFunction):
+                return f(n_dims)
+            else:
+                return f
+        
         except TypeError:
             return self.function_list.get(function_name)

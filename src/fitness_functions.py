@@ -8,16 +8,20 @@ from numpy.exceptions import RankWarning
 from scipy.stats import pearsonr
 import numpy as np
 
-def correlation(predictions, ground_truth):
+def correlation(preds, truth):
     # Check if predictions or ground_truth are constant
-    predictions = predictions.flatten()
-    ground_truth = ground_truth.flatten()
+    if not isinstance(preds, np.ndarray):
+        preds = np.array(preds)
+    if not isinstance(truth, np.ndarray):
+        truth = np.array(truth)
+    predictions = preds.flatten()
+    ground_truth = truth.flatten()
     if not np.all(np.isfinite(predictions)) or np.all(predictions == predictions[0]) or np.all(
             ground_truth == ground_truth[0]):
         return 1.0
 
     # Check for near constant input
-    if np.linalg.norm(predictions - np.mean(predictions)) < 1e-13 * abs(np.mean(predictions)):
+    if np.linalg.norm(predictions - np.mean(predictions)) < 1e-13 * abs(np.mean(predictions)) or np.std(predictions) < 1e-10:
         return 1.0  # Treat as maximally uncorrelated
 
     # Calculate Pearson correlation
@@ -32,10 +36,10 @@ def correlation(predictions, ground_truth):
 
 
 # updated with chatgpt
-def align(predictions, ground_truth):
+def align(preds, truth):
     # Filter out non-finite values from both arrays
-    predictions = predictions.flatten()
-    ground_truth = ground_truth.flatten()
+    predictions = np.array(preds).flatten()
+    ground_truth = np.array(truth).flatten()
     mask = np.isfinite(predictions) & np.isfinite(ground_truth)
     if not np.any(mask):
         return 1.0, 0.0  # Default slope and intercept if no valid data points

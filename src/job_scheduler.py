@@ -2,33 +2,35 @@ import os
 import subprocess
 import time
 from test_problems import Collection
-
+from pathlib import Path
 # SLURM settings
 MAX_JOBS = 1000  # Maximum jobs allowed in queue/running
 
 # Problem configuration
 functions = Collection()
-function_list = functions.function_list.keys()
-
-xovers = ['n_point', 'uniform', 'subgraph', 'semantic n_point', 'semantic uniform']
+#function_list = functions.function_list.keys()
+function_list = ['Ackley']
+xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform']
 mutation = 'point'
-selection = 'elite tournament'
+selection = 'elite_tournament'
 
-output_dir = "../output/"
+output_dir = "../output/logs/"
+error_dir = "../output/err/"
 os.makedirs(output_dir, exist_ok=True)
+os.makedirs(error_dir, exist_ok=True)
 
 # parameters
-max_g = 100
-max_p = 12
-max_c = 12
-max_n = 24
+max_g = 1000
+max_p = 24
+max_c = 24
+max_n = 32
 x_rate = 0.5
 m_rate = 0.025
 n_points = 1
 n_elites = 1
-t_size = 4
+t_size = 6
 p_dim = 1
-step_size = 10
+step_size = 100
 
 job_count = 0
 
@@ -47,19 +49,21 @@ def count_user_jobs():
 
 
 for function in function_list:
+    f_no_space = function.replace(' ', '')
     for xover in xovers:
-        for i in range(50):  # Create 50 jobs per function/xover combination
+        Path(f'../output/{f_no_space}/{xover}/').mkdir(parents=True, exist_ok=True)
+        for i in range(1):  # Create 50 jobs per function/xover combination
             # Wait until jobs in queue are below MAX_JOBS
             while count_user_jobs() >= MAX_JOBS:
                 print("Max job limit reached. Waiting...")
                 time.sleep(60)  # Check every 60 seconds
 
-            job_name = f"{function}_{xover}_{i}"
+            job_name = f"kocherov_{f_no_space}_{xover}_{i}"
             slurm_script = f"""#!/bin/bash
 #SBATCH --job-name={job_name}
 #SBATCH --output={output_dir}{job_name}.out
-#SBATCH --error={output_dir}{job_name}.err
-#SBATCH --time=01:00:00
+#SBATCH --error={error_dir}{job_name}.err
+#SBATCH --time=12:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=4G
@@ -82,8 +86,10 @@ cd /mnt/home/kocherov/Documents/cgp/src/
 /mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u run.py {i} {max_g} {max_n} {max_p} {max_c} {xover} {x_rate} {mutation} {m_rate} {selection} {function} --n_points {n_points} --n_elites {n_elites} --problem_dimensions {p_dim} --step_size {step_size} --tournament_size {t_size}
 conda deactivate
 """
+            
+            print(f'/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u run.py {i} {max_g} {max_n} {max_p} {max_c} {xover} {x_rate} {mutation} {m_rate} {selection} {function} --n_points {n_points} --n_elites {n_elites} --problem_dimensions {p_dim} --step_size {step_size} --tournament_size {t_size}')
             # Write the SLURM script
-            script_path = os.path.join(output_dir, f"{job_name}.slurm")
+            script_path = os.path.join('../output/slurm_files/', f"{job_name}.slurm")
             with open(script_path, "w") as f:
                 f.write(slurm_script)
 
