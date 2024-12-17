@@ -101,15 +101,19 @@ class CGP:
     def __call__(self, data: float | list | np.ndarray):
         data = np.atleast_2d(data)  # Ensure data is at least 2D
         if self.inputs == 1:
-            data = data.flatten()  # Flatten if single input
-            outputs = np.array([self._compute_single_input(datum) for datum in data])
+            # Flatten only once for single input
+            outputs = np.array([self._compute_single_input(datum) for datum in data.flatten()])
         else:
+            # Process rows for multiple inputs
             outputs = np.array([self._compute_multiple_inputs(datum) for datum in data])
+
+        # Apply slope and intercept adjustment if needed
         if self.slope is not None and self.intercept is not None:
             outputs = outputs * self.slope + self.intercept
         return outputs
 
     def _get_node_value(self, operand):
+        # Access row once and cache it
         new_node = self.model.loc[operand]
         node_type = new_node['NodeType']
 
@@ -119,47 +123,48 @@ class CGP:
         if node_type == 'Function':
             # Retrieve operand values recursively
             new_operands = [self._get_node_value(val) for val in new_node.filter(regex='Operand')]
-            self.model.loc[operand, 'Active'] = 1  # sets as active node
+            self.model.at[operand, 'Active'] = 1  # Set as active node
+            operator = new_node['Operator']
             try:
-                self.model.loc[operand, 'Value'] = new_node['Operator'](*new_operands)
-                return self.model.loc[operand, 'Value']
+                result = operator(*new_operands)
+                self.model.at[operand, 'Value'] = result
+                return result
             except TypeError as e:
-                print(e)
-                print(self.model)
-                print(*new_operands)
-                print(new_node['Operator'])
-                exit()
+                raise RuntimeError(f"Error in node computation: {e}") from e
 
         # Handle invalid node type
         raise ValueError(f"Invalid node type: {node_type}")
 
     def _run(self):
-        # Get the rows where NodeType is 'Output'
-        output_nodes = self.model[self.model['NodeType'] == 'Output']
-        self.model['Active'] = 0  # resets all active node markers in case something has changed
-        self.model.loc[self.model['NodeType'] == 'Function', 'Value'] = 0  # resets all function values
+        # Reset active and function node values
+        self.model['Active'] = 0
+        self.model.loc[self.model['NodeType'] == 'Function', 'Value'] = 0
 
-        # Update the 'Value' column with computed values
-        new_values = [self._get_node_value(o) for o in output_nodes['Operand0']]
-        self.model.loc[output_nodes.index, 'Value'] = new_values
-        return new_values
+        # Compute values for output nodes
+        output_nodes = self.model[self.model['NodeType'] == 'Output']
+        output_values = [self._get_node_value(o) for o in output_nodes['Operand0']]
+        self.model.loc[output_nodes.index, 'Value'] = output_values
+        return output_values
 
     def _compute_single_input(self, datum):
-        """Handle computation for single input."""
+        """Compute result for a single input."""
         self.model.loc[self.model['NodeType'] == 'Input', 'Value'] = datum
         return self._run()
 
     def _compute_multiple_inputs(self, datum):
-        """Handle computation for multiple inputs."""
+        """Compute result for multiple inputs."""
         input_nodes = self.model.loc[self.model['NodeType'] == 'Input']
-        input_nodes['Value'] = datum
+        input_nodes['Value'] = datum  # Assign inputs in bulk
         return self._run()
 
     def fit(self, data, ground_truth):
         predictions = self.__call__(data)
         self.fitness = self.fitness_function(predictions, ground_truth)
+
+        # Align slope and intercept if fitness function is correlation
         if self.fitness_function == correlation:
             self.slope, self.intercept = align(predictions, ground_truth)
+
         return self.fitness
 
     def get_active_nodes(self):
@@ -179,24 +184,30 @@ class CGP:
         self.mutation = possible_mutation_functions[mutation_type]
 
     def _point_mutation(self):
-        """Simple point mutation on function and output nodes."""
-        # Mutate only function and output nodes
+        """Efficient point mutation on function and output nodes."""
+        # Select a random mutation index
         mutation_index = random.randint(self.first_body_node, self.last_body_node + self.outputs + 1)
 
-        # Access the row and determine the mutation
-        if self.model.at[mutation_index, 'NodeType'] == 'Function':
+        # Cache the row data to avoid repeated `.at` lookups
+        node_type = self.model.at[mutation_index, 'NodeType']
+
+        if node_type == 'Function':
+            # Choose the mutation column: 'Operator' or an operand
             mutation_column = random.choice(['Operator'] + [f'Operand{n}' for n in range(self.arity)])
 
             if mutation_column == 'Operator':
+                # Assign a random operator from the function bank
                 self.model.at[mutation_index, mutation_column] = random.choice(self.function_bank)
-            elif mutation_column.startswith('Operand'):
+            else:  # Operand mutation
                 self.model.at[mutation_index, mutation_column] = random.randint(0, mutation_index)
-            else:
-                raise AttributeError(f'Column {mutation_column} not recognized for Point Mutation')
 
-        elif self.model.at[mutation_index, 'NodeType'] == 'Output':
+        elif node_type == 'Output':
+            # Mutate one of the output operands
             mutation_column = random.choice([f'Operand{n}' for n in range(self.outputs)])
             self.model.at[mutation_index, mutation_column] = random.randint(0, self.last_body_node)
+        else:
+            # Handle unexpected node types (should not occur in normal operation)
+            raise ValueError(f"Unexpected NodeType: {node_type} at index {mutation_index}")
 
     def mutate(self):
         """Perform mutation using the assigned mutation function."""
