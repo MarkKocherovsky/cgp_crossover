@@ -29,7 +29,7 @@ parser.add_argument("test_problem_key", type=str, help="Key of the test problem.
 
 # Optional arguments with defaults
 parser.add_argument("--fitness_function", type=str, default='correlation', help="Fitness function.")
-parser.add_argument("--n_points", type=int, default=10, help="Number of points (default: 10).")
+parser.add_argument("--n_points", type=int, default=1, help="Number of points (default: 1).")
 parser.add_argument("--tournament_size", type=int, default=5, help="Size of the tournament (default: 5).")
 parser.add_argument("--n_elites", type=int, default=1, help="Number of elites (default: 1).")
 parser.add_argument("--problem_dimensions", type=int, default=1, help="Controls number of dimensions for test data.")
