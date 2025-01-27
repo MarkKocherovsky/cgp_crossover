@@ -29,7 +29,7 @@ parser.add_argument("test_problem_key", type=str, help="Key of the test problem.
 
 # Optional arguments with defaults
 parser.add_argument("--fitness_function", type=str, default='correlation', help="Fitness function.")
-parser.add_argument("--n_points", type=int, default=10, help="Number of points (default: 10).")
+parser.add_argument("--n_points", type=int, default=1, help="Number of points (default: 1).")
 parser.add_argument("--tournament_size", type=int, default=5, help="Size of the tournament (default: 5).")
 parser.add_argument("--n_elites", type=int, default=1, help="Number of elites (default: 1).")
 parser.add_argument("--problem_dimensions", type=int, default=1, help="Controls number of dimensions for test data.")
@@ -82,7 +82,7 @@ test_function = problem_list(test_problem_key, n_dims=problem_dimensions)
 train_x, test_x, train_y, test_y = test_function.return_points()
 
 # establish output path
-run_path = f'../output/{xover_type}/{test_problem_key}/trial_{trial_number}'
+run_path = f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}/{selection_type}/trial_{trial_number}'
 Path(run_path).mkdir(parents=True, exist_ok=True)
 
 # model parameters
