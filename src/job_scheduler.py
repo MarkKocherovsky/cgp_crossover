@@ -9,7 +9,7 @@ MAX_JOBS = 1000  # Maximum jobs allowed in queue/running
 # Problem configuration
 functions = Collection()
 #function_list = functions.function_list.keys()
-function_list = ['Ackley']
+function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Ackley', 'Levy', 'Griewank', 'Rastrigin']
 xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform']
 mutation = 'point'
 selection = 'elite_tournament'
@@ -20,7 +20,7 @@ os.makedirs(output_dir, exist_ok=True)
 os.makedirs(error_dir, exist_ok=True)
 
 # parameters
-max_g = 1000
+max_g = 3000
 max_p = 24
 max_c = 24
 max_n = 32
@@ -51,22 +51,22 @@ def count_user_jobs():
 for function in function_list:
     f_no_space = function.replace(' ', '')
     for xover in xovers:
-        Path(f'../output/{f_no_space}/{xover}/').mkdir(parents=True, exist_ok=True)
-        for i in range(1):  # Create 50 jobs per function/xover combination
+        Path(f'../output/{f_no_space}_{p_dim}d/{xover}/{selection}').mkdir(parents=True, exist_ok=True)
+        for i in range(50):  # Create 50 jobs per function/xover combination
             # Wait until jobs in queue are below MAX_JOBS
             while count_user_jobs() >= MAX_JOBS:
                 print("Max job limit reached. Waiting...")
                 time.sleep(60)  # Check every 60 seconds
 
-            job_name = f"kocherov_{f_no_space}_{xover}_{i}"
+            job_name = f"kocherov_{f_no_space}{p_dim}d_{xover}_{selection}_{i}"
             slurm_script = f"""#!/bin/bash
 #SBATCH --job-name={job_name}
 #SBATCH --output={output_dir}{job_name}.out
 #SBATCH --error={error_dir}{job_name}.err
-#SBATCH --time=12:00:00
+#SBATCH --time=3-00:00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=4G
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=8G
 
 module purge
 module load Conda/3

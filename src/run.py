@@ -82,7 +82,7 @@ test_function = problem_list(test_problem_key, n_dims=problem_dimensions)
 train_x, test_x, train_y, test_y = test_function.return_points()
 
 # establish output path
-run_path = f'../output/{xover_type}/{test_problem_key}/trial_{trial_number}'
+run_path = f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}/{selection_type}/trial_{trial_number}'
 Path(run_path).mkdir(parents=True, exist_ok=True)
 
 # model parameters
