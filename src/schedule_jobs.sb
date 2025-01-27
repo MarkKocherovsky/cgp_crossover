@@ -1,0 +1,31 @@
+#!/bin/bash
+#SBATCH --job-name=mk_job_scheduler
+#SBATCH --output=../output/logs/job_scheduler_%j.out
+#SBATCH --error=../output/err/job_scheduler_%j.err
+#SBATCH --time=04:00:00
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=2G
+
+# Load Conda
+module purge
+module load Conda/3
+source ~/.bashrc
+conda activate cgp
+
+# Change to the directory containing job_scheduler.py
+cd /mnt/home/kocherov/Documents/cgp/src/
+
+# Check if this is the first submission
+if [[ -f "../output/logs/first_submission_flag" ]]; then
+    echo "Resubmission detected."
+else
+    echo "First submission detected."
+    touch "../output/logs/first_submission_flag"
+fi
+
+# Run the job scheduler script
+/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 job_scheduler.py
+
+# Deactivate Conda
+conda deactivate
