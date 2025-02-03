@@ -7,26 +7,66 @@ from datetime import timedelta
 from test_problems import Collection
 from pathlib import Path
 
+
 def get_job_duration(scheduler_job_name):
-    """Fetch the elapsed time of a job using sacct."""
+    """Fetch the elapsed time of a job using sacct and return it as a timedelta."""
     result = subprocess.run(
         ["sacct", "-j", str(scheduler_job_name), "--format=Elapsed", "--noheader"],
         stdout=subprocess.PIPE,
         text=True
     )
-    elapsed = result.stdout.strip()
-    hours, minutes, seconds = map(int, elapsed)
+    elapsed = result.stdout.strip()  # Remove leading/trailing whitespace and newlines
+    print(f"Raw elapsed time: '{elapsed}'")  # Debugging: Show raw elapsed time
+    
+    if not elapsed:
+        raise ValueError("No elapsed time found. The job might not have started or is not tracked.")
+    
+    elapsed_times = elapsed.split()
+    print(f"Multiple elapsed times: {elapsed_times}")  # Debugging: Show all elapsed times
+    
+    # Use the first valid elapsed time (you can modify this if you need to handle multiple entries)
+    elapsed = elapsed_times[0]
+    
+    # Clean any extra whitespace/newlines
+    elapsed = " ".join(elapsed.split())  # Remove excess whitespace and newlines
+
+    # Split the elapsed time into parts
+    time_parts = elapsed.split(":")
+    print(f"Split time parts: {time_parts}")  # Debugging: Show split time parts
+
+    try:
+        if len(time_parts) == 3:  # Format: HH:MM:SS
+            hours, minutes, seconds = map(int, time_parts)
+        elif len(time_parts) == 2:  # Format: MM:SS
+            hours = 0
+            minutes, seconds = map(int, time_parts)
+        elif len(time_parts) == 1:  # Format: SS
+            hours = 0
+            minutes = 0
+            seconds = int(time_parts[0])
+        else:
+            raise ValueError(f"Unexpected elapsed time format: {elapsed}")
+    except ValueError as e:
+        raise ValueError(f"Error parsing elapsed time '{elapsed}': {e}")
+    
     return timedelta(hours=hours, minutes=minutes, seconds=seconds)
 
-job_id = 'mk_job_scheduler'
+def get_job_id():
+    """Fetch the SLURM job ID from the environment."""
+    job_id = os.getenv("SLURM_JOB_ID")
+    if job_id is None:
+        raise EnvironmentError("SLURM_JOB_ID not found. Are you running inside a SLURM job?")
+    return job_id
+
+job_id = get_job_id()
 
 # SLURM settings
-MAX_JOBS = 1000  # Maximum jobs allowed in queue/running
+MAX_JOBS = 990  # Maximum jobs allowed in queue/running
 CHECKPOINT_FILE = "checkpoint.json"
 
 # Problem configuration
 functions = Collection()
-function_list = ['Ackley']
+function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin', 'Ackley']
 xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform']
 mutation = 'point'
 selection = 'elite_tournament'
@@ -111,7 +151,7 @@ for function in function_list:
 #SBATCH --job-name={job_name}
 #SBATCH --output={output_dir}{job_name}.out
 #SBATCH --error={error_dir}{job_name}.err
-#SBATCH --time=12:00:00
+#SBATCH --time=3-00:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=4G
