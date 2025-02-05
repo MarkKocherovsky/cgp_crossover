@@ -1,8 +1,11 @@
 import pandas as pd
 import numpy as np
+import pickle
 from pathlib import Path
 
 from dataclasses import dataclass
+
+from matplotlib import pyplot as plt
 
 
 @dataclass(frozen=True)
@@ -19,7 +22,7 @@ class Method:
 #   Problem
 #       Crossover
 #           Selection
-#               Trial 0..n
+#               Trial 0...n
 #                   best_model.csv
 #                   statistics.csv
 #                   xover_density_beneficial.csv
@@ -46,7 +49,6 @@ class AnalysisToolkit:
         return trial_data
 
     def compile_averages(self):
-        canonical_flag = set()
         output_dir = Path('../output/intermediate_results')
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -67,3 +69,37 @@ class AnalysisToolkit:
                                                columns=['Minimum', 'First Quartile', 'Median', 'Third Quartile',
                                                         'Maximum'])
                         q_table.to_csv(output_dir / f'{problem}_{xover}_{selection}_{metric}.csv', index=False)
+
+    def make_path(self, problem: str, xover: str, selection: str, metric: str):
+        return self.base_path / problem / xover / selection / f'{metric}.csv'
+
+    def plot_line_graph(self, selection_method: str, metric: str, graph_filename:str, title: str, x_label: str, y_label: str):
+        n_problems = len(self.problems)
+        fig, axs = plt.subplots(np.round(n_problems/2), 2, figsize=(15, 15))
+        for i, problem in enumerate(self.problems):
+            for xover_method in self.crossover_methods:
+                xover = self.crossover_methods[xover_method].code_name
+                if xover == 'None':
+                    sel_key = 'elite'
+                else:
+                    sel_key = selection_method
+                file_name = self.make_path(problem, xover, sel_key, metric)
+                if file_name.exists():
+                    data = pd.read_csv(file_name)
+                    median = data['Median']
+                    quartile_1 = data['First Quartile']
+                    quartile_3 = data['Third Quartile']
+                else:
+                    raise FileNotFoundError(f"File {file_name} not found.")
+                axs[i//2, i%2].plot(range(self.max_generations), median, label=self.crossover_methods[xover_method].short_name)
+                axs[i//2, i%2].fill_between(range(self.max_generations), quartile_1, quartile_3, alpha=0.2)
+                axs[i//2, i%2].set_title(self.crossover_methods[xover_method].long_name)
+                axs[i//2, i%2].set_xlabel(x_label)
+                axs[i//2, i%2].set_ylabel(y_label)
+                axs[i//2, i%2].legend()
+        fig.suptitle(f'{title}\n{self.selection_methods[selection_method]}\n{metric}')
+        file_path = f"../output/graphs_raw/{graph_filename}.pkl"  # Path to save the binary file
+        with open(file_path, "wb") as file:
+            pickle.dump(plt.gcf(), file)
+        plt.savefig(f"../output/graphs/{graph_filename}.png")
+

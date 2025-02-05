@@ -1,8 +1,3 @@
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import os
-
 from analysis_helper import Method, AnalysisToolkit
 
 base_path = "../output/"
@@ -29,11 +24,11 @@ problems = {
     'Koza1_1d': 'Koza 1',
     'Koza2_1d': 'Koza 2',
     'Koza3_1d': 'Koza 3',
-    #'Nguyen4_1d': 'Nguyen 4',
-    #'Nguyen5_1d': 'Nguyen 5',
+    'Nguyen4_1d': 'Nguyen 4',
+    'Nguyen5_1d': 'Nguyen 5',
     'Nguyen6_1d': 'Nguyen 6',
     'Nguyen7_1d': 'Nguyen 7',
-    #'Ackley_1d': 'Ackley',
+    'Ackley_1d': 'Ackley',
     'Levy_1d': 'Levy',
     'Rastrigin_1d': 'Rastrigin',
     'Griewank_1d': 'Griewank'
@@ -45,7 +40,7 @@ problems = {
 #   Problem
 #       Crossover
 #           Selection
-#               Trial 0..n
+#               Trial 0…n
 #                   best_model.csv
 #                   statistics.csv
 #                   xover_density_beneficial.csv
@@ -53,4 +48,6 @@ problems = {
 #                   xover_density_neutral.csv
 
 analyzer = AnalysisToolkit(crossover_methods, selection_methods, problems, metrics, 50, 1000)
-analyzer.compile_averages()
+#analyzer.compile_averages()
+analyzer.plot_line_graph('elite_tournament', 'Min Fitness', 'best_fitness', 'Fitness of Best Models',
+                         'Generations', r'Fitness of Best Models ($1 - r^2$)')
