@@ -37,16 +37,6 @@ class AnalysisToolkit:
         self.max_generations = max_generations
         self.metrics = metrics
 
-    @staticmethod
-    def _get_selection_key(xover: str, selection: str, canonical_flag: set) -> str | None:
-        """Determine the correct selection key based on crossover type."""
-        if xover == 'none':
-            if 'elite' not in canonical_flag:
-                canonical_flag.add('elite')
-                return 'elite'
-            return None  # Skip duplicate processing
-        return selection
-
     def _load_trial_data(self, problem: str, xover: str, selection_key: str) -> list:
         """Load statistics data for all trials."""
         trial_data = []
@@ -61,18 +51,19 @@ class AnalysisToolkit:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         for problem in self.problems:
-            for xover in self.crossover_methods:
-                for selection in self.selection_methods:
-                    selection_key = self._get_selection_key(xover, selection, canonical_flag)
-                    if selection_key is None:
-                        continue  # Skip redundant processing
-
-                    table_list = self._load_trial_data(problem, xover, selection_key)
+            for xover_method in self.crossover_methods:
+                xover = self.crossover_methods[xover_method].code_name
+                if xover == "None":
+                    selection_list = ["elite"]  # Ensure "none" crossover only uses "elite"
+                else:
+                    selection_list = list(self.selection_methods.keys())
+                for selection in selection_list:
+                    table_list = self._load_trial_data(problem, xover, selection)
 
                     for metric in self.metrics:
-                        data = np.array([table[metric].values for table in table_list])
+                        data = np.array([table[metric][0:self.max_generations].values for table in table_list])
                         quartiles = np.quantile(data, [0, 0.25, 0.5, 0.75, 1], axis=0)
                         q_table = pd.DataFrame(quartiles.T,
                                                columns=['Minimum', 'First Quartile', 'Median', 'Third Quartile',
                                                         'Maximum'])
-                        q_table.to_csv(output_dir / f'{problem}_{xover}_{selection_key}_{metric}.csv', index=False)
+                        q_table.to_csv(output_dir / f'{problem}_{xover}_{selection}_{metric}.csv', index=False)
