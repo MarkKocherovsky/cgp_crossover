@@ -16,15 +16,15 @@ def get_job_duration(scheduler_job_name):
         text=True
     )
     elapsed = result.stdout.strip()  # Remove leading/trailing whitespace and newlines
-    
+
     if not elapsed:
         raise ValueError("No elapsed time found. The job might not have started or is not tracked.")
-    
+
     elapsed_times = elapsed.split()
-    
+
     # Use the first valid elapsed time (you can modify this if you need to handle multiple entries)
     elapsed = elapsed_times[0]
-    
+
     # Clean any extra whitespace/newlines
     elapsed = " ".join(elapsed.split())  # Remove excess whitespace and newlines
 
@@ -45,8 +45,9 @@ def get_job_duration(scheduler_job_name):
             raise ValueError(f"Unexpected elapsed time format: {elapsed}")
     except ValueError as e:
         raise ValueError(f"Error parsing elapsed time '{elapsed}': {e}")
-    
+
     return timedelta(hours=hours, minutes=minutes, seconds=seconds)
+
 
 def get_job_id():
     """Fetch the SLURM job ID from the environment."""
@@ -54,6 +55,7 @@ def get_job_id():
     if job_id is None:
         raise EnvironmentError("SLURM_JOB_ID not found. Are you running inside a SLURM job?")
     return job_id
+
 
 job_id = get_job_id()
 
@@ -63,8 +65,10 @@ CHECKPOINT_FILE = "checkpoint.json"
 
 # Problem configuration
 functions = Collection()
-function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin', 'Ackley']
-xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform']
+function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
+                 'Ackley']
+xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
+          'homologous_semantic_uniform']
 mutation = 'point'
 selection = 'elite_tournament'
 
@@ -128,7 +132,7 @@ for function in function_list:
         for i in range(50):  # Create 50 jobs per function/xover combination
             job_name = f"kocherov_{f_no_space}_{xover}_{i}"
 
-            #resubmit job_scheduler if the elapsed time is nearly 4 hours:
+            # resubmit job_scheduler if the elapsed time is nearly 4 hours:
             duration = get_job_duration(job_id)
             if duration >= timedelta(hours=3, minutes=55):
                 print('Time limit nearly reached, resubmitting')

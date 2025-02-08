@@ -1,12 +1,11 @@
+import heapq
+from concurrent.futures import ThreadPoolExecutor
 from copy import copy
 from copy import deepcopy
 
 import numpy as np
 import pandas as pd
-import heapq
 from Bio.Align import PairwiseAligner, Seq
-from concurrent.futures import ThreadPoolExecutor
-
 
 from cgp_model import CGP
 from fitness_functions import correlation
@@ -107,6 +106,8 @@ class CartesianGP:
             'subgraph': self._subgraph_xover,
             'semantic_n_point': self._n_point_xover,
             'semantic_uniform': self._uniform_xover,
+            'homologous_semantic_n_point': self._n_point_xover,
+            'homologous_semantic_uniform': self._uniform_xover,
             # 'semantic uniform': self._semantic_uniform_xover
         }
         if self.mutation_type not in ['point']:
@@ -117,6 +118,8 @@ class CartesianGP:
             raise ValueError(f"Invalid crossover type: {self.xover_type}")
         if 'semantic' in self.xover_type:
             self.semantic = True
+            if 'homologous' in self.xover_type:
+                self.homologous = True
         if self.model_kwargs is not None and not isinstance(self.model_kwargs, dict):
             raise TypeError("Model parameters must be a dictionary.")
         self.fitness_function = possible_fitness_functions.get(fitness_function.lower())
@@ -381,6 +384,8 @@ class CartesianGP:
         if self.semantic:
             vmat_1, vmat_2 = clean_values(p1, self.x), clean_values(p2, self.x)
             weights = get_weights(get_ssd(vmat_1, vmat_2))
+            if self.homologous:
+                weights = 1 - weights
 
         if self.fixed_length:
             xover_points = get_crossover_points(p1, first_index_p1, weights)
@@ -785,8 +790,6 @@ class CartesianGP:
         return score
 
     import numpy as np
-    from copy import copy
-    from concurrent.futures import ThreadPoolExecutor
 
     def fit(self, train_x: list | np.ndarray, train_y: list | np.ndarray, step_size: int = None,
             xover_rate: float = 0.5, mutation_rate: float = 0.5):
