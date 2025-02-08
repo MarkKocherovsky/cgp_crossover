@@ -48,6 +48,8 @@ problems = {
 #                   xover_density_neutral.csv
 
 analyzer = AnalysisToolkit(crossover_methods, selection_methods, problems, metrics, 50, 1000)
-#analyzer.compile_averages()
-analyzer.plot_line_graph('elite_tournament', 'Min Fitness', 'best_fitness', 'Fitness of Best Models',
-                         'Generations', r'Fitness of Best Models ($1 - r^2$)')
+
+analyzer.compile_averages()
+for metric in metrics:
+    analyzer.plot_line_graph('elite_tournament', metric, f'{metric.lower().replace(" ", "_")}_graph',
+                             f'{metric} Over Generations', 'Generations', f'{metric}')

@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import pickle
+import os
 from pathlib import Path
 
 from dataclasses import dataclass
@@ -71,11 +72,11 @@ class AnalysisToolkit:
                         q_table.to_csv(output_dir / f'{problem}_{xover}_{selection}_{metric}.csv', index=False)
 
     def make_path(self, problem: str, xover: str, selection: str, metric: str):
-        return self.base_path / problem / xover / selection / f'{metric}.csv'
+        return Path(f'../output/intermediate_results/{problem}_{xover}_{selection}_{metric}.csv')
 
-    def plot_line_graph(self, selection_method: str, metric: str, graph_filename:str, title: str, x_label: str, y_label: str):
+    def plot_line_graph(self, selection_method: str, metric: str, graph_filename:str, title: str, x_label: str, y_label: str, log:bool = True):
         n_problems = len(self.problems)
-        fig, axs = plt.subplots(np.round(n_problems/2), 2, figsize=(15, 15))
+        fig, axs = plt.subplots(int(np.round(n_problems/2)), 2, figsize=(15, 15))
         for i, problem in enumerate(self.problems):
             for xover_method in self.crossover_methods:
                 xover = self.crossover_methods[xover_method].code_name
@@ -91,15 +92,21 @@ class AnalysisToolkit:
                     quartile_3 = data['Third Quartile']
                 else:
                     raise FileNotFoundError(f"File {file_name} not found.")
-                axs[i//2, i%2].plot(range(self.max_generations), median, label=self.crossover_methods[xover_method].short_name)
+                if log:
+                    axs[i//2, i%2].set_yscale('log')
+                axs[i//2, i%2].plot(range(self.max_generations), median, label=self.crossover_methods[xover_method].short_name, c=self.crossover_methods[xover_method].color)
                 axs[i//2, i%2].fill_between(range(self.max_generations), quartile_1, quartile_3, alpha=0.2)
-                axs[i//2, i%2].set_title(self.crossover_methods[xover_method].long_name)
+                axs[i//2, i%2].set_title(self.problems[problem])
                 axs[i//2, i%2].set_xlabel(x_label)
                 axs[i//2, i%2].set_ylabel(y_label)
                 axs[i//2, i%2].legend()
         fig.suptitle(f'{title}\n{self.selection_methods[selection_method]}\n{metric}')
+        fig.tight_layout()
         file_path = f"../output/graphs_raw/{graph_filename}.pkl"  # Path to save the binary file
         with open(file_path, "wb") as file:
             pickle.dump(plt.gcf(), file)
+        output_dir = "../output/graphs/"
+        os.makedirs(output_dir, exist_ok=True)
         plt.savefig(f"../output/graphs/{graph_filename}.png")
+        print(f'{graph_filename} saved')
 

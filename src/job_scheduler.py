@@ -16,13 +16,11 @@ def get_job_duration(scheduler_job_name):
         text=True
     )
     elapsed = result.stdout.strip()  # Remove leading/trailing whitespace and newlines
-    print(f"Raw elapsed time: '{elapsed}'")  # Debugging: Show raw elapsed time
     
     if not elapsed:
         raise ValueError("No elapsed time found. The job might not have started or is not tracked.")
     
     elapsed_times = elapsed.split()
-    print(f"Multiple elapsed times: {elapsed_times}")  # Debugging: Show all elapsed times
     
     # Use the first valid elapsed time (you can modify this if you need to handle multiple entries)
     elapsed = elapsed_times[0]
@@ -32,7 +30,6 @@ def get_job_duration(scheduler_job_name):
 
     # Split the elapsed time into parts
     time_parts = elapsed.split(":")
-    print(f"Split time parts: {time_parts}")  # Debugging: Show split time parts
 
     try:
         if len(time_parts) == 3:  # Format: HH:MM:SS
@@ -77,7 +74,7 @@ os.makedirs(output_dir, exist_ok=True)
 os.makedirs(error_dir, exist_ok=True)
 
 # Parameters
-max_g = 1000
+max_g = 3000
 max_p = 24
 max_c = 24
 max_n = 32
@@ -151,7 +148,7 @@ for function in function_list:
 #SBATCH --job-name={job_name}
 #SBATCH --output={output_dir}{job_name}.out
 #SBATCH --error={error_dir}{job_name}.err
-#SBATCH --time=3-00:00:00
+#SBATCH --time=4-00:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=4G
@@ -190,3 +187,4 @@ conda deactivate
             completed_jobs.add(job_name)
             state["completed_jobs"] = list(completed_jobs)
             save_checkpoint(state)
+print('All Jobs Complete')
