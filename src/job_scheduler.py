@@ -94,19 +94,27 @@ job_count = 0
 
 
 def load_checkpoint():
-    """Load progress from the checkpoint file."""
+    """Load progress from the checkpoint file, handling empty files safely."""
+    if not os.path.exists(CHECKPOINT_FILE) or os.stat(CHECKPOINT_FILE).st_size == 0:
+        print("Checkpoint file missing or empty. Starting fresh.")
+        return {"completed_jobs": []}
+
     try:
         with open(CHECKPOINT_FILE, "r") as f:
             return json.load(f)
-    except FileNotFoundError:
+    except json.JSONDecodeError:
+        print("Checkpoint file is corrupted. Starting fresh.")
         return {"completed_jobs": []}
 
-
 def save_checkpoint(state):
-    """Save progress to the checkpoint file."""
-    with open(CHECKPOINT_FILE, "w") as f:
-        json.dump(state, f)
-
+    """Safely save progress to the checkpoint file."""
+    temp_file = CHECKPOINT_FILE + ".tmp"
+    try:
+        with open(temp_file, "w") as f:
+            json.dump(state, f)
+        os.replace(temp_file, CHECKPOINT_FILE)  # Atomic replace to prevent corruption
+    except Exception as e:
+        print(f"Error saving checkpoint: {e}")
 
 def count_user_jobs():
     """Counts the number of jobs in the SLURM queue for the current user."""
@@ -121,6 +129,16 @@ def count_user_jobs():
     return len(result.stdout.strip().split("\n")) - 1
 
 
+def resubmit():
+    # resubmit job_scheduler if the elapsed time is nearly 4 hours:
+    duration = get_job_duration(job_id)
+    if duration >= timedelta(hours=3, minutes=50):
+        print('Time limit nearly reached, resubmitting')
+        os.system('sbatch schedule_jobs.sb')
+        exit(0)
+
+
+
 # Load checkpoint state
 state = load_checkpoint()
 completed_jobs = set(state["completed_jobs"])
@@ -132,21 +150,16 @@ for function in function_list:
         for i in range(50):  # Create 50 jobs per function/xover combination
             job_name = f"kocherov_{f_no_space}_{xover}_{i}"
 
-            # resubmit job_scheduler if the elapsed time is nearly 4 hours:
-            duration = get_job_duration(job_id)
-            if duration >= timedelta(hours=3, minutes=55):
-                print('Time limit nearly reached, resubmitting')
-                os.system('sbatch schedule_jobs.sb')
-                exit(0)
-
             # Skip already completed jobs
             if job_name in completed_jobs:
                 continue
 
             # Wait until jobs in queue are below MAX_JOBS
+            resubmit()
             while count_user_jobs() >= MAX_JOBS:
                 print("Max job limit reached. Waiting...")
                 time.sleep(60)  # Check every 60 seconds
+                resubmit()
 
             slurm_script = f"""#!/bin/bash
 #SBATCH --job-name={job_name}
