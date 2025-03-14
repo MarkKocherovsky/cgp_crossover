@@ -65,14 +65,14 @@ CHECKPOINT_FILE = "checkpoint.json"
 
 # Problem configuration
 functions = Collection()
-#function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
+# function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
 #                 'Ackley']
 function_list = ['Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin', 'Ackley']
-#xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
+# xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
 #          'homologous_semantic_uniform']
 xovers = ['n_point', 'uniform', 'subgraph', 'semantic_uniform']
 
-#xovers = ['homologous_semantic_uniform', 'homologous_semantic_n_point']
+# xovers = ['homologous_semantic_uniform', 'homologous_semantic_n_point']
 mutation = 'point'
 selection = 'elite_tournament'
 
@@ -98,17 +98,16 @@ job_count = 0
 
 
 def load_checkpoint():
-    """Load progress from the checkpoint file, handling empty files safely."""
+    """Load progress from checkpoint, handling interrupted jobs separately."""
     if not os.path.exists(CHECKPOINT_FILE) or os.stat(CHECKPOINT_FILE).st_size == 0:
-        print("Checkpoint file missing or empty. Starting fresh.")
-        return {"completed_jobs": []}
+        return {"completed_jobs": [], "checkpointed_jobs": []}
 
     try:
         with open(CHECKPOINT_FILE, "r") as f:
             return json.load(f)
     except json.JSONDecodeError:
-        print("Checkpoint file is corrupted. Starting fresh.")
-        return {"completed_jobs": []}
+        return {"completed_jobs": [], "checkpointed_jobs": []}
+
 
 def save_checkpoint(state):
     """Safely save progress to the checkpoint file."""
@@ -119,6 +118,7 @@ def save_checkpoint(state):
         os.replace(temp_file, CHECKPOINT_FILE)  # Atomic replace to prevent corruption
     except Exception as e:
         print(f"Error saving checkpoint: {e}")
+
 
 def count_user_jobs():
     """Counts the number of jobs in the SLURM queue for the current user."""
@@ -134,13 +134,23 @@ def count_user_jobs():
 
 
 def resubmit():
-    # resubmit job_scheduler if the elapsed time is nearly 4 hours:
+    """Resubmit job_scheduler if SLURM time limit is nearly reached or job failed."""
     duration = get_job_duration(job_id)
-    if duration >= timedelta(hours=3, minutes=50):
-        print('Time limit nearly reached, resubmitting')
-        os.system('sbatch schedule_jobs.sb')
-        exit(0)
 
+    if duration >= timedelta(hours=3, minutes=50):
+        print('Time limit nearly reached, checking logs before resubmitting...')
+
+        # Check job log file for SLURM errors
+        log_file = f"{output_dir}{job_id}.out"
+        if os.path.exists(log_file):
+            with open(log_file, "r") as f:
+                log_contents = f.read()
+                if "slurmstepd: error:" in log_contents:
+                    print("Detected SLURM time limit error. Resubmitting...")
+                    os.system('sbatch schedule_jobs.sb')
+                    exit(0)
+        else:
+            print("Log file not found, assuming normal execution.")
 
 
 # Load checkpoint state
@@ -155,8 +165,9 @@ for function in function_list:
             job_name = f"kocherov_{f_no_space}_{xover}_{i}"
 
             # Skip already completed jobs
-            if job_name in completed_jobs:
-                continue
+            # Before submitting a job, check if it was previously checkpointed
+            if job_name in state["completed_jobs"]:
+                continue  # Skip completed jobs
 
             # Wait until jobs in queue are below MAX_JOBS
             resubmit()
@@ -169,27 +180,60 @@ for function in function_list:
 #SBATCH --job-name={job_name}
 #SBATCH --output={output_dir}{job_name}.out
 #SBATCH --error={error_dir}{job_name}.err
-#SBATCH --time=7-00:00:00
+#SBATCH --time=1-00:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=8G
+#SBATCH --qos=scavenger  # Uncomment if using preemptible jobs
 
 module purge
 module load Conda/3
+module load powertools
+module load DMTCP  # Ensure DMTCP is available
+
 source ~/.bashrc
 conda activate cgp
 
-# Verify activation
+# Define checkpoint directory
+export DMTCP_CHECKPOINT_DIR={error_dir}{job_name}_ckpt
+export DMTCP_CHECKPOINT_INTERVAL=7200  # Set checkpoint interval (2 hours)
+export DMTCP_RESTART_DIR=$DMTCP_CHECKPOINT_DIR
+
+# Ensure checkpoint directory exists
+mkdir -p $DMTCP_CHECKPOINT_DIR
+
+# Verify Conda activation
 if [[ "$(which python3)" != "/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3" ]]; then
     echo "Error: Conda environment 'cgp' not properly activated!"
     exit 1
 fi
 
-# Run the script
+# Move to working directory
 cd /mnt/home/kocherov/Documents/cgp/src/
 
-/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u run.py {i} {max_g} {max_n} {max_p} {max_c} {xover} {x_rate} {mutation} {m_rate} {selection} {function} --n_points {n_points} --n_elites {n_elites} --problem_dimensions {p_dim} --step_size {step_size} --tournament_size {t_size}
+# Check if a checkpoint exists
+if ls $DMTCP_CHECKPOINT_DIR/dmtcp_restart_script.sh 1> /dev/null 2>&1; then
+    echo "Restarting from checkpoint..."
+    dmtcp_restart $DMTCP_CHECKPOINT_DIR/dmtcp_restart_script.sh
+else
+    echo "Starting fresh run with checkpointing..."
+    dmtcp_launch /mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u run.py \
+        {i} {max_g} {max_n} {max_p} {max_c} {xover} {x_rate} {mutation} {m_rate} {selection} {function} \
+        --n_points {n_points} --n_elites {n_elites} --problem_dimensions {p_dim} --step_size {step_size} --tournament_size {t_size}
+fi
+
+# Capture exit code
+ret=$?
+
+# If job was killed due to SLURM time limit, resubmit automatically
+if grep -q "slurmstepd: error:" $SLURM_JOB_ID.out; then
+    echo "Job exceeded time limit. Resubmitting..."
+    sbatch $0
+fi
+
 conda deactivate
+exit $ret
+
 """
 
             print(f"Preparing job {job_name}")
@@ -199,13 +243,20 @@ conda deactivate
             with open(script_path, "w") as f:
                 f.write(slurm_script)
 
-            # Submit the job
-            os.system(f"sbatch {script_path}")
-            print(f"Submitted job {job_name}")
-            job_count += 1
+                # Before submitting a job, check if it was previously checkpointed
+                if job_name in state["checkpointed_jobs"]:
+                    print(f"Resuming checkpointed job {job_name}...")
+                    # Ensure we run with DMTCP restart
+                    state["checkpointed_jobs"].remove(job_name)
+                    save_checkpoint(state)
 
-            # Mark job as completed in checkpoint
-            completed_jobs.add(job_name)
-            state["completed_jobs"] = list(completed_jobs)
-            save_checkpoint(state)
+                # Submit the job
+                os.system(f"sbatch {script_path}")
+
+                # Mark job as checkpointed (so we track incomplete jobs)
+                state["checkpointed_jobs"].append(job_name)
+                save_checkpoint(state)
+
+                print(f"Submitted job {job_name}")
+                job_count += 1
 print('All Jobs Complete')
