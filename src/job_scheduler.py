@@ -65,10 +65,14 @@ CHECKPOINT_FILE = "checkpoint.json"
 
 # Problem configuration
 functions = Collection()
-function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
-                 'Ackley']
-xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
-          'homologous_semantic_uniform']
+#function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
+#                 'Ackley']
+function_list = ['Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin', 'Ackley']
+#xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
+#          'homologous_semantic_uniform']
+xovers = ['n_point', 'uniform', 'subgraph', 'semantic_uniform']
+
+#xovers = ['homologous_semantic_uniform', 'homologous_semantic_n_point']
 mutation = 'point'
 selection = 'elite_tournament'
 
@@ -165,10 +169,10 @@ for function in function_list:
 #SBATCH --job-name={job_name}
 #SBATCH --output={output_dir}{job_name}.out
 #SBATCH --error={error_dir}{job_name}.err
-#SBATCH --time=4-00:00:00
+#SBATCH --time=7-00:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=4G
+#SBATCH --mem=8G
 
 module purge
 module load Conda/3

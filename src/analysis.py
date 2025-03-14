@@ -47,7 +47,7 @@ problems = {
 #                   xover_density_deleterious.csv
 #                   xover_density_neutral.csv
 
-analyzer = AnalysisToolkit(crossover_methods, selection_methods, problems, metrics, 50, 1000)
+analyzer = AnalysisToolkit(crossover_methods, selection_methods, problems, metrics, 50, 3001)
 
 analyzer.compile_averages()
 for metric in metrics:

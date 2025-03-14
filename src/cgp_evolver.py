@@ -72,6 +72,7 @@ class CartesianGP:
         self.selection_type = selection.lower()
         self.solution_threshold = solution_threshold
         self.ff_string = fitness_function
+        self.homologous = False
 
         metrics = ['Min Fitness', 'Fitness 1st Quartile', 'Median Fitness', 'Fitness 3rd Quartile',
                    'Max Fitness',
@@ -385,7 +386,8 @@ class CartesianGP:
             vmat_1, vmat_2 = clean_values(p1, self.x), clean_values(p2, self.x)
             weights = get_weights(get_ssd(vmat_1, vmat_2))
             if self.homologous:
-                weights = 1 - weights
+                weights = (weights.max() - weights) / (weights.max() - weights.min() + 1e-8)
+
 
         if self.fixed_length:
             xover_points = get_crossover_points(p1, first_index_p1, weights)
@@ -417,6 +419,13 @@ class CartesianGP:
         if self.semantic:
             vmat_1, vmat_2 = clean_values(p1, self.x), clean_values(p2, self.x)
             weights = get_weights(get_ssd(vmat_1, vmat_2), epsilon=0.001)
+            print(f'weights before homologous operation {weights}')
+            if self.homologous and not np.all(weights==weights[0]):
+                weights = (weights.max() - weights) / (weights.max() - weights.min() + 1e-8)
+                print(f'after {weights}')
+                if not np.allclose(weights.sum(), 1.0):
+                    weights /= weights.sum()
+                    print(f'weights after re-renormalization {weights}')
             n_outputs = p1.outputs
 
         fb_node = min(p1.first_body_node, p2.first_body_node)

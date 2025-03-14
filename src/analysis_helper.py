@@ -47,6 +47,8 @@ class AnalysisToolkit:
         for trial in range(self.trials):
             path = self.base_path / problem / xover / selection_key / f'trial_{trial}/statistics.csv'
             trial_data.append(pd.read_csv(path))
+            if len(trial_data[-1]) < self.max_generations:
+                print(path, len(trial_data[-1]))
         return trial_data
 
     def compile_averages(self):
@@ -64,13 +66,16 @@ class AnalysisToolkit:
                     table_list = self._load_trial_data(problem, xover, selection)
 
                     for metric in self.metrics:
-                        data = np.array([table[metric][0:self.max_generations].values for table in table_list])
-                        quartiles = np.quantile(data, [0, 0.25, 0.5, 0.75, 1], axis=0)
-                        q_table = pd.DataFrame(quartiles.T,
-                                               columns=['Minimum', 'First Quartile', 'Median', 'Third Quartile',
-                                                        'Maximum'])
-                        q_table.to_csv(output_dir / f'{problem}_{xover}_{selection}_{metric}.csv', index=False)
-
+                        try:
+                            data = np.array([table[metric][0:self.max_generations].values for table in table_list])
+                            quartiles = np.quantile(data, [0, 0.25, 0.5, 0.75, 1], axis=0)
+                            q_table = pd.DataFrame(quartiles.T,
+                                columns=['Minimum', 'First Quartile', 'Median', 'Third Quartile',
+                                         'Maximum'])
+                            q_table.to_csv(output_dir / f'{problem}_{xover}_{selection}_{metric}.csv', index=False)
+                        except ValueError as e:
+                            print(f'analysis_helper.py::AnalysisToolkit::compile_averages ValueError {e}')
+                            print(f'{problem} {xover_method} {selection} {metric}\n#########')
     def make_path(self, problem: str, xover: str, selection: str, metric: str):
         return Path(f'../output/intermediate_results/{problem}_{xover}_{selection}_{metric}.csv')
 
