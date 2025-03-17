@@ -109,3 +109,5 @@ def get_weights(ssd_matrix: np.ndarray, alpha: float = 1e-4, beta: float = 0.4, 
 
     # Normalize weights or use uniform distribution if the sum is zero
     return weight_matrix / total if total != 0 else np.full_like(ssd_matrix, 1 / ssd_matrix.size)
+
+
