@@ -1,14 +1,19 @@
 import numpy as np
 import heapq
 from concurrent.futures import ThreadPoolExecutor
-from copy import deepcopy
+from copy import deepcopy, copy
 
 from cgp_model import CGP
 from fitness_functions import correlation
-from helper import _validate_int_param, _get_quartiles, pairwise_minkowski_distance, get_score, get_ssd, get_weights, clean_values
+from helper import _validate_int_param, _get_quartiles, pairwise_minkowski_distance, get_score, get_ssd, get_weights, \
+    clean_values
 from Bio.Align import PairwiseAligner, Seq
 
+
 class CartesianGP:
+    def _missing_key_error(self, key):
+        raise KeyError(f"'{key}' is required but was not provided.")
+
     def __init__(self, parents=1, children=4, max_generations=100, mutation='Point', selection='Elite',
                  xover=None, fixed_length=True, fitness_function='Correlation', model_parameters=None,
                  function_bank=None, solution_threshold=0.005, **kwargs):
@@ -19,7 +24,6 @@ class CartesianGP:
         self.function_bank = function_bank
         self.x = None
         self.y = None
-        self.mutation_can_make_children = False
         self.solution_threshold = solution_threshold
         self.max_p = parents
         self.max_c = children
@@ -29,9 +33,15 @@ class CartesianGP:
         self.selection_type = selection.lower()
         self.xover_type = xover.lower() if xover else None
         self.model_kwargs = model_parameters or {}
-        self.semantic = 'semantic' in self.xover_type
-        self.homologous = 'homologous' in self.xover_type
+        self.semantic = 'semantic' in self.xover_type if xover else ''
+        self.homologous = 'homologous' in self.xover_type if xover else ''
         self.ff_string = fitness_function
+        self.tournament_size = 2
+
+        if self.max_p < 2 or kwargs.get('asexual_reproduction', False):
+            self.mutation_can_make_children = True
+        else:
+            self.mutation_can_make_children = False
 
         # Validate fitness function
         self.fitness_function = {'correlation': correlation}.get(fitness_function.lower())
@@ -44,6 +54,17 @@ class CartesianGP:
             'tournament': self.tournament_selection,
             'competent tournament': self.competent_tournament_selection
         }
+
+        self.tournament_diversity = kwargs.get('tournament_diversity', True)  # Default: enforce diversity
+        if 'tournament' in self.selection_type:
+            self.tournament_size = int(kwargs.get('tournament_size')) or self._missing_key_error('tournament_size')
+        if xover:
+            if 'n_point' in self.xover_type or 'semantic' in self.xover_type:
+                self.n_points = int(kwargs.get('n_points')) or self._missing_key_error('n_points')
+                if self.n_points < 1 or self.n_points > self.model_kwargs['max_size'] // 2:
+                    raise ValueError(
+                        f"Invalid n_points parameter: {self.n_points}, must be between 1 and {self.model_kwargs['max_size'] // 2}")
+
         if self.selection_type not in self.selection_methods:
             raise ValueError(f"Invalid selection type: {self.selection_type}")
 
@@ -59,22 +80,17 @@ class CartesianGP:
 
         # Allow modifiers like 'semantic_n_point' or 'homologous_uniform'
         if self.xover_type:
-            xover_parts = self.xover_type.split('_')
-
-            # Extract primary crossover type
-            xover_name = xover_parts[-1]  # Last part should be the actual xover method
-
-            if xover_name not in self.xover_methods:
+            if self.xover_type not in self.xover_methods:
                 raise ValueError(f"Invalid crossover type: {self.xover_type}")
 
             # Extract modifiers
-            if 'semantic' in xover_parts:
+            if 'semantic' in self.xover_type:
                 self.semantic = True
-            if 'homologous' in xover_parts:
+            if 'homologous' in self.xover_type:
                 self.homologous = True
 
             # Set crossover function
-            self.xover = self.xover_methods[xover_name]
+            self.xover = self.xover_methods[self.xover_type]
         else:
             self.xover = None  # Allow for no crossover
 
@@ -83,7 +99,7 @@ class CartesianGP:
             raise ValueError(f"Invalid mutation type: {self.mutation_type}")
 
         # Initialize tracking structures
-        self.metrics = np.zeros((self.max_g + 1, 5), dtype=np.float64)  # Store min, max, median, etc.
+        self.metrics = np.zeros((self.max_g + 1, 17), dtype=np.float64)  # Store min, max, median, etc.
         self.xover_index = {cat: np.zeros((self.max_g, self.max_p)) for cat in ['deleterious', 'neutral', 'beneficial']}
         self.mut_index = np.zeros((self.max_g, self.max_p))
 
@@ -100,23 +116,43 @@ class CartesianGP:
         for i, future in future_models.items():
             self.population[i] = future.result()
 
-        self._get_fitnesses()
-        self._record_metrics(0)
-
     def elite_selection(self, n_elites=None):
         """Select the top `n_elites` individuals."""
         n_elites = n_elites or self.max_p
         elite_indices = np.argsort(self.fitnesses)[:n_elites]
         return self.population[elite_indices]
 
+    import numpy as np
+
     def tournament_selection(self, n_to_select=None):
-        """Performs tournament selection."""
+        """Performs tournament selection with optional diversity enforcement."""
         n_to_select = n_to_select or self.max_p
         new_population = np.empty(n_to_select, dtype=object)
 
+        # Filter out None values from population
+        t_pop = self.population[self.population != None]
+
+        if self.tournament_diversity:
+            # Use a list to track available individuals to prevent reselection
+            available_indices = list(range(len(t_pop)))
+
         for i in range(n_to_select):
-            contestants = np.random.choice(self.population[:self.max_p], size=3, replace=False)
-            new_population[i] = min(contestants, key=lambda ind: ind.fitness)
+            if self.tournament_diversity and len(available_indices) < self.tournament_size:
+                # If fewer individuals remain than tournament size, use all available ones
+                contestants_indices = available_indices
+            else:
+                # Randomly select contestants from available indices
+                contestants_indices = np.random.choice(available_indices, size=self.tournament_size, replace=False)
+
+            contestants = t_pop[contestants_indices]
+
+            # Select the best individual based on fitness
+            best_index = min(contestants_indices, key=lambda idx: t_pop[idx].fitness)
+            new_population[i] = t_pop[best_index]
+
+            # Remove selected individual from available pool if enforcing diversity
+            if self.tournament_diversity:
+                available_indices.remove(best_index)
 
         return new_population
 
@@ -132,11 +168,12 @@ class CartesianGP:
         n_to_select = n_to_select or self.max_p
 
         # Assume population is stored in a NumPy array (first max_p individuals are parents)
-        parent_indices = np.arange(self.max_p)
+        parent_indices = np.arange(self.max_p+self.max_c)
+        t_pop = self.population[self.population != None]
 
         # Compute semantic vectors (assumed to be 1D NumPy arrays) for all parents.
         # For instance, each CGP model could expose a method _compute_semantics()
-        parent_semantics = np.array([parent._compute_semantics(self.x) for parent in self.population[parent_indices]])
+        parent_semantics = np.array([parent._compute_semantics(self.x) for parent in t_pop[parent_indices]])
 
         # Compute target vector (ground truth) as 1D NumPy array
         target = np.ravel(self.y)
@@ -206,19 +243,19 @@ class CartesianGP:
 
     def crossover(self, parents, xover_rate, gen):
         """Perform crossover to generate children."""
-        children = np.empty(self.max_c, dtype=object)
+        children = []
         parent_pairs = [(parents[i], parents[i + 1]) for i in range(0, len(parents), 2)]
+        while len(children) < self.max_c:
+            for i, (p1, p2) in enumerate(parent_pairs):
+                if np.random.rand() < xover_rate:
+                    c1, c2 = self.xover(p1, p2, gen)
+                else:
+                    c1, c2 = deepcopy(p1), deepcopy(p2)
 
-        for i, (p1, p2) in enumerate(parent_pairs):
-            if np.random.rand() < xover_rate:
-                c1, c2 = self.xover(p1, p2, gen)
-            else:
-                c1, c2 = deepcopy(p1), deepcopy(p2)
+                children.append(c1)
+                children.append(c2)
 
-            children[i * 2], children[i * 2 + 1] = c1, c2
-
-        return children
-
+        return np.array(children, dtype=object)[:self.max_c]
 
     def _n_point_xover(self, p1, p2, gen, **kwargs):
         """Performs n-point crossover, supporting semantic and homologous crossover."""
@@ -353,7 +390,7 @@ class CartesianGP:
 
         def random_active_connect(n_i, n_a, c_p, model):
             """Reconnects inactive nodes in the new model."""
-            operand_indices = [f'Operand{i}' for i in range(self.arity)]
+            operand_indices = [f'Operand{i}' for i in range(model.arity)]
             input_nodes = np.where((model['NodeType'] == 'Constant') | (model['NodeType'] == 'Input'))[0]
 
             for n in n_a:
@@ -413,17 +450,48 @@ class CartesianGP:
         g0.xover_index[xover_point - fb_node] += 1
         return g0
 
+    def _mutate(self, models, gen, mutation_rate):
+        if self.mutation_can_make_children:  # Reproduction through mutation
+            children = []
+            while len(children) < self.max_c:
+                for m, model in enumerate(models):
+                    if np.random.rand() < mutation_rate or self.max_p == 1:
+                        # Directly mutate the model (avoid deepcopy if not needed)
+                        ref_model = copy(model)  # Assuming a 'copy' method is available for models
+                        ref_model.mutate()
+
+                        # Use NumPy-style enumerated key formatting for consistency
+                        child_key = f'Child_{m:03d}_g{gen}'
+
+                        # Ensure unique child keys and proper parent key tracking
+                        p_key = f'Model_{m:03d}_g{gen - 1}' if child_key not in models else model.parent_keys
+
+                        # Set parent key and store the child
+                        ref_model.set_parent_key([p_key])
+                        children.append(ref_model)
+
+            models = np.concatenate((models, np.array(children, dtype=object)))  # Efficiently update models with the new children
+            return models  # No need to deepcopy models, just return the updated dictionary
+
+        else:  # Mutate models in-place
+            for m, model in enumerate(models):
+                if np.random.rand() < mutation_rate:
+                    model.mutate()
+            return models  # No need for deepcopy in this case
+
     def _get_fitnesses(self):
         """Compute fitnesses for all models."""
-        for i in range(self.max_p + self.max_c):
-            self.fitnesses[i] = self.population[i].fit(self.x, self.y)
+        for i in range(len(self.population)):
+            if self.population[i] is not None:
+                self.fitnesses[i] = self.population[i].fit(self.x, self.y)
 
     def _group_parents_and_children(self):
         """
         Groups parents with their corresponding children using their parent_keys.
         """
         # Find all individuals with parent keys
-        individuals_with_parents = [(key, ind) for key, ind in self.population.items() if ind.parent_keys is not None]
+        individuals_with_parents = [(p, self.population[p]) for p in range(len(self.population)) if
+                                    self.population[p] is not None and self.population[p].parent_keys is not None]
 
         parent_child_map = {}
 
@@ -521,8 +589,12 @@ class CartesianGP:
         and similarity measurements.
         """
         # Extract fitness values & active node counts
-        fit_list = np.array(list(self.fitnesses.values()))
-        active_nodes_list = np.array([self.population[p].count_active_nodes() for p in self.population])
+        fit_list = np.array(list(self.fitnesses))
+        active_nodes_list = []
+        for p in range(len(self.population)):
+            if self.population[p] is not None:
+                active_nodes_list.append(self.population[p].count_active_nodes())
+        active_nodes_list = np.atleast_1d(active_nodes_list)
 
         # Compute similarity scores
         similarity_scores = self._analyze_similarity()
@@ -530,7 +602,7 @@ class CartesianGP:
 
         # Find the best model by fitness (lower is better)
         best_model_index = np.argmin(fit_list)
-        self.best_model = list(self.population.values())[best_model_index]
+        self.best_model = self.population[best_model_index]
 
         # Compute quartile statistics efficiently
         fit_statistics = _get_quartiles(fit_list)
@@ -555,6 +627,54 @@ class CartesianGP:
             similarity_quartiles[3], similarity_quartiles[4]  # Similarity stats
         )
 
+    def _report_generation(self, g: int):
+        # Efficient logging instead of multiple print calls
+        print(f'Generation {g}')
+        print(f'Fitness statistics:')
+        print(self.metrics[g])
+        print('################')
+
+    def _compare_child_parents(self):
+        parent_child_groups = self._group_parents_and_children()
+
+        for parent_pair, (parents, children) in parent_child_groups.items():
+            if not parents or not children:
+                continue
+
+            # Extract fitness values from parents for quicker access
+            parent_fitness = [parent.fitness for parent in parents]
+
+            for child in children:
+                if child.better_than_parents is None:
+                    # Check if the child's fitness is better or worse than any parent
+                    child_fitness = child.fitness
+                    if any(child_fitness > f for f in parent_fitness):
+                        child.better_than_parents = 'deleterious'
+                    elif any(child_fitness < f for f in parent_fitness):
+                        child.better_than_parents = 'beneficial'
+
+    def _box_distribution(self, gen):
+        # Access the population once and filter individuals with parent keys
+        individuals_with_parents = [
+            ind for ind in self.population if
+            ind is not None and ind.parent_keys is not None and ind.better_than_parents is not None
+        ]
+
+        # Create a reference to xover_index for quicker access
+        xover_index = self.xover_index
+
+        # Set indices based on 'better_than_parents' value and reset xover_index in one pass
+        for ind in individuals_with_parents:
+            if ind.better_than_parents == 'beneficial':
+                xover_index['beneficial'][gen - 1, :] += ind.xover_index
+            elif ind.better_than_parents == 'deleterious':
+                xover_index['deleterious'][gen - 1, :] += ind.xover_index
+            else:
+                xover_index['neutral'][gen - 1, :] += ind.xover_index
+
+            # Reset the xover_index after assignment
+            ind.xover_index.fill(0)  # More efficient than np.zeros() if we're resetting the entire array
+
     def fit(self, train_x: np.ndarray, train_y: np.ndarray, step_size: int = None,
             xover_rate: float = 0.5, mutation_rate: float = 0.5):
         """
@@ -571,6 +691,7 @@ class CartesianGP:
             CGP: The best evolved model.
         """
         self.x, self.y = train_x, train_y
+        self.initialize_population()
 
         # Sanity checks
         if len(self.x) < 1:
@@ -580,18 +701,6 @@ class CartesianGP:
         if step_size is not None and not isinstance(step_size, int):
             raise TypeError("Step size must be either of type `int` or `None`.")
 
-        # ✅ **Parallelized Population Initialization**
-        with ThreadPoolExecutor() as executor:
-            self.population = {
-                f'Model_{p}': executor.submit(CGP, fixed_length=self.fixed_length, fitness_function=self.ff_string,
-                                              mutation_type=self.mutation_type, function_bank=self.function_bank,
-                                              **self.model_kwargs)
-                for p in range(self.max_p)
-            }
-
-        # Wait for all model initializations to complete
-        self.population = {key: model.result() for key, model in self.population.items()}
-
         # Compute fitnesses for the initial population
         self._get_fitnesses()
         self._record_metrics(0)
@@ -600,10 +709,10 @@ class CartesianGP:
         # Setup mutation and crossover tracking
         model_size = self.model_kwargs.get('max_size', -1)
         if model_size < 0:
-            model_size = self.population['Model_0'].max_size
-        model_size += self.population['Model_0'].outputs
+            model_size = self.population[0].max_size
+        model_size += self.population[0].outputs
         self.xover_index = {key: np.zeros((self.max_g, model_size)) for key in self.xover_index}
-        genes_per_instruction = self.population['Model_0'].arity + 1  # for the operator
+        genes_per_instruction = self.population[0].arity + 1  # for the operator
         self.mut_index = np.zeros((self.max_g, model_size * genes_per_instruction))
 
         # ✅ **Evolutionary Process**
@@ -612,25 +721,26 @@ class CartesianGP:
             selected_parents = self.selection()
 
             # **Crossover to Generate Children**
-            if self.xover_type:
+            if self.xover:
                 children = self.crossover(selected_parents, xover_rate, gen)
             else:
                 children = selected_parents  # No crossover, pass parents as is
 
             # **Compare children to parents & track distributions**
+            self._get_fitnesses()
             self._compare_child_parents()
             self._box_distribution(gen)
-
             # **Mutate Children**
             mutated_children = self._mutate(children, gen, mutation_rate)
 
+
             # **Update Population with New Children**
-            selected_parents.update(mutated_children)
+            selected_parents= np.concatenate((selected_parents, mutated_children))
             self.population = selected_parents
 
             # **Compute New Fitnesses**
             self._get_fitnesses()
-            self._clear_fitnesses()
+            # self._clear_fitnesses()
             self._record_metrics(gen)
 
             # **Step-wise Reporting**
@@ -640,3 +750,5 @@ class CartesianGP:
         # ✅ **Return the Best Model**
         return self.population[np.argmin(self.fitnesses)]
 
+
+test = CartesianGP

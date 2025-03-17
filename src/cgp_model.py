@@ -52,7 +52,8 @@ class CGP:
 
     def _initialize_from_kwargs(self, kwargs):
         """Initialize attributes from keyword arguments."""
-        self.constants = np.array(kwargs.get('constants', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]))
+        #self.constants = np.array(kwargs.get('constants', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]))
+        self.constants = np.atleast_1d(kwargs.get('constants', [1]))
         self.inputs = kwargs.get('inputs', 1)
         self.outputs = kwargs.get('outputs', 1)
         self.arity = kwargs.get('arity', 2)
@@ -111,8 +112,12 @@ class CGP:
 
     def _compute_single_input(self, datum):
         """Compute output for a single input."""
+        datum = np.asarray(datum, dtype=np.float64).item()
         input_indices = np.where(self.model['NodeType'] == 'Input')[0]
-        self.model['Value'][input_indices] = datum
+        input_indices = np.atleast_1d(input_indices)  # Ensure it's an array
+        self.model['Value'][input_indices] = np.float64(datum)
+
+
         return self._run()
 
     def fit(self, data, ground_truth):
@@ -140,29 +145,33 @@ class CGP:
 
     def _point_mutation(self):
         """Efficient point mutation ensuring changes affect active nodes."""
-        active_indices = np.where((self.model['NodeType'] == 'Function') & (self.model['Active'] == 1))[0]
+        #active_indices = np.where((self.model['NodeType'] == 'Function') & (self.model['Active'] == 1))[0]
+        active_indices = np.where((self.model['NodeType'] == 'Function') | (self.model['NodeType'] == 'Output'))[0]
 
         if len(active_indices) == 0:
             # Fallback: Mutate any function node if no active ones exist
-            active_indices = np.where(self.model['NodeType'] == 'Function')[0]
+            active_indices = np.where((self.model['NodeType'] == 'Function') | (self.model['NodeType'] == 'Output'))[0]
 
         # Select a random active function node
         mutation_index = np.random.choice(active_indices)
+        if self.model[mutation_index]['NodeType'] == 'Function':
+            mutation_column = np.random.choice(['Operator'] + [f'Operand{i}' for i in range(self.arity)])
 
-        mutation_column = np.random.choice(['Operator'] + [f'Operand{i}' for i in range(self.arity)])
-
-        if mutation_column == 'Operator':
-            # Ensure new operator is different
-            new_operator = np.random.choice(self.function_bank)
-            while new_operator == self.model[mutation_index]['Operator']:
+            if mutation_column == 'Operator':
+                # Ensure new operator is different
                 new_operator = np.random.choice(self.function_bank)
-            self.model[mutation_index]['Operator'] = new_operator
-        else:
-            # Mutate operand, ensuring a different value
-            new_operand = np.random.randint(0, mutation_index)
-            while new_operand == self.model[mutation_index][mutation_column]:
+                while new_operator == self.model[mutation_index]['Operator']:
+                    new_operator = np.random.choice(self.function_bank)
+                self.model[mutation_index]['Operator'] = new_operator
+            else:
+                # Mutate operand, ensuring a different value
                 new_operand = np.random.randint(0, mutation_index)
-            self.model[mutation_index][mutation_column] = new_operand
+                while new_operand == self.model[mutation_index][mutation_column]:
+                    new_operand = np.random.randint(0, mutation_index)
+                self.model[mutation_index][mutation_column] = new_operand
+        else: #mutate output node
+            new_operand = np.random.randint(0, mutation_index)
+            self.model[mutation_index]['Operand0'] = new_operand
 
     def mutate(self):
         """Perform mutation using the assigned function."""
@@ -179,3 +188,5 @@ class CGP:
         print(f"Max Instructions: {self.max_size}")
         print(f"Function Bank: {[func.__name__ for func in self.function_bank]}")
         print(f"Number of Functions: {self.n_operations}")
+    def set_parent_key(self, key):
+        self.parent_keys = key
