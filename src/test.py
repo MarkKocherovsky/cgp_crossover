@@ -11,12 +11,12 @@ def test_cartesian_gp_init():
 
     # Initialize the CartesianGP instance
     cgp = CartesianGP(
-        parents=2,
-        children=4,
+        parents=4,
+        children=8,
         max_generations=200,
         mutation="point",
-        selection="elite",
-        xover=None,
+        selection="competent_tournament",
+        xover='subgraph',
         fixed_length=True,
         fitness_function="correlation",
         model_parameters=model_params,
@@ -24,10 +24,10 @@ def test_cartesian_gp_init():
         solution_threshold=0.001,
         tournament_size= 5,
         n_points= 1,
-        n_elites= 40
+        n_elites= 1
     )
     x = np.atleast_2d(np.arange(-5, 5.01, 0.5)).T
-    y = x
+    y = np.sin(x)
     best_model = cgp.fit(x,y)
 
     preds = best_model(x)

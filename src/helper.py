@@ -59,32 +59,44 @@ def get_score(p_to_t, p_to_m, m_to_t):
 
 def clean_values(model, x_train, include_output=False):
     """
-    Gets the values matrix for each
+    Gets the values matrix for each input.
+
     @param model: CGP model
-    @param x_train: list of x inputs
-    @param include_output: if output values are included in the set
-    @return: matrix of values with rows as node numbers and columns as inputs
+    @param x_train: NumPy array of x inputs
+    @param include_output: Whether output values are included in the set
+    @return: Matrix of values with rows as node numbers and columns as inputs
     """
-    model_length = len(model.model.loc[model.model['NodeType'] == 'Function'])
+    # Get boolean masks for function and output nodes
+    function_mask = model.model['NodeType'] == 'Function'
+    output_mask = model.model['NodeType'] == 'Output'
+
+    # Compute matrix size
+    model_length = np.sum(function_mask)
     if include_output:
-        model_length += len(model.model.loc[model.model['NodeType'] == 'Output'])
+        model_length += np.sum(output_mask)
+
     number_of_inputs = x_train.shape[0]
     values_matrix = np.zeros((model_length, number_of_inputs))
-    # Extract function values and ensure they are absolute
-    for i, input_value in enumerate(x_train):
-        model(input_value)  # run the value
-        function_values = model.model.loc[model.model['NodeType'] == 'Function', 'Value'].to_numpy()
 
-        # Include output values if specified
+    # Iterate over inputs
+    for i, input_value in enumerate(x_train):
+        model(input_value)  # Run the model with the input
+
+        # Extract function node values
+        function_values = model.model['Value'][function_mask]
+
         if include_output:
-            output_count = len(model.model.loc[model.model['NodeType'] == 'Output'])
-            output_values = np.zeros(output_count)
-            values = np.concatenate([function_values, output_values], axis=1)
+            # Extract output node values
+            output_values = model.model['Value'][output_mask]
+            values = np.concatenate([function_values, output_values])
         else:
             values = function_values
+
         values_matrix[:, i] = values
-    # assume every function nodes starts initialized at 0
+
+    # Ensure all values are finite, replacing NaNs/Infs with 0
     values_matrix[~np.isfinite(values_matrix)] = 0
+
     return values_matrix
 
 

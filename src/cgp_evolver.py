@@ -7,6 +7,7 @@ from cgp_model import CGP
 from fitness_functions import correlation
 from helper import _validate_int_param, _get_quartiles, pairwise_minkowski_distance, get_score, get_ssd, get_weights, \
     clean_values
+from scipy.spatial.distance import cdist
 from Bio.Align import PairwiseAligner, Seq
 
 
@@ -52,12 +53,15 @@ class CartesianGP:
         self.selection_methods = {
             'elite': self.elite_selection,
             'tournament': self.tournament_selection,
-            'competent tournament': self.competent_tournament_selection
+            'elite_tournament': self.elite_tournament_selection,
+            'competent_tournament': self.competent_tournament_selection
         }
 
         self.tournament_diversity = kwargs.get('tournament_diversity', True)  # Default: enforce diversity
         if 'tournament' in self.selection_type:
             self.tournament_size = int(kwargs.get('tournament_size')) or self._missing_key_error('tournament_size')
+            if 'elite' in self.selection_type:
+                self.n_elites = int(kwargs.get('n_elites')) or self._missing_key_error('n_elites')
         if xover:
             if 'n_point' in self.xover_type or 'semantic' in self.xover_type:
                 self.n_points = int(kwargs.get('n_points')) or self._missing_key_error('n_points')
@@ -73,7 +77,12 @@ class CartesianGP:
         # Setup crossover
         self.xover_methods = {
             'n_point': self._n_point_xover,
-            'uniform': self._uniform_xover
+            'uniform': self._uniform_xover,
+            'semantic_uniform': self._uniform_xover,
+            'homologous_semantic_uniform': self._uniform_xover,
+            'semantic_n_point': self._n_point_xover,
+            'homologous_semantic_n_point': self._n_point_xover,
+            'subgraph': self._subgraph_xover
         }
         self.semantic = False
         self.homologous = False
@@ -122,8 +131,6 @@ class CartesianGP:
         elite_indices = np.argsort(self.fitnesses)[:n_elites]
         return self.population[elite_indices]
 
-    import numpy as np
-
     def tournament_selection(self, n_to_select=None):
         """Performs tournament selection with optional diversity enforcement."""
         n_to_select = n_to_select or self.max_p
@@ -156,90 +163,136 @@ class CartesianGP:
 
         return new_population
 
+    def elite_tournament_selection(self):
+        """Combines elite selection with tournament selection, ensuring diversity enforcement."""
+
+        # Step 1: Select elite individuals
+        elite_population = self.elite_selection(self.n_elites)
+        elite_indices = np.array([np.where(self.population == elite)[0][0] for elite in elite_population])
+
+        # Step 2: Prepare for tournament selection
+        remaining_slots = self.max_p - len(elite_population)
+        t_pop = self.population[self.population != None]  # Remove None values
+
+        # If enforcing diversity, track available individuals
+        if self.tournament_diversity:
+            available_indices = list(range(len(t_pop)))
+            # Remove elite indices from available pool
+            available_indices = [idx for idx in available_indices if idx not in elite_indices]
+
+        new_population = np.empty(remaining_slots, dtype=object)
+
+        # Step 3: Perform tournament selection
+        for i in range(remaining_slots):
+            if self.tournament_diversity and len(available_indices) < self.tournament_size:
+                # Use all remaining individuals if fewer than tournament size
+                contestants_indices = available_indices
+            else:
+                # Randomly select contestants
+                contestants_indices = np.random.choice(available_indices, size=self.tournament_size, replace=False)
+
+            contestants = t_pop[contestants_indices]
+
+            # Select the best individual based on fitness
+            best_index = min(contestants_indices, key=lambda idx: t_pop[idx].fitness)
+            new_population[i] = t_pop[best_index]
+
+            # Remove selected individual to enforce diversity
+            if self.tournament_diversity:
+                available_indices.remove(best_index)
+
+        # Step 4: Combine elite and tournament-selected individuals
+        final_population = np.concatenate((elite_population, new_population))
+        return final_population
+
+    def _compute_semantics(self):
+        """
+        Compute semantics for all individuals in the CGP population at once.
+        Uses vectorized operations for better efficiency.
+
+        Returns:
+            np.ndarray: A matrix where each row is an individual's output.
+        """
+        valid_individuals = [ind for ind in self.population if ind is not None]
+
+        if not valid_individuals:  # Handle empty population case
+            return np.empty((0, len(self.x)))
+
+        # Compute outputs for all individuals in one go
+        semantics = np.vstack([ind(self.x).flatten() for ind in valid_individuals])
+
+        return semantics
+
+
     def competent_tournament_selection(self, n_to_select=None):
         """
         Perform competent tournament selection with semantic distance-based scoring,
-        using NumPy arrays for efficiency.
+        using optimized vectorized operations.
 
         Returns:
             np.ndarray: Array of selected parent CGP models.
         """
-        # Default number to select is the number of parents
         n_to_select = n_to_select or self.max_p
 
-        # Assume population is stored in a NumPy array (first max_p individuals are parents)
-        parent_indices = np.arange(self.max_p+self.max_c)
-        t_pop = self.population[self.population != None]
+        # Filter out None individuals and get their indices
+        t_pop = np.array([ind for ind in self.population if ind is not None])
+        parent_indices = np.arange(len(t_pop))
 
-        # Compute semantic vectors (assumed to be 1D NumPy arrays) for all parents.
-        # For instance, each CGP model could expose a method _compute_semantics()
-        parent_semantics = np.array([parent._compute_semantics(self.x) for parent in t_pop[parent_indices]])
+        # Compute all parent semantics at once
+        parent_semantics = self._compute_semantics()
 
-        # Compute target vector (ground truth) as 1D NumPy array
+        # Compute target vector (ground truth)
         target = np.ravel(self.y)
 
-        # Compute each parent’s distance to the target using a pairwise Minkowski function.
-        # (pairwise_minkowski_distance is assumed to accept two 1D arrays and return a scalar distance)
-        target_distances = np.array([pairwise_minkowski_distance(sem, target, p=2)
-                                     for sem in parent_semantics])
+        # Compute distances to target using vectorized Minkowski distance (p=2)
+        target_distances = np.linalg.norm(parent_semantics - target, axis=1)
 
-        # Prepare an array to hold the indices of selected individuals
+        # Prepare selected indices and remaining indices
         selected_indices = []
-
-        # For efficient lookup, create a mutable list of remaining parent indices
         remaining = list(parent_indices)
 
-        # Tournament parameters: we require tournament_size and diversity flag to be set
-        t_size = self.tournament_size  # must have been set by _setup_tournament_and_elite()
+        t_size = min(self.tournament_size, len(remaining))
         enforce_diversity = self.tournament_diversity
 
         while len(selected_indices) < n_to_select and len(remaining) >= t_size:
-            # Randomly sample tournament contestants from remaining indices
+
+            # Ensure we have enough candidates to sample
+            if len(remaining) < t_size:
+                break
+
+            # Sample contestants
             contestants = np.random.choice(remaining, size=t_size, replace=False)
-            # Select the contestant with the best (lowest) fitness
-            first_index = contestants[np.argmin(self.fitnesses[contestants])]
+
+            # Select first parent (lowest target distance)
+            first_index = contestants[np.argmin(target_distances[contestants])]
 
             first_sem = parent_semantics[first_index]
             first_target_dist = target_distances[first_index]
 
-            # For each contestant, compute the semantic distance to the first parent’s semantics,
-            # and compute a composite score using a helper function get_score().
-            # get_score() is assumed to combine the parent's target distance,
-            # the distance between semantics, and the contestant's target distance.
-            scores = {}
-            for idx in contestants:
-                sem_dist = pairwise_minkowski_distance(first_sem, parent_semantics[idx], p=2)
-                # get_score is assumed to return a scalar (the lower the score, the better)
-                scores[idx] = get_score(first_target_dist, sem_dist, target_distances[idx])
+            # Compute semantic distances between first parent and all contestants
+            sem_distances = np.linalg.norm(parent_semantics[contestants] - first_sem, axis=1)
 
-            # Select the contestant with the minimum score as the second parent
+            # Compute composite scores
+            scores = {
+                idx: get_score(
+                    first_target_dist,
+                    pairwise_minkowski_distance(first_sem, parent_semantics[idx], p=2),
+                    target_distances[idx]
+                )
+                for idx in contestants
+            }
+
+            # Select second parent (minimum composite score)
             second_index = min(scores, key=scores.get)
 
-            # Add both indices to the selected list
+            # Add both parents to selected list
             selected_indices.extend([first_index, second_index])
 
-            # Optionally enforce diversity by removing selected indices from remaining pool
+            # Enforce diversity
             if enforce_diversity:
                 remaining = [i for i in remaining if i not in (first_index, second_index)]
 
-        # If we selected more than needed, take only the first n_to_select.
-        selected_indices = np.array(selected_indices[:n_to_select])
-        return self.population[selected_indices]
-
-    def elite_tournament_selection(self, n_elites=None):
-        """Combines elite selection with tournament selection for diversity."""
-
-        # Step 1: Select elite individuals
-        elite_population = self.elite_selection(n_elites)
-        elite_indices = np.array([np.where(self.population == elite)[0][0] for elite in elite_population])
-
-        # Step 2: Perform tournament selection for the remaining slots
-        remaining_slots = self.max_p - len(elite_population)
-        remaining_population = self.tournament_selection(remaining_slots)
-
-        # Step 3: Combine results
-        final_population = np.concatenate((elite_population, remaining_population))
-        return final_population
+        return self.population[np.array(selected_indices[:n_to_select])]
 
     def crossover(self, parents, xover_rate, gen):
         """Perform crossover to generate children."""
@@ -248,7 +301,11 @@ class CartesianGP:
         while len(children) < self.max_c:
             for i, (p1, p2) in enumerate(parent_pairs):
                 if np.random.rand() < xover_rate:
-                    c1, c2 = self.xover(p1, p2, gen)
+                    if self.xover_type == 'subgraph':
+                        c1 = self.xover(p1, p2, gen)
+                        c2 = self.xover(p2, p1, gen)
+                    else:
+                        c1, c2 = self.xover(p1, p2, gen)
                 else:
                     c1, c2 = deepcopy(p1), deepcopy(p2)
 
@@ -280,10 +337,12 @@ class CartesianGP:
             vmat_1, vmat_2 = clean_values(p1, self.x), clean_values(p2, self.x)
             weights = get_weights(get_ssd(vmat_1, vmat_2))  # Compute weight distribution
 
-            if self.homologous:
-                max_weight = weights.max()
-                min_weight = weights.min()
-                weights = (max_weight - weights) / (max_weight - min_weight + 1e-8)  # Normalize
+            if self.homologous and not np.all(weights == weights[0]):  # Normalize if needed
+                max_weight, min_weight = weights.max(), weights.min()
+                weights = (max_weight - weights) / (max_weight - min_weight + 1e-8)
+
+                if not np.allclose(weights.sum(), 1.0):
+                    weights /= weights.sum()  # Re-normalize if sum deviates from 1.0
 
         # Determine crossover points
         if self.fixed_length:
@@ -390,7 +449,7 @@ class CartesianGP:
 
         def random_active_connect(n_i, n_a, c_p, model):
             """Reconnects inactive nodes in the new model."""
-            operand_indices = [f'Operand{i}' for i in range(model.arity)]
+            operand_indices = [f'Operand{i}' for i in range(p1.arity)]
             input_nodes = np.where((model['NodeType'] == 'Constant') | (model['NodeType'] == 'Input'))[0]
 
             for n in n_a:
@@ -411,7 +470,8 @@ class CartesianGP:
             active_nodes = np.where(parent.get_active_nodes())[0]
             while len(active_nodes) < 1:  # If there are no active nodes, mutate until one is found
                 parent.mutate()
-                parent.fit([0, 0, 0], [0, 0, 0])
+                generic = np.zeros((1, parent.inputs))
+                parent.fit(generic, generic)
                 active_nodes = np.where(parent.get_active_nodes())[0]
             return parent.model.copy(), active_nodes
 
@@ -470,7 +530,8 @@ class CartesianGP:
                         ref_model.set_parent_key([p_key])
                         children.append(ref_model)
 
-            models = np.concatenate((models, np.array(children, dtype=object)))  # Efficiently update models with the new children
+            models = np.concatenate(
+                (models, np.array(children, dtype=object)))  # Efficiently update models with the new children
             return models  # No need to deepcopy models, just return the updated dictionary
 
         else:  # Mutate models in-place
@@ -733,9 +794,8 @@ class CartesianGP:
             # **Mutate Children**
             mutated_children = self._mutate(children, gen, mutation_rate)
 
-
             # **Update Population with New Children**
-            selected_parents= np.concatenate((selected_parents, mutated_children))
+            selected_parents = np.concatenate((selected_parents, mutated_children))
             self.population = selected_parents
 
             # **Compute New Fitnesses**
