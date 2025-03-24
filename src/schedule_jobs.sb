@@ -6,15 +6,29 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=2G
+#SBATCH --qos=scavenger  # Uncomment if using preemptible jobs
+
 
 # Load Conda
 module purge
 module load Conda/3
+module load powertools
+module load DMTCP  # Ensure DMTCP is available
 source ~/.bashrc
 conda activate cgp
 
+# Define checkpoint directory
+export DMTCP_CHECKPOINT_DIR= mk_job_scheduler_ckpt
+export DMTCP_CHECKPOINT_INTERVAL=480  # Set checkpoint interval
+export DMTCP_RESTART_DIR=$DMTCP_CHECKPOINT_DIR
+
+# Ensure checkpoint directory exists
+mkdir -p $DMTCP_CHECKPOINT_DIR
+
 # Change to the directory containing job_scheduler.py
 cd /mnt/home/kocherov/Documents/cgp/src/
+
+
 
 # Check if this is the first submission
 if [[ -f "../output/logs/first_submission_flag" ]]; then
@@ -22,6 +36,15 @@ if [[ -f "../output/logs/first_submission_flag" ]]; then
 else
     echo "First submission detected."
     touch "../output/logs/first_submission_flag"
+fi
+
+# Check if a checkpoint exists
+if ls $DMTCP_CHECKPOINT_DIR/dmtcp_restart_script.sh 1> /dev/null 2>&1; then
+    echo "Restarting from checkpoint..."
+    dmtcp_restart $DMTCP_CHECKPOINT_DIR/dmtcp_restart_script.sh
+else
+    echo "Starting fresh run with checkpointing..."
+    dmtcp_launch /mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u job_scheduler.py
 fi
 
 # Run the job scheduler script

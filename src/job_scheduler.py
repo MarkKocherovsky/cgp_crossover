@@ -196,7 +196,7 @@ conda activate cgp
 
 # Define checkpoint directory
 export DMTCP_CHECKPOINT_DIR={error_dir}{job_name}_ckpt
-export DMTCP_CHECKPOINT_INTERVAL=7200  # Set checkpoint interval (2 hours)
+export DMTCP_CHECKPOINT_INTERVAL=480  # Set checkpoint interval
 export DMTCP_RESTART_DIR=$DMTCP_CHECKPOINT_DIR
 
 # Ensure checkpoint directory exists
