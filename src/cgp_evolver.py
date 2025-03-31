@@ -20,6 +20,8 @@ class CartesianGP:
                  xover=None, fixed_length=True, fitness_function='Correlation', model_parameters=None,
                  function_bank=None, solution_threshold=0.005, checkpoint_filename='checkpoint.pkl', **kwargs):
 
+        self.model_key_map = None
+        self.child_id_counter = 0
         self.population = np.empty(parents + children, dtype=object)  # Array for storing models
         self.fitnesses = np.full(parents + children, np.inf, dtype=np.float64)  # Fitness values
         self.best_model = None
@@ -112,7 +114,7 @@ class CartesianGP:
             raise ValueError(f"Invalid mutation type: {self.mutation_type}")
 
         # Initialize tracking structures
-        self.metrics = np.zeros((self.max_g + 1, 17), dtype=np.float64)  # Store min, max, median, etc.
+        self.metrics = np.zeros((self.max_g + 1, 12), dtype=np.float64)  # Store min, max, median, etc.
         self.xover_index = {cat: np.zeros((self.max_g, self.max_p)) for cat in ['deleterious', 'neutral', 'beneficial']}
         self.mut_index = np.zeros((self.max_g, self.max_p))
 
@@ -321,6 +323,7 @@ class CartesianGP:
         """Perform crossover to generate children."""
         children = []
         parent_pairs = [(parents[i], parents[i + 1]) for i in range(0, len(parents), 2)]
+
         while len(children) < self.max_c:
             for i, (p1, p2) in enumerate(parent_pairs):
                 if np.random.rand() < xover_rate:
@@ -332,10 +335,28 @@ class CartesianGP:
                 else:
                     c1, c2 = deepcopy(p1), deepcopy(p2)
 
-                children.append(c1)
-                children.append(c2)
+                # Get parent keys
+                p1_key = getattr(p1, 'child_keys', f'Model_{2 * i:03d}_g{gen - 1}')
+                p2_key = getattr(p2, 'child_keys', f'Model_{2 * i + 1:03d}_g{gen - 1}')
 
-        return np.array(children, dtype=object)[:self.max_c]
+                # Assign keys to both children
+                for child in [c1, c2]:
+                    child_key = f'Child_{self.child_id_counter:03d}_g{gen}'
+                    child.set_parent_key([p1_key, p2_key])
+                    child.set_child_key(child_key)
+
+                    if hasattr(self, 'model_key_map'):
+                        self.model_key_map[child_key] = child
+
+                    self.child_id_counter += 1
+                    children.append(child)
+
+                    if len(children) >= self.max_c:
+                        break
+                if len(children) >= self.max_c:
+                    break
+
+        return np.array(children, dtype=object)
 
     def _n_point_xover(self, p1, p2, gen, **kwargs):
         """Performs n-point crossover, supporting semantic and homologous crossover."""
@@ -534,34 +555,45 @@ class CartesianGP:
         return g0
 
     def _mutate(self, models, gen, mutation_rate):
-        if self.mutation_can_make_children:  # Reproduction through mutation
-            children = []
+        children = []
+
+        if self.mutation_can_make_children:
             while len(children) < self.max_c:
                 for m, model in enumerate(models):
                     if np.random.rand() < mutation_rate or self.max_p == 1:
-                        # Directly mutate the model (avoid deepcopy if not needed)
-                        ref_model = copy(model)  # Assuming a 'copy' method is available for models
+                        ref_model = copy(model)
                         ref_model.mutate()
 
-                        # Use NumPy-style enumerated key formatting for consistency
-                        child_key = f'Child_{m:03d}_g{gen}'
+                        child_key = f'Child_{self.child_id_counter:03d}_g{gen}'
+                        parent_key = getattr(model, 'child_keys', f'Model_{m:03d}_g{gen - 1}')
 
-                        # Ensure unique child keys and proper parent key tracking
-                        p_key = f'Model_{m:03d}_g{gen - 1}' if child_key not in models else model.parent_keys
+                        ref_model.set_parent_key([parent_key])
+                        ref_model.set_child_key(child_key)
 
-                        # Set parent key and store the child
-                        ref_model.set_parent_key([p_key])
+                        if hasattr(self, 'model_key_map'):
+                            self.model_key_map[child_key] = ref_model
+
+                        self.child_id_counter += 1
                         children.append(ref_model)
 
-            models = np.concatenate(
-                (models, np.array(children, dtype=object)))  # Efficiently update models with the new children
-            return models  # No need to deepcopy models, just return the updated dictionary
+                    if len(children) >= self.max_c:
+                        break
 
-        else:  # Mutate models in-place
+            return np.concatenate((models, np.array(children, dtype=object)))
+        else:  # In-place mutation
             for m, model in enumerate(models):
                 if np.random.rand() < mutation_rate:
                     model.mutate()
-            return models  # No need for deepcopy in this case
+
+                    # Assign keys
+                    child_key = f'Child_{self.child_id_counter:03d}_g{gen}'
+                    parent_key = getattr(model, 'child_keys', f'Model_{m:03d}_g{gen - 1}')
+
+                    model.set_parent_key([parent_key])
+                    model.set_child_key(child_key)
+                    self.child_id_counter += 1
+
+            return models
 
     def _get_fitnesses(self):
         """Compute fitnesses for all models."""
@@ -570,68 +602,65 @@ class CartesianGP:
                 self.fitnesses[i] = self.population[i].fit(self.x, self.y)
 
     def _group_parents_and_children(self):
-        """
-        Groups parents with their corresponding children using their parent_keys.
-        """
-        # Find all individuals with parent keys
-        individuals_with_parents = [(p, self.population[p]) for p in range(len(self.population)) if
-                                    self.population[p] is not None and self.population[p].parent_keys is not None]
+        individuals_with_parents = [
+            model for model in self.population
+            if model is not None and hasattr(model, 'parent_keys') and model.parent_keys is not None
+        ]
 
         parent_child_map = {}
 
-        for key, ind in individuals_with_parents:
-            parent_pair = tuple(ind.parent_keys)  # Convert parent keys to a tuple
-            if parent_pair not in parent_child_map:
-                parent_child_map[parent_pair] = []
-            parent_child_map[parent_pair].append(ind)  # Store child under parent pair
+        for child in individuals_with_parents:
+            parent_pair = tuple(child.parent_keys)
+            parent_child_map.setdefault(parent_pair, []).append(child)
 
-        # Create a dictionary mapping parent tuples to their children
         parent_child_groups = {
             parent_pair: (
-                [self.population.get(p) for p in parent_pair if p in self.population],  # Retrieve parents
-                children  # Associated children
+                [self.model_key_map[p_key] for p_key in parent_pair if p_key in self.model_key_map],
+                children
             )
             for parent_pair, children in parent_child_map.items()
         }
 
         return parent_child_groups
 
-    def _get_similarity_score(self, model1, model2):
+    def _get_similarity_score(self, model1_obj, model2_obj):
         """
         Computes a similarity score between two models based on structural alignment.
 
         Args:
-            model1 (np.ndarray): First CGP model.
-            model2 (np.ndarray): Second CGP model.
+            model1_obj: First CGP model object (must have .model as 2D array).
+            model2_obj: Second CGP model object (must have .model as 2D array).
 
         Returns:
-            float: A similarity score.
+            float: A similarity score (higher = more similar).
         """
-        m1, m2 = deepcopy(model1), deepcopy(model2)  # Ensure copies to avoid modifying originals
+        m1 = deepcopy(model1_obj.model)
+        print(m1)
+        m2 = deepcopy(model2_obj.model)
+
+        # Validate dimensionality
+        if not (isinstance(m1, np.ndarray) and m1.ndim == 2):
+            print(f"Model1 not 2D: shape={getattr(m1, 'shape', None)}")
+            return 0.0
+        if not (isinstance(m2, np.ndarray) and m2.ndim == 2):
+            print(f"Model2 not 2D: shape={getattr(m2, 'shape', None)}")
+            return 0.0
 
         def _map_functions(mo1, mo2):
-            """
-            Maps function nodes in two models to unique integer labels for alignment.
-            """
-            unique_functions = np.unique(np.concatenate((mo1[:, 1], mo2[:, 1])))  # Extract unique operators
-            function_map = {func: i for i, func in enumerate(unique_functions)}  # Assign unique indices
-
-            # Apply function mapping to operator columns
+            unique_functions = np.unique(np.concatenate((mo1[:, 1], mo2[:, 1])))
+            function_map = {func: i for i, func in enumerate(unique_functions)}
             mo1[:, 1] = np.vectorize(function_map.get)(mo1[:, 1])
             mo2[:, 1] = np.vectorize(function_map.get)(mo2[:, 1])
-
             return mo1, mo2
 
-        m1, m2 = _map_functions(m1, m2)
-
-        # Convert function nodes to sequences
         try:
+            m1, m2 = _map_functions(m1, m2)
             sequence1 = m1[:, 1:].flatten().astype(str)
             sequence2 = m2[:, 1:].flatten().astype(str)
-        except IndexError:
-            return 0  # If insufficient rows, return 0 similarity
+        except Exception as e:
+            print("Error during sequence mapping or flattening:", e)
+            return 0.0
 
-        # Compute alignment score using Biopython's PairwiseAligner
         aligner = PairwiseAligner()
         aligner.mode = 'global'
         aligner.match_score = 2
@@ -639,30 +668,36 @@ class CartesianGP:
         aligner.open_gap_score = -2
         aligner.extend_gap_score = -2
 
-        seq1, seq2 = Seq("".join(sequence1)), Seq("".join(sequence2))
-        score = aligner.score(seq1, seq2)
-
-        return score if np.isfinite(score) else 0.0  # Ensure valid score
+        try:
+            seq1 = Seq("".join(sequence1))
+            seq2 = Seq("".join(sequence2))
+            score = aligner.score(seq1, seq2)
+            return score if np.isfinite(score) else 0.0
+        except Exception as e:
+            print("Alignment error:", e)
+            return 0.0
 
     def _analyze_similarity(self):
         """
         Computes the similarity between parents and their best offspring.
-        Uses semantic similarity to compare genetic structures.
+        Uses structural similarity to compare genetic representations.
         """
-
         parent_child_groups = self._group_parents_and_children()
         similarity_scores = []
 
         for parent_pair, (parents, children) in parent_child_groups.items():
+            # Filter out None or invalid entries
+            if any("g-1" in p for p in parent_pair):
+                continue
+            parents = [p for p in parents if p is not None]
+            children = [c for c in children if c is not None]
             if not parents or not children:
-                continue  # Skip if no parents or children exist
+                continue
 
-            # Find the best parent and best child based on fitness
-            best_parent = min(parents, key=lambda ind: ind.fitness)
-            best_child = min(children, key=lambda ind: ind.fitness)
+            best_parent = min(parents, key=lambda ind: getattr(ind, 'fitness', np.inf))
+            best_child = min(children, key=lambda ind: getattr(ind, 'fitness', np.inf))
 
-            # Compute similarity between best parent and best child
-            score = self._get_similarity_score(best_parent.model, best_child.model)
+            score = self._get_similarity_score(best_parent, best_child)
             similarity_scores.append((parent_pair, score))
 
         return similarity_scores
@@ -681,8 +716,8 @@ class CartesianGP:
         active_nodes_list = np.atleast_1d(active_nodes_list)
 
         # Compute similarity scores
-        similarity_scores = self._analyze_similarity()
-        similarity_values = np.array([score for _, score in similarity_scores])
+        #similarity_scores = self._analyze_similarity()
+        #similarity_values = np.array([score for _, score in similarity_scores])
 
         # Find the best model by fitness (lower is better)
         best_model_index = np.argmin(fit_list)
@@ -692,13 +727,13 @@ class CartesianGP:
         fit_statistics = _get_quartiles(fit_list)
         active_nodes_statistics = _get_quartiles(active_nodes_list)
         semantic_diversity = np.nanstd(fit_list)
-
+        """
         # Compute similarity quartiles (handle empty case)
         if len(similarity_values) > 0:
             similarity_quartiles = _get_quartiles(similarity_values)
         else:
             similarity_quartiles = [np.nan] * 5  # Default to NaN if no similarity data
-
+        """
         # Store metrics in the NumPy structured array
         self.metrics[gen] = (
             fit_statistics[0], fit_statistics[1], fit_statistics[2], fit_statistics[3], fit_statistics[4],
@@ -706,9 +741,9 @@ class CartesianGP:
             self.best_model.count_active_nodes(),
             active_nodes_statistics[0], active_nodes_statistics[1], active_nodes_statistics[2],
             active_nodes_statistics[3], active_nodes_statistics[4],  # Model size stats
-            semantic_diversity,  # Semantic diversity
-            similarity_quartiles[0], similarity_quartiles[1], similarity_quartiles[2],
-            similarity_quartiles[3], similarity_quartiles[4]  # Similarity stats
+            semantic_diversity  # Semantic diversity
+            #similarity_quartiles[0], similarity_quartiles[1], similarity_quartiles[2],
+            #similarity_quartiles[3], similarity_quartiles[4]  # Similarity stats
         )
 
     def save_metrics(self, path=None):
@@ -808,6 +843,13 @@ class CartesianGP:
 
         if self.first_submission: #first time setup
             self.initialize_population()
+            self.model_key_map = {}  # Add this at the beginning of fit()
+
+            # After initializing population (gen = 0)
+            for i, model in enumerate(self.population):
+                if model is not None:
+                    model.set_child_key(f'Model_{i:03d}_g0')
+                    self.model_key_map[model.child_keys] = model
 
             # Compute fitnesses for the initial population
             self._get_fitnesses()
@@ -835,6 +877,8 @@ class CartesianGP:
             # **Crossover to Generate Children**
             if self.xover:
                 children = self.crossover(selected_parents, xover_rate, gen)
+                for model in children:
+                    self.model_key_map[model.child_keys] = model
             else:
                 children = selected_parents  # No crossover, pass parents as is
 
@@ -844,6 +888,8 @@ class CartesianGP:
             self._box_distribution(gen)
             # **Mutate Children**
             mutated_children = self._mutate(children, gen, mutation_rate)
+            for model in mutated_children:
+                self.model_key_map[model.child_keys] = model
 
             # **Update Population with New Children**
             selected_parents = np.concatenate((selected_parents, mutated_children))
@@ -861,6 +907,3 @@ class CartesianGP:
 
         # ✅ **Return the Best Model**
         return self.population[np.argmin(self.fitnesses)]
-
-
-test = CartesianGP

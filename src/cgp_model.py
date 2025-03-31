@@ -15,6 +15,7 @@ class CGP:
         self.fitness = None
         self.fixed_length = fixed_length
         self.parent_keys = parent_keys
+        self.child_keys = None
         self.better_than_parents = None
 
         # Assign fitness function
@@ -52,7 +53,7 @@ class CGP:
 
     def _initialize_from_kwargs(self, kwargs):
         """Initialize attributes from keyword arguments."""
-        #self.constants = np.array(kwargs.get('constants', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]))
+        # self.constants = np.array(kwargs.get('constants', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]))
         self.constants = np.atleast_1d(kwargs.get('constants', [1]))
         self.inputs = kwargs.get('inputs', 1)
         self.outputs = kwargs.get('outputs', 1)
@@ -117,7 +118,6 @@ class CGP:
         input_indices = np.atleast_1d(input_indices)  # Ensure it's an array
         self.model['Value'][input_indices] = np.float64(datum)
 
-
         return self._run()
 
     def fit(self, data, ground_truth):
@@ -145,7 +145,7 @@ class CGP:
 
     def _point_mutation(self):
         """Efficient point mutation ensuring changes affect active nodes."""
-        #active_indices = np.where((self.model['NodeType'] == 'Function') & (self.model['Active'] == 1))[0]
+        # active_indices = np.where((self.model['NodeType'] == 'Function') & (self.model['Active'] == 1))[0]
         active_indices = np.where((self.model['NodeType'] == 'Function') | (self.model['NodeType'] == 'Output'))[0]
 
         if len(active_indices) == 0:
@@ -169,7 +169,7 @@ class CGP:
                 while new_operand == self.model[mutation_index][mutation_column]:
                     new_operand = np.random.randint(0, mutation_index)
                 self.model[mutation_index][mutation_column] = new_operand
-        else: #mutate output node
+        else:  # mutate output node
             new_operand = np.random.randint(0, mutation_index)
             self.model[mutation_index]['Operand0'] = new_operand
 
@@ -188,7 +188,12 @@ class CGP:
         print(f"Max Instructions: {self.max_size}")
         print(f"Function Bank: {[func.__name__ for func in self.function_bank]}")
         print(f"Number of Functions: {self.n_operations}")
+
     def print_model(self):
         print(self.model)
+
     def set_parent_key(self, key):
         self.parent_keys = key
+
+    def set_child_key(self, key):
+        self.child_keys = key
