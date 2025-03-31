@@ -2,6 +2,8 @@
 # a single run of CGP for the experiment
 # to actually queue up jobs run job_scheduler.py
 import argparse
+import os
+import pickle
 from datetime import datetime
 from pathlib import Path
 
@@ -100,13 +102,21 @@ if max_parents < max_children:
     mutation_breeding = True
 else:
     mutation_breeding = False
-evolution_module = CartesianGP(parents=max_parents, children=max_children,
-                               max_generations=max_generations, mutation=mutation_type, selection=selection_type,
-                               xover=xover_type, fixed_length=True, fitness_function=fitness_function,
-                               model_parameters=model_parameters, n_points=n_points, n_elites=n_elites,
-                               tournament_size=tournament_size, function_bank=function_bank,
-                               mutation_breeding=mutation_breeding)
 
+os.makedirs('../output/ckpt', exist_ok=True)
+CHECKPOINT_FILE = f"../output/ckpt/{test_problem_key}_{problem_dimensions}d_{xover_type}_{selection_type}_trial_{trial_number}_ckpt.pkl"
+
+if os.path.exists(CHECKPOINT_FILE):
+    evolution_module = CartesianGP.load_checkpoint(CHECKPOINT_FILE)
+    evolution_module.set_max_gens(max_generations)
+    print(f"Resuming from generation {evolution_module.current_generation}")
+else:
+    evolution_module = CartesianGP(parents=max_parents, children=max_children,
+                                   max_generations=max_generations, mutation=mutation_type, selection=selection_type,
+                                   xover=xover_type, fixed_length=True, fitness_function=fitness_function,
+                                   model_parameters=model_parameters, n_points=n_points, n_elites=n_elites,
+                                   tournament_size=tournament_size, function_bank=function_bank,
+                                   mutation_breeding=mutation_breeding, checkpoint_filename=CHECKPOINT_FILE)
 start = datetime.now()
 best_model = evolution_module.fit(train_x, train_y, step_size=step_size)
 end = datetime.now()

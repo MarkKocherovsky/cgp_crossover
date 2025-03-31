@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 import heapq
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy, copy
@@ -17,7 +18,7 @@ class CartesianGP:
 
     def __init__(self, parents=1, children=4, max_generations=100, mutation='Point', selection='Elite',
                  xover=None, fixed_length=True, fitness_function='Correlation', model_parameters=None,
-                 function_bank=None, solution_threshold=0.005, **kwargs):
+                 function_bank=None, solution_threshold=0.005, checkpoint_filename='checkpoint.pkl', **kwargs):
 
         self.population = np.empty(parents + children, dtype=object)  # Array for storing models
         self.fitnesses = np.full(parents + children, np.inf, dtype=np.float64)  # Fitness values
@@ -29,6 +30,7 @@ class CartesianGP:
         self.max_p = parents
         self.max_c = children
         self.max_g = max_generations
+        self.original_max_g = max_generations
         self.fixed_length = fixed_length
         self.mutation_type = mutation.lower()
         self.selection_type = selection.lower()
@@ -38,6 +40,8 @@ class CartesianGP:
         self.homologous = 'homologous' in self.xover_type if xover else ''
         self.ff_string = fitness_function
         self.tournament_size = 2
+        self.ckpt_filename = checkpoint_filename
+        self.current_generation = 0
 
         if self.max_p < 2 or kwargs.get('asexual_reproduction', False):
             self.mutation_can_make_children = True
@@ -111,6 +115,26 @@ class CartesianGP:
         self.metrics = np.zeros((self.max_g + 1, 17), dtype=np.float64)  # Store min, max, median, etc.
         self.xover_index = {cat: np.zeros((self.max_g, self.max_p)) for cat in ['deleterious', 'neutral', 'beneficial']}
         self.mut_index = np.zeros((self.max_g, self.max_p))
+
+        self.first_submission = True
+
+    def save_checkpoint(self, filename="cgp_checkpoint.pkl", generation=None):
+        """Save the entire object to a file."""
+        with open(filename, "wb") as f:
+            pickle.dump(self, f)
+        if generation is not None:
+            print(f"Checkpoint saved at generation {generation} in {filename}")
+        else:
+            print("Checkpoint saved.")
+
+    @staticmethod
+    def load_checkpoint(filename="cgp_checkpoint.pkl"):
+        """Load and return a CartesianGP object from a checkpoint file."""
+        with open(filename, "rb") as f:
+            obj = pickle.load(f)
+        print("Checkpoint loaded.")
+        obj.first_submission = False
+        return obj
 
     def initialize_population(self):
         """Initialize population in parallel."""
@@ -222,7 +246,6 @@ class CartesianGP:
         semantics = np.vstack([ind(self.x).flatten() for ind in valid_individuals])
 
         return semantics
-
 
     def competent_tournament_selection(self, n_to_select=None):
         """
@@ -687,15 +710,16 @@ class CartesianGP:
             similarity_quartiles[0], similarity_quartiles[1], similarity_quartiles[2],
             similarity_quartiles[3], similarity_quartiles[4]  # Similarity stats
         )
+
     def save_metrics(self, path=None):
-         path = path if path is not None else '.'
- 
-         # Save the metrics DataFrame only once
-         np.savetxt(f'{path}/statistics.csv', self.metrics, delimiter=',')
- 
-         # Save the xover_index categories efficiently
-         for cat in ['deleterious', 'neutral', 'beneficial']:
-             np.savetxt(f'{path}/xover_density_{cat}.csv', self.xover_index[cat].astype(np.int32), delimiter=",")
+        path = path if path is not None else '.'
+
+        # Save the metrics DataFrame only once
+        np.savetxt(f'{path}/statistics.csv', self.metrics, delimiter=',')
+
+        # Save the xover_index categories efficiently
+        for cat in ['deleterious', 'neutral', 'beneficial']:
+            np.savetxt(f'{path}/xover_density_{cat}.csv', self.xover_index[cat].astype(np.int32), delimiter=",")
 
     def _report_generation(self, g: int):
         # Efficient logging instead of multiple print calls
@@ -745,6 +769,18 @@ class CartesianGP:
             # Reset the xover_index after assignment
             ind.xover_index.fill(0)  # More efficient than np.zeros() if we're resetting the entire array
 
+    def set_max_gens(self, gens):
+        self.max_g = gens
+
+    def expand_generations_if_needed(self, new_max_g: int):
+        if new_max_g <= self.original_max_g:
+            return
+        pad = new_max_g - self.original_max_g
+        self.metrics = np.pad(self.metrics, ((0, pad), (0, 0)), mode='constant')
+        self.mut_index = np.pad(self.mut_index, ((0, pad), (0, 0)), mode='constant')
+        for k in self.xover_index:
+            self.xover_index[k] = np.pad(self.xover_index[k], ((0, pad), (0, 0)), mode='constant')
+
     def fit(self, train_x: np.ndarray, train_y: np.ndarray, step_size: int = None,
             xover_rate: float = 0.5, mutation_rate: float = 0.5):
         """
@@ -761,7 +797,6 @@ class CartesianGP:
             CGP: The best evolved model.
         """
         self.x, self.y = train_x, train_y
-        self.initialize_population()
 
         # Sanity checks
         if len(self.x) < 1:
@@ -771,22 +806,29 @@ class CartesianGP:
         if step_size is not None and not isinstance(step_size, int):
             raise TypeError("Step size must be either of type `int` or `None`.")
 
-        # Compute fitnesses for the initial population
-        self._get_fitnesses()
-        self._record_metrics(0)
-        self._report_generation(0)
+        if self.first_submission: #first time setup
+            self.initialize_population()
 
-        # Setup mutation and crossover tracking
-        model_size = self.model_kwargs.get('max_size', -1)
-        if model_size < 0:
-            model_size = self.population[0].max_size
-        model_size += self.population[0].outputs
-        self.xover_index = {key: np.zeros((self.max_g, model_size)) for key in self.xover_index}
-        genes_per_instruction = self.population[0].arity + 1  # for the operator
-        self.mut_index = np.zeros((self.max_g, model_size * genes_per_instruction))
+            # Compute fitnesses for the initial population
+            self._get_fitnesses()
+            self._record_metrics(0)
+            self._report_generation(0)
+
+            # Setup mutation and crossover tracking
+            model_size = self.model_kwargs.get('max_size', -1)
+            if model_size < 0:
+                model_size = self.population[0].max_size
+            model_size += self.population[0].outputs
+            self.xover_index = {key: np.zeros((self.max_g, model_size)) for key in self.xover_index}
+            genes_per_instruction = self.population[0].arity + 1  # for the operator
+            self.mut_index = np.zeros((self.max_g, model_size * genes_per_instruction))
+
+        else:
+            self.expand_generations_if_needed(self.max_g)
 
         # ✅ **Evolutionary Process**
-        for gen in range(1, self.max_g + 1):
+        for gen in range(self.current_generation, self.max_g + 1):
+            self.current_generation = gen
             # **Parent Selection**
             selected_parents = self.selection()
 
@@ -815,6 +857,7 @@ class CartesianGP:
             # **Step-wise Reporting**
             if step_size and gen % step_size == 0:
                 self._report_generation(gen)
+                self.save_checkpoint(filename=self.ckpt_filename, generation=gen)
 
         # ✅ **Return the Best Model**
         return self.population[np.argmin(self.fitnesses)]

@@ -188,11 +188,8 @@ for function in function_list:
 #SBATCH --mem=8G
 #SBATCH --qos=scavenger  # Uncomment if using preemptible jobs
 
-set -x
 module purge
 module load Conda/3
-module load powertools
-module load DMTCP  # Ensure DMTCP is available
 
 source ~/.bashrc
 conda activate cgp
@@ -200,40 +197,14 @@ conda activate cgp
 # Move to working directory
 cd /mnt/home/kocherov/Documents/cgp/src/
 
-# Define checkpointing config
-export DMTCP_SIGCKPT=10
-export DMTCP_CHECKPOINT_INTERVAL=480
-export DMTCP_CHECKPOINT_DIR=$SLURM_SUBMIT_DIR/ckpt_$SLURM_JOB_NAME_$SLURM_JOB_ID
-export DMTCP_RESTART_DIR=$DMTCP_CHECKPOINT_DIR
-mkdir -p "$DMTCP_CHECKPOINT_DIR"
-
-# Override DMTCP_HOST to ensure local coordinator
-export DMTCP_HOST=$(hostname)
-export DMTCP_COORD_HOST=$(hostname)
-echo "DMTCP_HOST set to: $DMTCP_HOST"
-
-# 💡 Assign unique port to avoid socket conflicts
-export DMTCP_COORD_PORT=$((10000 + $SLURM_JOB_ID % 10000))
-echo "Using DMTCP_COORD_PORT=$DMTCP_COORD_PORT"
-
 # Verify Conda activation
 if [[ "$(which python3)" != "/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3" ]]; then
     echo "Error: Conda environment 'cgp' not properly activated!"
     exit 1
 fi
 
-# Debug: Print all DMTCP-related environment vars
-echo "Before launch:"
-env | grep DMTCP
 
-# Check if a checkpoint exists
-if ls $DMTCP_CHECKPOINT_DIR/dmtcp_restart_script.sh 1> /dev/null 2>&1; then
-    echo "Restarting from checkpoint..."
-    dmtcp_restart $DMTCP_CHECKPOINT_DIR/dmtcp_restart_script.sh
-else
-    echo "Starting fresh run with checkpointing..."
-    dmtcp_launch /mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u run.py {i} {max_g} {max_n} {max_p} {max_c} {xover} {x_rate} {mutation} {m_rate} {selection} {function} --n_points {n_points} --n_elites {n_elites} --problem_dimensions {p_dim} --step_size {step_size} --tournament_size {t_size}
-fi
+/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u run.py {i} {max_g} {max_n} {max_p} {max_c} {xover} {x_rate} {mutation} {m_rate} {selection} {function} --n_points {n_points} --n_elites {n_elites} --problem_dimensions {p_dim} --step_size {step_size} --tournament_size {t_size}
 
 # Capture exit code
 ret=$?

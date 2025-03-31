@@ -21,16 +21,6 @@ conda activate cgp
 # Change to the directory containing job_scheduler.py
 cd /mnt/home/kocherov/Documents/cgp/src/
 
-# Define checkpointing config
-export DMTCP_SIGCKPT=10                            # SIGUSR1
-export DMTCP_CHECKPOINT_INTERVAL=480
-export DMTCP_CHECKPOINT_DIR=$SLURM_SUBMIT_DIR/ckpt/ckpt_${SLURM_JOB_NAME}_$SLURM_JOB_ID
-export DMTCP_RESTART_DIR=$DMTCP_CHECKPOINT_DIR
-mkdir -p "$DMTCP_CHECKPOINT_DIR"
-
-# Override DMTCP_HOST to ensure coordinator can launch
-export DMTCP_HOST=$(hostname)
-echo "DMTCP_HOST set to: $DMTCP_HOST"
 
 # Check if this is the first submission
 if [[ -f "../output/logs/first_submission_flag" ]]; then
@@ -41,8 +31,6 @@ else
 fi
 
 # Run the job scheduler script
-longjob /mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u job_scheduler.py
-ret=$?
+/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 job_scheduler.py
 # Deactivate Conda
 conda deactivate
-exit $ret
