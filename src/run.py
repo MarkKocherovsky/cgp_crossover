@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 from cgp_evolver import CartesianGP
 from cgp_operators import add, sub, mul, div
@@ -119,4 +120,5 @@ if test_x is not None:
 
 evolution_module.save_metrics(run_path)
 best_model.print_model()
-best_model.to_csv(f'{run_path}/best_model.csv')
+df = pd.DataFrame(best_model.model)
+df.to_csv(f'{run_path}/best_model.csv', index=False)

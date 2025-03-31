@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash --login
 #SBATCH --job-name=mk_job_scheduler
 #SBATCH --output=../output/logs/job_scheduler_%j.out
 #SBATCH --error=../output/err/job_scheduler_%j.err
@@ -12,23 +12,25 @@
 # Load Conda
 module purge
 module load Conda/3
+shopt -s expand_aliases
 module load powertools
 module load DMTCP  # Ensure DMTCP is available
 source ~/.bashrc
 conda activate cgp
 
-# Define checkpoint directory
-export DMTCP_CHECKPOINT_DIR= mk_job_scheduler_ckpt
-export DMTCP_CHECKPOINT_INTERVAL=480  # Set checkpoint interval
-export DMTCP_RESTART_DIR=$DMTCP_CHECKPOINT_DIR
-
-# Ensure checkpoint directory exists
-mkdir -p $DMTCP_CHECKPOINT_DIR
-
 # Change to the directory containing job_scheduler.py
 cd /mnt/home/kocherov/Documents/cgp/src/
 
+# Define checkpointing config
+export DMTCP_SIGCKPT=10                            # SIGUSR1
+export DMTCP_CHECKPOINT_INTERVAL=480
+export DMTCP_CHECKPOINT_DIR=$SLURM_SUBMIT_DIR/ckpt/ckpt_${SLURM_JOB_NAME}_$SLURM_JOB_ID
+export DMTCP_RESTART_DIR=$DMTCP_CHECKPOINT_DIR
+mkdir -p "$DMTCP_CHECKPOINT_DIR"
 
+# Override DMTCP_HOST to ensure coordinator can launch
+export DMTCP_HOST=$(hostname)
+echo "DMTCP_HOST set to: $DMTCP_HOST"
 
 # Check if this is the first submission
 if [[ -f "../output/logs/first_submission_flag" ]]; then
@@ -38,17 +40,9 @@ else
     touch "../output/logs/first_submission_flag"
 fi
 
-# Check if a checkpoint exists
-if ls $DMTCP_CHECKPOINT_DIR/dmtcp_restart_script.sh 1> /dev/null 2>&1; then
-    echo "Restarting from checkpoint..."
-    dmtcp_restart $DMTCP_CHECKPOINT_DIR/dmtcp_restart_script.sh
-else
-    echo "Starting fresh run with checkpointing..."
-    dmtcp_launch /mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u job_scheduler.py
-fi
-
 # Run the job scheduler script
-/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u job_scheduler.py
-
+longjob /mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u job_scheduler.py
+ret=$?
 # Deactivate Conda
 conda deactivate
+exit $ret

@@ -188,5 +188,7 @@ class CGP:
         print(f"Max Instructions: {self.max_size}")
         print(f"Function Bank: {[func.__name__ for func in self.function_bank]}")
         print(f"Number of Functions: {self.n_operations}")
+    def print_model(self):
+        print(self.model)
     def set_parent_key(self, key):
         self.parent_keys = key

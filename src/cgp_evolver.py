@@ -687,6 +687,15 @@ class CartesianGP:
             similarity_quartiles[0], similarity_quartiles[1], similarity_quartiles[2],
             similarity_quartiles[3], similarity_quartiles[4]  # Similarity stats
         )
+    def save_metrics(self, path=None):
+         path = path if path is not None else '.'
+ 
+         # Save the metrics DataFrame only once
+         np.savetxt(f'{path}/statistics.csv', self.metrics, delimiter=',')
+ 
+         # Save the xover_index categories efficiently
+         for cat in ['deleterious', 'neutral', 'beneficial']:
+             np.savetxt(f'{path}/xover_density_{cat}.csv', self.xover_index[cat].astype(np.int32), delimiter=",")
 
     def _report_generation(self, g: int):
         # Efficient logging instead of multiple print calls
