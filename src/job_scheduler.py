@@ -65,14 +65,14 @@ CHECKPOINT_FILE = "checkpoint.json"
 
 # Problem configuration
 functions = Collection()
-# function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
-#                 'Ackley']
+function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
+                 'Ackley']
 #function_list = ['Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin', 'Ackley']
-# xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
-#          'homologous_semantic_uniform']
+xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
+          'homologous_semantic_uniform']
 #xovers = ['n_point', 'uniform', 'subgraph', 'semantic_uniform']
-function_list = ['Koza1', 'Koza2']
-xovers = ['n_point', 'uniform']
+#function_list = ['Koza1', 'Koza2']
+#xovers = ['n_point', 'uniform']
 
 # xovers = ['homologous_semantic_uniform', 'homologous_semantic_n_point']
 mutation = 'point'
@@ -84,17 +84,17 @@ os.makedirs(output_dir, exist_ok=True)
 os.makedirs(error_dir, exist_ok=True)
 
 # Parameters
-max_g = 10
-max_p = 24
-max_c = 24
-max_n = 32
+max_g = 3000
+max_p = 40
+max_c = 40
+max_n = 64
 x_rate = 0.5
 m_rate = 0.025
 n_points = 1
 n_elites = 1
-t_size = 6
+t_size = 4
 p_dim = 1
-step_size = 1
+step_size = 100
 
 job_count = 0
 
@@ -163,7 +163,7 @@ for function in function_list:
     f_no_space = function.replace(' ', '')
     for xover in xovers:
         Path(f'../output/{f_no_space}/{xover}/').mkdir(parents=True, exist_ok=True)
-        for i in range(5):  # Create 50 jobs per function/xover combination
+        for i in range(50):  # Create 50 jobs per function/xover combination
             job_name = f"kocherov_{f_no_space}_{xover}_{i}"
 
             # Skip already completed jobs

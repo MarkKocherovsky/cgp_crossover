@@ -3,7 +3,7 @@ from analysis_helper import Method, AnalysisToolkit
 base_path = "../output/"
 
 crossover_methods = {
-    'Canonical': Method('None', 'CGP(1+4)', 'CGP(1+4)', 'blue'),
+    #'Canonical': Method('None', 'CGP(1+4)', 'CGP(1+4)', 'blue'),
     'N-Point': Method('n_point', 'CGP(24+24)-1x', 'CGP(24+24) - One Point', 'green'),
     'Uniform': Method('uniform', 'cgp(24+24)-Ux', 'CGP(24+24) - Uniform', 'deeppink'),
     'Subgraph': Method('subgraph', 'CGP(24+24)-SGx', 'CGP(24+24) - Subgraph', 'orange'),
@@ -16,8 +16,7 @@ crossover_methods = {
 # canonical will always have 'elite'
 selection_methods = {'elite_tournament': 'Elite Tournament'}
 
-metrics = ['Min Fitness', 'Median Fitness', 'Best Model Size', 'Median Model Size', 'Semantic Diversity',
-           'Min Similarity', 'Median Similarity']
+metrics = ['Min Fitness', 'Median Fitness', 'Best Model Size', 'Median Model Size', 'Semantic Diversity']
 
 # key->name
 problems = {
@@ -47,7 +46,7 @@ problems = {
 #                   xover_density_deleterious.csv
 #                   xover_density_neutral.csv
 
-analyzer = AnalysisToolkit(crossover_methods, selection_methods, problems, metrics, 50, 3001)
+analyzer = AnalysisToolkit(crossover_methods, selection_methods, problems, metrics, 5, 1000)
 
 analyzer.compile_averages()
 for metric in metrics:

@@ -46,7 +46,8 @@ class AnalysisToolkit:
         trial_data = []
         for trial in range(self.trials):
             path = self.base_path / problem / xover / selection_key / f'trial_{trial}/statistics.csv'
-            trial_data.append(pd.read_csv(path))
+            print(path)
+            trial_data.append(np.loadtxt(path, delimiter=','))
             if len(trial_data[-1]) < self.max_generations:
                 print(path, len(trial_data[-1]))
         return trial_data
@@ -67,7 +68,8 @@ class AnalysisToolkit:
 
                     for metric in self.metrics:
                         try:
-                            data = np.array([table[metric][0:self.max_generations].values for table in table_list])
+                            metric_idx = self.metrics.index(metric)  # assumes self.metrics is a list of metric names in fixed column order
+                            data = np.array([table[0:self.max_generations, metric_idx] for table in table_list])
                             quartiles = np.quantile(data, [0, 0.25, 0.5, 0.75, 1], axis=0)
                             q_table = pd.DataFrame(quartiles.T,
                                 columns=['Minimum', 'First Quartile', 'Median', 'Third Quartile',
