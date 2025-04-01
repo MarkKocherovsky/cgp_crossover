@@ -121,22 +121,17 @@ class CartesianGP:
         self.first_submission = True
 
     def save_checkpoint(self, filename="cgp_checkpoint.pkl", generation=None):
-        """Save the entire object to a file."""
         with open(filename, "wb") as f:
-            pickle.dump(self, f)
-        if generation is not None:
-            print(f"Checkpoint saved at generation {generation} in {filename}")
-        else:
-            print("Checkpoint saved.")
+            pickle.dump(self.__dict__, f)  # Save all instance variables
+        print(f"Checkpoint saved at generation {generation or self.current_generation} in {filename}")
 
-    @staticmethod
-    def load_checkpoint(filename="cgp_checkpoint.pkl"):
-        """Load and return a CartesianGP object from a checkpoint file."""
+    def load_checkpoint(self, filename="cgp_checkpoint.pkl"):
         with open(filename, "rb") as f:
-            obj = pickle.load(f)
-        print("Checkpoint loaded.")
-        obj.first_submission = False
-        return obj
+            data = pickle.load(f)
+
+        self.__dict__.update(data)  # Restore all instance variables
+        self.first_submission = False
+        print(f"Checkpoint loaded at generation {self.current_generation}")
 
     def initialize_population(self):
         """Initialize population in parallel."""
@@ -846,10 +841,10 @@ class CartesianGP:
             self.model_key_map = {}  # Add this at the beginning of fit()
 
             # After initializing population (gen = 0)
-            for i, model in enumerate(self.population):
-                if model is not None:
-                    model.set_child_key(f'Model_{i:03d}_g0')
-                    self.model_key_map[model.child_keys] = model
+            #for i, model in enumerate(self.population):
+            #    if model is not None:
+            #        model.set_child_key(f'Model_{i:03d}_g0')
+            #        self.model_key_map[model.child_keys] = model
 
             # Compute fitnesses for the initial population
             self._get_fitnesses()
@@ -877,8 +872,8 @@ class CartesianGP:
             # **Crossover to Generate Children**
             if self.xover:
                 children = self.crossover(selected_parents, xover_rate, gen)
-                for model in children:
-                    self.model_key_map[model.child_keys] = model
+                #for model in children:
+                #    self.model_key_map[model.child_keys] = model
             else:
                 children = selected_parents  # No crossover, pass parents as is
 
@@ -888,8 +883,8 @@ class CartesianGP:
             self._box_distribution(gen)
             # **Mutate Children**
             mutated_children = self._mutate(children, gen, mutation_rate)
-            for model in mutated_children:
-                self.model_key_map[model.child_keys] = model
+            #for model in mutated_children:
+            #    self.model_key_map[model.child_keys] = model
 
             # **Update Population with New Children**
             selected_parents = np.concatenate((selected_parents, mutated_children))
