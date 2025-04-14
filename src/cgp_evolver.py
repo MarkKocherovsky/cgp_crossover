@@ -1,5 +1,6 @@
 import numpy as np
 import pickle
+import os
 import heapq
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy, copy
@@ -20,10 +21,11 @@ class CartesianGP:
                  xover=None, fixed_length=True, fitness_function='Correlation', model_parameters=None,
                  function_bank=None, solution_threshold=0.005, checkpoint_filename='checkpoint.pkl', **kwargs):
 
+        # Basic attributes
         self.model_key_map = None
         self.child_id_counter = 0
-        self.population = np.empty(parents + children, dtype=object)  # Array for storing models
-        self.fitnesses = np.full(parents + children, np.inf, dtype=np.float64)  # Fitness values
+        self.population = np.empty(parents + children, dtype=object)
+        self.fitnesses = np.full(parents + children, np.inf, dtype=np.float64)
         self.best_model = None
         self.function_bank = function_bank
         self.x = None
@@ -34,54 +36,48 @@ class CartesianGP:
         self.max_g = max_generations
         self.original_max_g = max_generations
         self.fixed_length = fixed_length
+        self.model_kwargs = model_parameters or {}
+        self.ckpt_filename = checkpoint_filename
+        self.current_generation = 0
+        self.kwargs = kwargs
+        self.first_submission = True
+
+        # Config values with defaults
         self.mutation_type = mutation.lower()
         self.selection_type = selection.lower()
         self.xover_type = xover.lower() if xover else None
-        self.model_kwargs = model_parameters or {}
-        self.semantic = 'semantic' in self.xover_type if xover else ''
-        self.homologous = 'homologous' in self.xover_type if xover else ''
         self.ff_string = fitness_function
-        self.tournament_size = 2
-        self.ckpt_filename = checkpoint_filename
-        self.current_generation = 0
+        self.semantic = 'semantic' in self.xover_type if xover else False
+        self.homologous = 'homologous' in self.xover_type if xover else False
 
-        if self.max_p < 2 or kwargs.get('asexual_reproduction', False):
-            self.mutation_can_make_children = True
-        else:
-            self.mutation_can_make_children = False
+        # Safe defaults
+        self.tournament_size = int(kwargs.get('tournament_size', 2))
+        self.n_elites = int(kwargs.get('n_elites', 0))
+        self.n_points = int(kwargs.get('n_points', 1))
+        self.tournament_diversity = kwargs.get('tournament_diversity', True)
 
-        # Validate fitness function
+        # Mutation fallback
+        self.mutation_can_make_children = self.max_p < 2 or kwargs.get('asexual_reproduction', False)
+
+        # Fitness function
         self.fitness_function = {'correlation': correlation}.get(fitness_function.lower())
         if not self.fitness_function:
             raise ValueError(f"Invalid fitness function: {fitness_function}")
 
-        # Validate selection method
+        # Selection methods
         self.selection_methods = {
             'elite': self.elite_selection,
             'tournament': self.tournament_selection,
             'elite_tournament': self.elite_tournament_selection,
             'competent_tournament': self.competent_tournament_selection
         }
-
-        self.tournament_diversity = kwargs.get('tournament_diversity', True)  # Default: enforce diversity
-        if 'tournament' in self.selection_type:
-            self.tournament_size = int(kwargs.get('tournament_size')) or self._missing_key_error('tournament_size')
-            if 'elite' in self.selection_type:
-                self.n_elites = int(kwargs.get('n_elites')) or self._missing_key_error('n_elites')
-        if xover:
-            if 'n_point' in self.xover_type or 'semantic' in self.xover_type:
-                self.n_points = int(kwargs.get('n_points')) or self._missing_key_error('n_points')
-                if self.n_points < 1 or self.n_points > self.model_kwargs['max_size'] // 2:
-                    raise ValueError(
-                        f"Invalid n_points parameter: {self.n_points}, must be between 1 and {self.model_kwargs['max_size'] // 2}")
-
         if self.selection_type not in self.selection_methods:
             raise ValueError(f"Invalid selection type: {self.selection_type}")
-
         self.selection = self.selection_methods[self.selection_type]
 
-        # Setup crossover
+        # Crossover setup
         self.xover_methods = {
+            'none': None,
             'n_point': self._n_point_xover,
             'uniform': self._uniform_xover,
             'semantic_uniform': self._uniform_xover,
@@ -90,48 +86,80 @@ class CartesianGP:
             'homologous_semantic_n_point': self._n_point_xover,
             'subgraph': self._subgraph_xover
         }
-        self.semantic = False
-        self.homologous = False
-
-        # Allow modifiers like 'semantic_n_point' or 'homologous_uniform'
         if self.xover_type:
             if self.xover_type not in self.xover_methods:
                 raise ValueError(f"Invalid crossover type: {self.xover_type}")
-
-            # Extract modifiers
-            if 'semantic' in self.xover_type:
-                self.semantic = True
-            if 'homologous' in self.xover_type:
-                self.homologous = True
-
-            # Set crossover function
             self.xover = self.xover_methods[self.xover_type]
         else:
-            self.xover = None  # Allow for no crossover
+            self.xover = None
 
-        # Setup mutation
-        if self.mutation_type not in ['point']:
-            raise ValueError(f"Invalid mutation type: {self.mutation_type}")
+        # Validate crossover points
+        if self.xover_type and 'n_point' in self.xover_type:
+            max_size = self.model_kwargs.get('max_size', 10)
+            if self.n_points < 1 or self.n_points > max_size // 2:
+                raise ValueError(f"Invalid n_points: {self.n_points}")
 
-        # Initialize tracking structures
-        self.metrics = np.zeros((self.max_g + 1, 12), dtype=np.float64)  # Store min, max, median, etc.
+        # Metrics and tracking
+        self.metrics = np.zeros((self.max_g + 1, 12), dtype=np.float64)
         self.xover_index = {cat: np.zeros((self.max_g, self.max_p)) for cat in ['deleterious', 'neutral', 'beneficial']}
         self.mut_index = np.zeros((self.max_g, self.max_p))
 
-        self.first_submission = True
-
     def save_checkpoint(self, filename="cgp_checkpoint.pkl", generation=None):
-        with open(filename, "wb") as f:
-            pickle.dump(self.__dict__, f)  # Save all instance variables
+        temp_file = filename + ".tmp"
+        with open(temp_file, "wb") as f:
+            pickle.dump(self.__dict__, f)
+        os.replace(temp_file, filename)  # atomic rename to avoid partial writes
         print(f"Checkpoint saved at generation {generation or self.current_generation} in {filename}")
 
-    def load_checkpoint(self, filename="cgp_checkpoint.pkl"):
-        with open(filename, "rb") as f:
-            data = pickle.load(f)
+    @classmethod
+    def load_checkpoint(cls, filename="cgp_checkpoint.pkl"):
+        def _try_load(path):
+            with open(path, "rb") as f:
+                return pickle.load(f)
 
-        self.__dict__.update(data)  # Restore all instance variables
-        self.first_submission = False
-        print(f"Checkpoint loaded at generation {self.current_generation}")
+        try:
+            data = _try_load(filename)
+        except EOFError:
+            print(f"⚠️ Warning: Failed to load checkpoint '{filename}' (EOFError). Trying backup...")
+            tmp_file = filename + ".tmp"
+            if os.path.exists(tmp_file):
+                try:
+                    data = _try_load(tmp_file)
+                    print("✅ Loaded from backup:", tmp_file)
+                except Exception as e:
+                    raise RuntimeError(f"❌ Failed to load from both '{filename}' and backup: {e}")
+            else:
+                raise RuntimeError(f"❌ Checkpoint corrupted and no backup found: {filename}")
+
+        obj = cls.__new__(cls)  # Don't call __init__!
+        obj.__dict__.update(data)
+
+        # Restore method bindings after unpickling
+        obj.selection_methods = {
+            'elite': obj.elite_selection,
+            'tournament': obj.tournament_selection,
+            'elite_tournament': obj.elite_tournament_selection,
+            'competent_tournament': obj.competent_tournament_selection
+        }
+
+        obj.xover_methods = {
+            'none': None,
+            'n_point': obj._n_point_xover,
+            'uniform': obj._uniform_xover,
+            'semantic_uniform': obj._uniform_xover,
+            'homologous_semantic_uniform': obj._uniform_xover,
+            'semantic_n_point': obj._n_point_xover,
+            'homologous_semantic_n_point': obj._n_point_xover,
+            'subgraph': obj._subgraph_xover
+        }
+
+        obj.selection = obj.selection_methods.get(obj.selection_type)
+        obj.xover = obj.xover_methods.get(obj.xover_type)
+
+        obj.first_submission = False
+
+        print(f"Checkpoint loaded at generation {obj.current_generation}")
+        return obj
 
     def initialize_population(self):
         """Initialize population in parallel."""
@@ -427,11 +455,26 @@ class CartesianGP:
             n_outputs = p1.outputs  # Adjust for outputs
 
         fb_node = min(p1.first_body_node, p2.first_body_node)
-        assert len(p1.model) == len(p2.model), "Parents in Uniform Xover must have the same length."
 
+        assert len(p1.model) == len(p2.model), "Parents in Uniform Xover must have the same length."
         possible_indices = np.arange(fb_node, len(p1.model) - n_outputs)
-        swapped_indices = np.random.choice(
-            possible_indices, size=len(possible_indices) // 2, replace=False, p=weights)
+
+        if weights is not None:
+            #weights = weights[fb_node:len(p1.model) - n_outputs]  # Align weights with crossover region
+            mask = weights > 1e-8
+            filtered_indices = possible_indices[mask]
+            filtered_weights = weights[mask]
+            n_swap = min(len(filtered_indices), len(possible_indices) // 2)
+
+            if n_swap > 0:
+                swapped_indices = np.random.choice(
+                    filtered_indices, size=n_swap, replace=False,
+                    p=filtered_weights / filtered_weights.sum())
+            else:
+                swapped_indices = np.array([], dtype=int)
+        else:
+            swapped_indices = np.random.choice(
+                possible_indices, size=len(possible_indices) // 2, replace=False)
 
         # Perform crossover with minimal copying
         c1_model, c2_model = p1.model.copy(), p2.model.copy()
@@ -549,15 +592,15 @@ class CartesianGP:
         g0.xover_index[xover_point - fb_node] += 1
         return g0
 
-    def _mutate(self, models, gen, mutation_rate):
+    def _mutate(self, models, gen, mutation_rate, verbose=False):
         children = []
 
         if self.mutation_can_make_children:
             while len(children) < self.max_c:
                 for m, model in enumerate(models):
                     if np.random.rand() < mutation_rate or self.max_p == 1:
-                        ref_model = copy(model)
-                        ref_model.mutate()
+                        ref_model = deepcopy(model)
+                        ref_model.mutate(verbose)
 
                         child_key = f'Child_{self.child_id_counter:03d}_g{gen}'
                         parent_key = getattr(model, 'child_keys', f'Model_{m:03d}_g{gen - 1}')
@@ -578,7 +621,7 @@ class CartesianGP:
         else:  # In-place mutation
             for m, model in enumerate(models):
                 if np.random.rand() < mutation_rate:
-                    model.mutate()
+                    model.mutate(verbose)
 
                     # Assign keys
                     child_key = f'Child_{self.child_id_counter:03d}_g{gen}'
@@ -743,7 +786,7 @@ class CartesianGP:
 
     def save_metrics(self, path=None):
         path = path if path is not None else '.'
-
+        print(f'{path}/statistics.csv')
         # Save the metrics DataFrame only once
         np.savetxt(f'{path}/statistics.csv', self.metrics, delimiter=',')
 
@@ -882,13 +925,16 @@ class CartesianGP:
             self._compare_child_parents()
             self._box_distribution(gen)
             # **Mutate Children**
-            mutated_children = self._mutate(children, gen, mutation_rate)
+            mutated_children = self._mutate(children, gen, mutation_rate, verbose=False)
             #for model in mutated_children:
             #    self.model_key_map[model.child_keys] = model
 
             # **Update Population with New Children**
-            selected_parents = np.concatenate((selected_parents, mutated_children))
-            self.population = selected_parents
+            if self.xover:
+                selected_parents = np.concatenate((selected_parents, mutated_children))
+                self.population = selected_parents
+            else:
+                self.population = mutated_children
 
             # **Compute New Fitnesses**
             self._get_fitnesses()

@@ -37,7 +37,7 @@ parser.add_argument("--tournament_size", type=int, default=5, help="Size of the 
 parser.add_argument("--n_elites", type=int, default=1, help="Number of elites (default: 1).")
 parser.add_argument("--problem_dimensions", type=int, default=1, help="Controls number of dimensions for test data.")
 parser.add_argument("--step_size", type=int, default=100, help="Prints out generation data every N generations.")
-
+parser.add_argument("--asexual_reproduction", type=bool, default=False, help="Controls whether or not asexual reproduction can occur.")
 args = parser.parse_args()
 
 # Access arguments
@@ -58,6 +58,7 @@ n_points = args.n_points
 tournament_size = args.tournament_size
 n_elites = args.n_elites
 step_size = args.step_size
+asex = args.asexual_reproduction
 
 np.random.seed(trial_number)
 
@@ -96,27 +97,42 @@ model_parameters = {
     'arity': 2,
     'constants': np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
 }
-function_bank = (add, sub, mul, div)
+function_bank = {'add': add, 'sub': sub, 'mul': mul, 'div': div}
 
-if max_parents < max_children:
+if asex or max_parents < max_children:
     mutation_breeding = True
 else:
     mutation_breeding = False
 
-os.makedirs('../output/ckpt', exist_ok=True)
-CHECKPOINT_FILE = f"../output/ckpt/{test_problem_key}_{problem_dimensions}d_{xover_type}_{selection_type}_trial_{trial_number}_ckpt.pkl"
+CHECKPOINT_PATH = os.path.join(os.environ.get("SCRATCH", "/tmp"), "ckpt")
+#CHECKPOINT_PATH = '../output/ckpt'
+print(CHECKPOINT_PATH)
+os.makedirs(CHECKPOINT_PATH, exist_ok=True)
+CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}_{selection_type}_trial_{trial_number}_ckpt.pkl"
 
 if os.path.exists(CHECKPOINT_FILE):
-    evolution_module = CartesianGP.load_checkpoint(CHECKPOINT_FILE)
+    evolution_module = CartesianGP.load_checkpoint(filename=CHECKPOINT_FILE)
     evolution_module.set_max_gens(max_generations)
     print(f"Resuming from generation {evolution_module.current_generation}")
 else:
-    evolution_module = CartesianGP(parents=max_parents, children=max_children,
-                                   max_generations=max_generations, mutation=mutation_type, selection=selection_type,
-                                   xover=xover_type, fixed_length=True, fitness_function=fitness_function,
-                                   model_parameters=model_parameters, n_points=n_points, n_elites=n_elites,
-                                   tournament_size=tournament_size, function_bank=function_bank,
-                                   mutation_breeding=mutation_breeding, checkpoint_filename=CHECKPOINT_FILE)
+    evolution_module = CartesianGP(
+        parents=max_parents,
+        children=max_children,
+        max_generations=max_generations,
+        mutation=mutation_type,
+        selection=selection_type,
+        xover=xover_type,
+        fixed_length=True,
+        fitness_function=fitness_function,
+        model_parameters=model_parameters,
+        n_points=n_points,
+        n_elites=n_elites,
+        tournament_size=tournament_size,
+        function_bank=function_bank,
+        mutation_breeding=mutation_breeding,
+        checkpoint_filename=CHECKPOINT_FILE
+    )
+
 start = datetime.now()
 best_model = evolution_module.fit(train_x, train_y, step_size=step_size)
 end = datetime.now()
@@ -132,3 +148,13 @@ evolution_module.save_metrics(run_path)
 best_model.print_model()
 df = pd.DataFrame(best_model.model)
 df.to_csv(f'{run_path}/best_model.csv', index=False)
+
+# Clean up checkpoint and temporary file if run completes successfully
+try:
+    os.remove(CHECKPOINT_FILE)
+    tmp_file = CHECKPOINT_FILE + ".tmp"
+    if os.path.exists(tmp_file):
+        os.remove(tmp_file)
+    print("✅ Checkpoint and temporary file removed after successful run.")
+except Exception as e:
+    print(f"⚠️ Could not remove checkpoint files: {e}")

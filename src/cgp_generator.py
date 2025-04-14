@@ -27,7 +27,7 @@ def generate_model(max_size: int, inputs: int, constants: list | np.ndarray, ari
     dtype = [
         ('NodeType', 'U8'),  # 'Input', 'Constant', 'Function', or 'Output'
         ('Value', 'f8'),  # Value for constants (or 0 for others)
-        ('Operator', 'O'),  # Function reference (only for function nodes)
+        ('Operator', 'U10'),  # Function reference (only for function nodes)
         *[(f'Operand{i}', 'i4') for i in range(arity)],  # Operands (for function nodes)
         ('Active', 'i4')  # Active status (0 or 1)
     ]
@@ -48,7 +48,7 @@ def generate_model(max_size: int, inputs: int, constants: list | np.ndarray, ari
     # Function Nodes
     body_nodes = np.zeros(model_size, dtype=dtype)
     body_nodes['NodeType'] = 'Function'
-    body_nodes['Operator'] = np.random.choice(function_bank, model_size)
+    body_nodes['Operator'] = np.random.choice(list(function_bank), model_size)
 
     # Generate operands correctly
     for i in range(arity):

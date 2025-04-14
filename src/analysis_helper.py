@@ -17,6 +17,12 @@ class Method:
     long_name: str
     color: str
 
+@dataclass(frozen=True)
+class Metric:
+    code_name: str
+    full_name: str
+    short_name: str
+    log: bool
 
 # Path structure:
 # Output
@@ -52,7 +58,10 @@ class AnalysisToolkit:
                 print(path, len(trial_data[-1]))
         return trial_data
 
-    def compile_averages(self):
+    def compile_averages(self, metric_list):
+        """
+        metric_list: positions of metrics we want
+        """
         output_dir = Path('../output/intermediate_results')
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -66,24 +75,29 @@ class AnalysisToolkit:
                 for selection in selection_list:
                     table_list = self._load_trial_data(problem, xover, selection)
 
-                    for metric in self.metrics:
+                    for m, metric in enumerate(self.metrics):
                         try:
-                            metric_idx = self.metrics.index(metric)  # assumes self.metrics is a list of metric names in fixed column order
+                            metric_idx = metric_list[m]
                             data = np.array([table[0:self.max_generations, metric_idx] for table in table_list])
                             quartiles = np.quantile(data, [0, 0.25, 0.5, 0.75, 1], axis=0)
                             q_table = pd.DataFrame(quartiles.T,
                                 columns=['Minimum', 'First Quartile', 'Median', 'Third Quartile',
                                          'Maximum'])
-                            q_table.to_csv(output_dir / f'{problem}_{xover}_{selection}_{metric}.csv', index=False)
+                            q_table.to_csv(output_dir / f'{problem}_{xover}_{selection}_{self.metrics[metric].code_name}.csv', index=False)
                         except ValueError as e:
                             print(f'analysis_helper.py::AnalysisToolkit::compile_averages ValueError {e}')
-                            print(f'{problem} {xover_method} {selection} {metric}\n#########')
+                            print(f'{problem} {xover_method} {selection} {metric.full_name}\n#########')
     def make_path(self, problem: str, xover: str, selection: str, metric: str):
         return Path(f'../output/intermediate_results/{problem}_{xover}_{selection}_{metric}.csv')
 
-    def plot_line_graph(self, selection_method: str, metric: str, graph_filename:str, title: str, x_label: str, y_label: str, log:bool = True):
+    def plot_line_graph(self, selection_method: str, metric: str, graph_filename:str, title: str, x_label: str, y_label: str, log:bool = False):
+        if isinstance(metric, str):
+            metric = next((m for m in self.metrics if m.code_name == metric), None)
+            if metric is None:
+                raise ValueError(f"Metric '{metric}' not found in self.metrics")
+
         n_problems = len(self.problems)
-        fig, axs = plt.subplots(int(np.round(n_problems/2)), 2, figsize=(15, 15))
+        fig, axs = plt.subplots(int(np.round(n_problems/2)), 2, figsize=(15, 20))
         for i, problem in enumerate(self.problems):
             for xover_method in self.crossover_methods:
                 xover = self.crossover_methods[xover_method].code_name
@@ -91,7 +105,7 @@ class AnalysisToolkit:
                     sel_key = 'elite'
                 else:
                     sel_key = selection_method
-                file_name = self.make_path(problem, xover, sel_key, metric)
+                file_name = self.make_path(problem, xover, sel_key, metric.code_name)
                 if file_name.exists():
                     data = pd.read_csv(file_name)
                     median = data['Median']
@@ -107,7 +121,7 @@ class AnalysisToolkit:
                 axs[i//2, i%2].set_xlabel(x_label)
                 axs[i//2, i%2].set_ylabel(y_label)
                 axs[i//2, i%2].legend()
-        fig.suptitle(f'{title}\n{self.selection_methods[selection_method]}\n{metric}')
+        fig.suptitle(f'{title}\n{self.selection_methods[selection_method]}\n{metric.full_name}')
         fig.tight_layout()
         file_path = f"../output/graphs_raw/{graph_filename}.pkl"  # Path to save the binary file
         with open(file_path, "wb") as file:
@@ -116,4 +130,73 @@ class AnalysisToolkit:
         os.makedirs(output_dir, exist_ok=True)
         plt.savefig(f"../output/graphs/{graph_filename}.png")
         print(f'{graph_filename} saved')
+
+    def plot_box_plots(self, selection_method: str, metric: Metric, graph_filename: str, title: str,
+                       x_label: str, y_label: str, log:bool = False):
+        if isinstance(metric, str):
+            metric = next((m for m in self.metrics if m.code_name == metric), None)
+            if metric is None:
+                raise ValueError(f"Metric '{metric}' not found in self.metrics")
+
+
+        n_problems = len(self.problems)
+        fig, axs = plt.subplots(int(np.round(n_problems / 2)), 2, figsize=(15, 20))
+        axs = axs.flatten() if n_problems > 1 else [axs]
+
+        for i, (problem_key, problem_name) in enumerate(self.problems.items()):
+            ax = axs[i]
+            box_data = []
+            labels = []
+            colors = []
+
+            for xover_key, xover_obj in self.crossover_methods.items():
+                xover = xover_obj.code_name
+                sel_key = 'elite' if xover == 'None' else selection_method
+
+                try:
+                    trials = self._load_trial_data(problem_key, xover, sel_key)
+                except Exception as e:
+                    print(f"Error loading data for {problem_key} {xover}: {e}")
+                    continue
+
+                # Extract metric at final generation for each trial
+                try:
+                    metric_idx = next(
+                        i for i, m in enumerate(self.metrics.values()) if m.code_name == metric.code_name
+                    )
+
+                    final_values = [trial[self.max_generations - 1, metric_idx] for trial in trials]
+                except Exception as e:
+                    print(f"Error extracting final values for {problem_key} {xover}: {e}")
+                    continue
+
+                box_data.append(final_values)
+                labels.append(xover_obj.short_name)
+                colors.append(xover_obj.color)
+
+            # Draw box plot
+            bp = ax.boxplot(box_data, patch_artist=True, showfliers=False)
+            for patch, color in zip(bp['boxes'], colors):
+                patch.set_facecolor(color)
+
+            ax.set_title(problem_name)
+            if log:
+                ax.set_yscale('log')
+            ax.set_xlabel(x_label)
+            ax.set_ylabel(y_label)
+            ax.set_xticks(range(1, len(labels) + 1))
+            ax.set_xticklabels(labels, rotation=45)
+
+        fig.suptitle(f'{title}\nSelection: {self.selection_methods[selection_method]}\nMetric: {metric.full_name}')
+        fig.tight_layout()
+
+        # Save to file
+        Path("../output/graphs_raw").mkdir(exist_ok=True)
+        Path("../output/graphs").mkdir(exist_ok=True)
+        with open(f"../output/graphs_raw/{graph_filename}.pkl", "wb") as f:
+            pickle.dump(fig, f)
+        plt.savefig(f"../output/graphs/{graph_filename}.png")
+        print(f'{graph_filename} saved')
+        plt.close(fig)
+
 

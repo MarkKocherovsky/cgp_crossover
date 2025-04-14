@@ -1,22 +1,29 @@
-from analysis_helper import Method, AnalysisToolkit
+from analysis_helper import Method, Metric, AnalysisToolkit
 
 base_path = "../output/"
 
 crossover_methods = {
-    #'Canonical': Method('None', 'CGP(1+4)', 'CGP(1+4)', 'blue'),
-    'N-Point': Method('n_point', 'CGP(24+24)-1x', 'CGP(24+24) - One Point', 'green'),
-    'Uniform': Method('uniform', 'cgp(24+24)-Ux', 'CGP(24+24) - Uniform', 'deeppink'),
-    'Subgraph': Method('subgraph', 'CGP(24+24)-SGx', 'CGP(24+24) - Subgraph', 'orange'),
-    'Semantic N-Point': Method('semantic_n_point', 'CGP(24+24)-S1x', 'CGP(24+24) - Semantic One Point',
-                               'turquoise'),
-    'Semantic Uniform': Method('semantic_uniform', 'CGP(24+24)-SUx', 'CGP(24+24) - Semantic Uniform', 'mediumvioletred')
+    'Canonical': Method('None', 'CGP(1+4)', 'CGP(1+4)', 'blue'),
+    'N-Point': Method('n_point', 'CGP(40+40)-1x', 'CGP(40+40) - One Point', 'green'),
+    'Uniform': Method('uniform', 'cgp(40+40)-Ux', 'CGP(40+40) - Uniform', 'deeppink'),
+    'Subgraph': Method('subgraph', 'CGP(40+40)-SGx', 'CGP(40+40) - Subgraph', 'orange'),
+    'Semantic N-Point': Method('semantic_n_point', 'CGP(40+40)-S1x', 'CGP(40+40) - Semantic One Point',
+                               'red'),
+    'Semantic Uniform': Method('semantic_uniform', 'CGP(40+40)-SUx', 'CGP(40+40) - Semantic Uniform', 'brown'),
+    'Homologous Semantic N-Point': Method('homologous_semantic_n_point', 'CGP(40+40)-HS1x', 'CGP(40+40) - Homologous Semantic One Point', 'salmon'),
+    'Homologous Uniform N-Point': Method('homologous_semantic_uniform', 'CGP(40+40)-HSUx', 'CGP(40+40) - Homologous Semantic Uniform', 'purple'),
 
 }
 
+metrics = {
+    'Minimum Fitness': Metric('min_fitness', 'Minimum Fitness', r"\mathrm{Median}(\min(\mathrm{f}))", True),
+    'Median Fitness': Metric('med_fitness', 'Median Fitness', r"\mathrm{Median}(\mathrm{Median}(\mathrm{f}))", True),
+    'Best Model Size': Metric('best_model_size', 'Best Model Size', r"\mathrm{Median}(\mathrm{Best Model Size})", False),
+    'Median Model Size': Metric('median_model_size', 'Median Model Size', r"\mathrm{Median}(\mathrm{Median Model Size})", False),
+    'Semantic Diversity': Metric('semantic_diversity', 'Semantic Diversity',r"\mathrm{Median}(\mathrm{Semantic Diversity})", False),
+}
 # canonical will always have 'elite'
 selection_methods = {'elite_tournament': 'Elite Tournament'}
-
-metrics = ['Min Fitness', 'Median Fitness', 'Best Model Size', 'Median Model Size', 'Semantic Diversity']
 
 # key->name
 problems = {
@@ -31,7 +38,6 @@ problems = {
     'Levy_1d': 'Levy',
     'Rastrigin_1d': 'Rastrigin',
     'Griewank_1d': 'Griewank'
-
 }
 
 # Path structure:
@@ -46,9 +52,11 @@ problems = {
 #                   xover_density_deleterious.csv
 #                   xover_density_neutral.csv
 
-analyzer = AnalysisToolkit(crossover_methods, selection_methods, problems, metrics, 5, 1000)
+analyzer = AnalysisToolkit(crossover_methods, selection_methods, problems, metrics, 50, 3000)
+#analyzer.compile_averages([0, 2, 5, 8, 11])
+analyzer.plot_box_plots('elite_tournament', metrics['Minimum Fitness'], 'minimum_fitness_box_graph',
+                             'Fitness of Best Models', 'Crossover Methods', 'min_fitness', log=True)
+for metric in list(metrics.values()):
+    analyzer.plot_line_graph('elite_tournament', metric, f'{metric.full_name.lower().replace(" ", "_")}_graph',
+                             f'{metric.full_name} Over Generations', 'Generations', f'metric.short_name', log=metric.log)
 
-analyzer.compile_averages()
-for metric in metrics:
-    analyzer.plot_line_graph('elite_tournament', metric, f'{metric.lower().replace(" ", "_")}_graph',
-                             f'{metric} Over Generations', 'Generations', f'{metric}')

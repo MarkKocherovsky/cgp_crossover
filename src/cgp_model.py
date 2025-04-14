@@ -25,7 +25,7 @@ class CGP:
             raise ValueError(f'Invalid Fitness Function: {fitness_function}')
 
         # Function bank setup
-        self.function_bank = kwargs.get('function_bank', (add, sub, mul, div))
+        self.function_bank = kwargs.get('function_bank', {'add': add, 'sub': sub, 'mul': mul, 'div': div})
         self.n_operations = len(self.function_bank)
         assert self.n_operations >= 1, 'At least one operator is required.'
 
@@ -90,9 +90,10 @@ class CGP:
 
         if node_type == 'Function':
             # Get operand values recursively
+            
             operand_values = np.array([self._get_node_value(node[f'Operand{i}']) for i in range(self.arity)])
             self.model[operand]['Active'] = 1  # Mark as active node
-            operator = node['Operator']
+            operator = self.function_bank[node['Operator']]
             result = operator(*operand_values)
 
             self.model[operand]['Value'] = result
@@ -106,18 +107,19 @@ class CGP:
         self.model['Value'][self.model['NodeType'] == 'Function'] = 0  # Reset function nodes
 
         output_indices = np.where(self.model['NodeType'] == 'Output')[0]
-        output_values = np.array([self._get_node_value(self.model[i]['Operand0']) for i in output_indices])
+        output_values = np.empty(len(output_indices), dtype=np.float64)
+
+        for i, idx in enumerate(output_indices):
+            output_values[i] = self._get_node_value(self.model[idx]['Operand0'])
 
         self.model['Value'][output_indices] = output_values
         return output_values
 
     def _compute_single_input(self, datum):
         """Compute output for a single input."""
-        datum = np.asarray(datum, dtype=np.float64).item()
+        datum = np.asarray(datum, dtype=np.float64).item()  # Ensure scalar float
         input_indices = np.where(self.model['NodeType'] == 'Input')[0]
-        input_indices = np.atleast_1d(input_indices)  # Ensure it's an array
-        self.model['Value'][input_indices] = np.float64(datum)
-
+        self.model['Value'][input_indices] = datum
         return self._run()
 
     def fit(self, data, ground_truth):
@@ -143,7 +145,7 @@ class CGP:
             raise ValueError(f'{mutation_type} is an invalid mutation operator.')
         self.mutation = mutations[mutation_type]
 
-    def _point_mutation(self):
+    def _point_mutation(self, verbose=False):
         """Efficient point mutation ensuring changes affect active nodes."""
         # active_indices = np.where((self.model['NodeType'] == 'Function') & (self.model['Active'] == 1))[0]
         active_indices = np.where((self.model['NodeType'] == 'Function') | (self.model['NodeType'] == 'Output'))[0]
@@ -154,30 +156,41 @@ class CGP:
 
         # Select a random active function node
         mutation_index = np.random.choice(active_indices)
+        if verbose:
+            print(f'Mutating at index {mutation_index}')
         if self.model[mutation_index]['NodeType'] == 'Function':
             mutation_column = np.random.choice(['Operator'] + [f'Operand{i}' for i in range(self.arity)])
-
             if mutation_column == 'Operator':
-                # Ensure new operator is different
-                new_operator = np.random.choice(self.function_bank)
-                while new_operator == self.model[mutation_index]['Operator']:
-                    new_operator = np.random.choice(self.function_bank)
+                current_op = self.model[mutation_index]['Operator']
+                ops = list(self.function_bank.keys())
+                new_operator = np.random.choice(ops)
+                while new_operator == current_op:
+                    new_operator = np.random.choice(ops)
+                if verbose:
+                    print(f'Mutating column {mutation_column} to {new_operator}')
                 self.model[mutation_index]['Operator'] = new_operator
             else:
                 # Mutate operand, ensuring a different value
                 new_operand = np.random.randint(0, mutation_index)
                 while new_operand == self.model[mutation_index][mutation_column]:
                     new_operand = np.random.randint(0, mutation_index)
+                if verbose:
+                    print(f'Mutating column {mutation_column} to {new_operand}')
                 self.model[mutation_index][mutation_column] = new_operand
         else:  # mutate output node
-            new_operand = np.random.randint(0, mutation_index)
+            old_operand = self.model[mutation_index]['Operand0']
+            new_operand = old_operand
+            while old_operand == new_operand:
+                new_operand = np.random.randint(0, mutation_index)
+            if verbose:
+                print(f'Mutating output to {new_operand}')
             self.model[mutation_index]['Operand0'] = new_operand
 
-    def mutate(self):
+    def mutate(self, verbose=False):
         """Perform mutation using the assigned function."""
         if self.mutation is None:
             raise ValueError("Mutation function not set. Call _choose_mutation() first.")
-        self.mutation()
+        self.mutation(verbose)
 
     def print_parameters(self):
         """Print key parameters of the CGP model."""

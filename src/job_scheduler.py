@@ -67,17 +67,20 @@ CHECKPOINT_FILE = "checkpoint.json"
 functions = Collection()
 function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
                  'Ackley']
-#function_list = ['Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin', 'Ackley']
+#function_list = ['Nguyen7', 'Griewank', 'Levy', 'Rastrigin', 'Ackley']
 xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
           'homologous_semantic_uniform']
+#xovers = ['None']
+#xovers = ['subgraph']
 #xovers = ['n_point', 'uniform', 'subgraph', 'semantic_uniform']
 #function_list = ['Koza1', 'Koza2']
 #xovers = ['n_point', 'uniform']
 
-# xovers = ['homologous_semantic_uniform', 'homologous_semantic_n_point']
+#xovers = ['homologous_semantic_uniform', 'homologous_semantic_n_point']
 mutation = 'point'
-selection = 'elite_tournament'
-
+#selection = 'elite'
+#selection = 'elite_tournament'
+selection = 'competent_tournament'
 output_dir = "../output/logs/"
 error_dir = "../output/err/"
 os.makedirs(output_dir, exist_ok=True)
@@ -95,7 +98,7 @@ n_elites = 1
 t_size = 4
 p_dim = 1
 step_size = 100
-
+asexual_reproduction = False
 job_count = 0
 
 
@@ -204,7 +207,7 @@ if [[ "$(which python3)" != "/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bi
 fi
 
 
-/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u run.py {i} {max_g} {max_n} {max_p} {max_c} {xover} {x_rate} {mutation} {m_rate} {selection} {function} --n_points {n_points} --n_elites {n_elites} --problem_dimensions {p_dim} --step_size {step_size} --tournament_size {t_size}
+/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u run.py {i} {max_g} {max_n} {max_p} {max_c} {xover} {x_rate} {mutation} {m_rate} {selection} {function} --n_points {n_points} --n_elites {n_elites} --problem_dimensions {p_dim} --step_size {step_size} --tournament_size {t_size} --asexual_reproduction {asexual_reproduction}
 
 # Capture exit code
 ret=$?
