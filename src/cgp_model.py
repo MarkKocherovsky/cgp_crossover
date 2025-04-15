@@ -7,7 +7,7 @@ from fitness_functions import correlation, align
 
 class CGP:
     def __init__(self, model=None, fixed_length=True, fitness_function='Correlation', mutation_type='Point',
-                 parent_keys=None, **kwargs):
+                 parent_keys=None, xover_length=None, **kwargs):
 
         self.mutation = None
         self.slope = None
@@ -38,7 +38,11 @@ class CGP:
 
         self.first_body_node = self.inputs + len(self.model[self.model['NodeType'] == 'Constant'])
         self.last_body_node = self.first_body_node + self.max_size - 1
-        self.xover_index = np.zeros(self.max_size + self.outputs)
+        # ✅ Initialize xover_index correctly
+        if xover_length is not None:
+            self.xover_index = np.zeros(xover_length)
+        else:
+            self.xover_index = np.zeros(self.max_size + self.outputs)
 
         self._choose_mutation(mutation_type)
 
@@ -80,26 +84,36 @@ class CGP:
             outputs = outputs * self.slope + self.intercept
         return outputs
 
-    def _get_node_value(self, operand):
-        """Compute the value of a given node using NumPy array indexing."""
-        node = self.model[operand]
+    def _get_node_value(self, operand, visited=None):
+        """Compute the value of a node, with cycle detection."""
+        if visited is None:
+            visited = set()
+
+        if operand in visited:
+            raise RuntimeError(f"Cycle detected at node {operand} — already visited")
+
+        visited.add(operand)
+        try:
+            node = self.model[operand]
+        except IndexError as e:
+            print(f'_get_node_value(): {e}')
+            print(self.model)
+            print(f'model size: {self.model.shape}')
+            exit()
         node_type = node['NodeType']
 
         if node_type in {'Input', 'Constant'}:
             return node['Value']
 
-        if node_type == 'Function':
-            # Get operand values recursively
-            
-            operand_values = np.array([self._get_node_value(node[f'Operand{i}']) for i in range(self.arity)])
-            self.model[operand]['Active'] = 1  # Mark as active node
-            operator = self.function_bank[node['Operator']]
-            result = operator(*operand_values)
+        elif node_type == 'Function':
+            operand_values = np.array([
+                self._get_node_value(node[f'Operand{i}'], visited.copy()) for i in range(self.arity)
+            ])
+            self.model[operand]['Active'] = 1
 
-            self.model[operand]['Value'] = result
-            return result
-
-        raise ValueError(f"Invalid node type: {node_type}")
+        else:
+            print(node)
+            raise ValueError(f"Invalid node type: {node_type}")
 
     def _run(self):
         """Run the model and compute output values."""
@@ -110,7 +124,7 @@ class CGP:
         output_values = np.empty(len(output_indices), dtype=np.float64)
 
         for i, idx in enumerate(output_indices):
-            output_values[i] = self._get_node_value(self.model[idx]['Operand0'])
+            output_values[i] = self._get_node_value(self.model[idx]['Operand0'], visited=set())
 
         self.model['Value'][output_indices] = output_values
         return output_values

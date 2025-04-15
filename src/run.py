@@ -38,6 +38,7 @@ parser.add_argument("--n_elites", type=int, default=1, help="Number of elites (d
 parser.add_argument("--problem_dimensions", type=int, default=1, help="Controls number of dimensions for test data.")
 parser.add_argument("--step_size", type=int, default=100, help="Prints out generation data every N generations.")
 parser.add_argument("--asexual_reproduction", type=bool, default=False, help="Controls whether or not asexual reproduction can occur.")
+parser.add_argument("--one_dimensional_xover", type=bool, default=False, help="If True, parents will be flattened before crossover. Not compatible with subgraph or semantic methods.")
 args = parser.parse_args()
 
 # Access arguments
@@ -59,7 +60,7 @@ tournament_size = args.tournament_size
 n_elites = args.n_elites
 step_size = args.step_size
 asex = args.asexual_reproduction
-
+one_d = args.one_dimensional_xover
 np.random.seed(trial_number)
 
 print(f"Trial Number: {trial_number}")
@@ -130,7 +131,9 @@ else:
         tournament_size=tournament_size,
         function_bank=function_bank,
         mutation_breeding=mutation_breeding,
-        checkpoint_filename=CHECKPOINT_FILE
+        checkpoint_filename=CHECKPOINT_FILE,
+        one_dimensional_xover=one_d,
+        seed=trial_number
     )
 
 start = datetime.now()

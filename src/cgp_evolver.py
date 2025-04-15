@@ -19,9 +19,10 @@ class CartesianGP:
 
     def __init__(self, parents=1, children=4, max_generations=100, mutation='Point', selection='Elite',
                  xover=None, fixed_length=True, fitness_function='Correlation', model_parameters=None,
-                 function_bank=None, solution_threshold=0.005, checkpoint_filename='checkpoint.pkl', **kwargs):
+                 function_bank=None, solution_threshold=0.005, checkpoint_filename='checkpoint.pkl', seed=42, **kwargs):
 
         # Basic attributes
+        np.random.seed(seed)
         self.model_key_map = None
         self.child_id_counter = 0
         self.population = np.empty(parents + children, dtype=object)
@@ -55,6 +56,7 @@ class CartesianGP:
         self.n_elites = int(kwargs.get('n_elites', 0))
         self.n_points = int(kwargs.get('n_points', 1))
         self.tournament_diversity = kwargs.get('tournament_diversity', True)
+        self.one_d = kwargs.get('one_dimensional_xover', False)
 
         # Mutation fallback
         self.mutation_can_make_children = self.max_p < 2 or kwargs.get('asexual_reproduction', False)
@@ -92,6 +94,10 @@ class CartesianGP:
             self.xover = self.xover_methods[self.xover_type]
         else:
             self.xover = None
+
+        # one dimensional xover is incompatible with semantic and subgraph methods:
+        if self.one_d and ('semantic' in self.xover_type or 'subgraph' in self.xover_type):
+            raise ValueError(f'{self.xover_type} crossover is incompatible with one-dimensional crossover.')
 
         # Validate crossover points
         if self.xover_type and 'n_point' in self.xover_type:
@@ -172,7 +178,17 @@ class CartesianGP:
             }
 
         for i, future in future_models.items():
-            self.population[i] = future.result()
+            ind = future.result()
+
+            # ✅ Force re-initialize xover_index for consistency in 1D
+            if self.one_d:
+                flat, _ = self.flatten_parent(ind)
+                ind.xover_index = np.zeros(len(flat))
+                #print(f"📦 Initialized xover_index for individual {i}: {ind.xover_index.shape}")
+            else:
+                ind.xover_index = np.zeros(self.max_size + self.outputs)
+
+            self.population[i] = ind
 
     def elite_selection(self, n_elites=None):
         """Select the top `n_elites` individuals."""
@@ -381,56 +397,156 @@ class CartesianGP:
 
         return np.array(children, dtype=object)
 
+    @staticmethod
+    def flatten_parent(parent):
+        """
+        Flattens a CGP individual's function/output nodes into a 1D array.
+
+        Returns:
+            flat: np.ndarray of [Operator, Operand0, ..., Operand{arity-1}, ...]
+            node_types: np.ndarray of corresponding NodeTypes (to distinguish Function vs Output)
+        """
+        mask = (parent.model['NodeType'] == 'Function') | (parent.model['NodeType'] == 'Output')
+        nodes = parent.model[mask]
+
+        arity = parent.arity  # number of operands per function/output node
+        flat = []
+
+        for node in nodes:
+            flat.append(str(node['Operator']))  # ensure operator is stored as string
+            for j in range(arity):
+                flat.append(int(node[f'Operand{j}']))  # ensure operands are stored as int
+
+        return np.array(flat, dtype=object), nodes['NodeType']
+
+    @staticmethod
+    def unflatten_model(flattened_model, node_types, arity):
+        """
+        Reconstructs a structured NumPy model array from a flat vector and node types.
+
+        Args:
+            flattened_model (np.ndarray): flat vector of alternating [Operator, Operand0..n]
+            node_types (np.ndarray): array of NodeType strings ('Function' or 'Output')
+            arity (int): number of operands per node
+
+        Returns:
+            np.ndarray: structured model array of nodes (Function + Output only)
+        """
+        num_nodes = len(node_types)
+        stride = 1 + arity  # number of fields per node
+
+        dtype = [
+            ('NodeType', 'U8'),
+            ('Value', 'f8'),
+            ('Operator', 'U10'),
+            *[(f'Operand{i}', 'i4') for i in range(arity)],
+            ('Active', 'i4')
+        ]
+
+        model = np.zeros(num_nodes, dtype=dtype)
+
+        for i in range(num_nodes):
+            offset = i * stride
+
+            model[i]['NodeType'] = node_types[i]
+            model[i]['Operator'] = str(flattened_model[offset])
+
+            for j in range(arity):
+                operand_value = flattened_model[offset + 1 + j]
+                model[i][f'Operand{j}'] = int(operand_value)
+
+            model[i]['Value'] = 0.0
+            model[i]['Active'] = 0
+
+        return model
+
     def _n_point_xover(self, p1, p2, gen, **kwargs):
         """Performs n-point crossover, supporting semantic and homologous crossover."""
 
-        def get_crossover_points(parent, first_index, xover_weights=None, include_output=False):
-            """Generate sorted crossover points for a parent."""
-            n_outputs = 0 if include_output else parent.outputs
-            possible_indices = np.arange(first_index, len(parent.model) - n_outputs)
+        def get_crossover_points(length, offset=0, weights=None):
+            indices = np.arange(offset, length)
+            if weights is not None and weights.sum() > 0:
+                return np.sort(np.random.choice(indices, size=self.n_points, replace=False, p=weights))
+            return np.sort(np.random.choice(indices, size=self.n_points, replace=False))
 
-            if xover_weights is not None and np.sum(xover_weights) > 0:
-                return np.sort(np.random.choice(possible_indices, size=self.n_points, replace=False, p=xover_weights))
+        if self.one_d:
+            flat_p1, types_p1 = self.flatten_parent(p1)
+            flat_p2, types_p2 = self.flatten_parent(p2)
+            xover_length = len(flat_p1)
 
-            return np.sort(np.random.choice(possible_indices, size=self.n_points, replace=False))
+            len1 = len(types_p1)
 
+            xover_points_p1 = get_crossover_points(len1)
+
+            # Optional: track stats here
+            for x in xover_points_p1:
+                p1.xover_index[x] += 1
+            for x in xover_points_p1:
+                p2.xover_index[x] += 1
+
+            # Split and recombine
+            stride = 1 + p1.arity
+            xover_points_p1 = xover_points_p1[xover_points_p1 < len(types_p1)]
+
+            split1 = [x * stride for x in xover_points_p1]
+            split2 = [x * stride for x in xover_points_p1]
+
+            parts1 = np.split(flat_p1, split1)
+            parts2 = np.split(flat_p2, split2)
+            types_parts1 = np.split(types_p1, xover_points_p1)
+            types_parts2 = np.split(types_p2, xover_points_p1)
+
+            child1_flat = np.concatenate(parts1[::2] + parts2[1::2])
+            child2_flat = np.concatenate(parts2[::2] + parts1[1::2])
+
+            child1_types = np.concatenate(types_parts1[::2] + types_parts2[1::2])
+            child2_types = np.concatenate(types_parts2[::2] + types_parts1[1::2])
+
+            # ✅ Make sure unflatten won't crash
+            assert len(child1_flat) == len(
+                child1_types) * stride, f"child1_flat={len(child1_flat)} vs types={len(child1_types)}"
+            assert len(child2_flat) == len(
+                child2_types) * stride, f"child2_flat={len(child2_flat)} vs types={len(child2_types)}"
+
+            # Reconstruct models
+            child1_model = self.unflatten_model(child1_flat, child1_types, arity=p1.arity)
+            child2_model = self.unflatten_model(child2_flat, child2_types, arity=p2.arity)
+
+            # Add back Input and Constant nodes
+            def insert_io_nodes(original, body):
+                io_nodes = [node for node in original.model if node['NodeType'] in ['Input', 'Constant']]
+                return np.array(io_nodes + list(body), dtype=original.model.dtype)
+
+            full_model_1 = insert_io_nodes(p1, child1_model)
+            full_model_2 = insert_io_nodes(p2, child2_model)
+
+            c1 = CGP(model=full_model_1, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+                     mutation_type=self.mutation_type, xover_length=xover_length)
+            c2 = CGP(model=full_model_2, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+                     mutation_type=self.mutation_type, xover_length=xover_length)
+            return c1, c2
+
+        # Else: fixed-length 2D crossover
         fb_node = min(p1.first_body_node, p2.first_body_node)
-        first_index_p1 = p1.first_body_node
-        first_index_p2 = p2.first_body_node
-
-        # Compute weights for semantic and homologous crossover
         weights = None
         if self.semantic:
             vmat_1, vmat_2 = clean_values(p1, self.x), clean_values(p2, self.x)
-            weights = get_weights(get_ssd(vmat_1, vmat_2))  # Compute weight distribution
+            weights = get_weights(get_ssd(vmat_1, vmat_2))
+            if self.homologous and not np.all(weights == weights[0]):
+                weights = (weights.max() - weights) / (weights.max() - weights.min() + 1e-8)
+                weights /= weights.sum()
 
-            if self.homologous and not np.all(weights == weights[0]):  # Normalize if needed
-                max_weight, min_weight = weights.max(), weights.min()
-                weights = (max_weight - weights) / (max_weight - min_weight + 1e-8)
+        xover_points_p1 = get_crossover_points(len(p1.model), p1.first_body_node, weights)
+        xover_points_p2 = get_crossover_points(len(p2.model), p2.first_body_node, weights)
 
-                if not np.allclose(weights.sum(), 1.0):
-                    weights /= weights.sum()  # Re-normalize if sum deviates from 1.0
-
-        # Determine crossover points
-        if self.fixed_length:
-            xover_points = get_crossover_points(p1, first_index_p1, weights)
-            xover_points_p1 = xover_points_p2 = xover_points
-        else:
-            xover_points_p1 = get_crossover_points(p1, first_index_p1, weights)
-            xover_points_p2 = get_crossover_points(p2, first_index_p2, weights)
-
-        # Track crossover points for statistical analysis
         p1.xover_index[xover_points_p1 - fb_node] += 1
         p2.xover_index[xover_points_p2 - fb_node] += 1
 
-        # Perform crossover by interleaving segments
-        p1_parts = np.split(p1.model, xover_points_p1)
-        p2_parts = np.split(p2.model, xover_points_p2)
+        parts1 = np.split(p1.model, xover_points_p1)
+        parts2 = np.split(p2.model, xover_points_p2)
+        child1 = np.concatenate(parts1[::2] + parts2[1::2])
+        child2 = np.concatenate(parts2[::2] + parts1[1::2])
 
-        child1 = np.concatenate(p1_parts[::2] + p2_parts[1::2])
-        child2 = np.concatenate(p2_parts[::2] + p1_parts[1::2])
-
-        # Create new CGP models for children
         c1 = CGP(model=child1, fixed_length=self.fixed_length, fitness_function=self.ff_string,
                  mutation_type=self.mutation_type)
         c2 = CGP(model=child2, fixed_length=self.fixed_length, fitness_function=self.ff_string,
@@ -440,27 +556,66 @@ class CartesianGP:
     def _uniform_xover(self, p1, p2, gen, weights=None, **kwargs):
         """Performs uniform crossover, supporting semantic and homologous crossover."""
 
+        if self.one_d:
+            flat1, types1 = self.flatten_parent(p1)
+            flat2, types2 = self.flatten_parent(p2)
+
+            xover_length = len(flat1)
+
+            assert len(flat1) == len(flat2), "Flattened parents must have the same length for uniform crossover."
+
+            # Create swap mask
+            swap_mask = np.random.rand(len(flat1)) < 0.5
+            child1_flat = flat1.copy()
+            child2_flat = flat2.copy()
+            child1_flat[swap_mask] = flat2[swap_mask]
+            child2_flat[swap_mask] = flat1[swap_mask]
+
+            # Track swapped indices
+            for idx in np.where(swap_mask)[0]:
+                assert np.max(np.where(swap_mask)) < len(p1.xover_index), "swap index out of bounds!"
+
+                p1.xover_index[idx] += 1
+                p2.xover_index[idx] += 1
+
+            # Reconstruct models
+            child1_body = self.unflatten_model(child1_flat, types1, arity=p1.arity)
+            child2_body = self.unflatten_model(child2_flat, types2, arity=p2.arity)
+
+            # Add back input + constant nodes
+            def insert_io_nodes(original, body):
+                io_nodes = [node for node in original.model if node['NodeType'] in ['Input', 'Constant']]
+                return np.array(io_nodes + list(body), dtype=original.model.dtype)
+
+            full_model_1 = insert_io_nodes(p1, child1_body)
+            full_model_2 = insert_io_nodes(p2, child2_body)
+
+            c1 = CGP(model=full_model_1, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+                     mutation_type=self.mutation_type, xover_length=xover_length)
+
+            c2 = CGP(model=full_model_2, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+                     mutation_type=self.mutation_type, xover_length=xover_length)
+
+            return c1, c2
+
+        # Standard 2D structured uniform crossover
         n_outputs = 0
         if self.semantic:
             vmat_1, vmat_2 = clean_values(p1, self.x), clean_values(p2, self.x)
-            weights = get_weights(get_ssd(vmat_1, vmat_2), epsilon=0.001)  # Compute semantic weights
+            weights = get_weights(get_ssd(vmat_1, vmat_2), epsilon=0.001)
 
-            if self.homologous and not np.all(weights == weights[0]):  # Normalize if needed
+            if self.homologous and not np.all(weights == weights[0]):
                 max_weight, min_weight = weights.max(), weights.min()
                 weights = (max_weight - weights) / (max_weight - min_weight + 1e-8)
+                weights /= weights.sum()
 
-                if not np.allclose(weights.sum(), 1.0):
-                    weights /= weights.sum()  # Re-normalize if sum deviates from 1.0
-
-            n_outputs = p1.outputs  # Adjust for outputs
+            n_outputs = p1.outputs
 
         fb_node = min(p1.first_body_node, p2.first_body_node)
-
         assert len(p1.model) == len(p2.model), "Parents in Uniform Xover must have the same length."
         possible_indices = np.arange(fb_node, len(p1.model) - n_outputs)
 
         if weights is not None:
-            #weights = weights[fb_node:len(p1.model) - n_outputs]  # Align weights with crossover region
             mask = weights > 1e-8
             filtered_indices = possible_indices[mask]
             filtered_weights = weights[mask]
@@ -473,19 +628,18 @@ class CartesianGP:
             else:
                 swapped_indices = np.array([], dtype=int)
         else:
-            swapped_indices = np.random.choice(
-                possible_indices, size=len(possible_indices) // 2, replace=False)
+            swapped_indices = np.random.choice(possible_indices, size=len(possible_indices) // 2, replace=False)
 
-        # Perform crossover with minimal copying
+        # Perform crossover
         c1_model, c2_model = p1.model.copy(), p2.model.copy()
         c1_model[swapped_indices] = p2.model[swapped_indices]
         c2_model[swapped_indices] = p1.model[swapped_indices]
 
-        # Track crossover points for statistical analysis
+        # Track crossover stats
         p1.xover_index[swapped_indices - fb_node] += 1
         p2.xover_index[swapped_indices - fb_node] += 1
 
-        # Create new CGP models for children
+        # Final CGP children
         c1 = CGP(model=c1_model, fixed_length=self.fixed_length, fitness_function=self.ff_string,
                  mutation_type=self.mutation_type)
         c2 = CGP(model=c2_model, fixed_length=self.fixed_length, fitness_function=self.ff_string,
@@ -754,8 +908,8 @@ class CartesianGP:
         active_nodes_list = np.atleast_1d(active_nodes_list)
 
         # Compute similarity scores
-        #similarity_scores = self._analyze_similarity()
-        #similarity_values = np.array([score for _, score in similarity_scores])
+        # similarity_scores = self._analyze_similarity()
+        # similarity_values = np.array([score for _, score in similarity_scores])
 
         # Find the best model by fitness (lower is better)
         best_model_index = np.argmin(fit_list)
@@ -780,8 +934,8 @@ class CartesianGP:
             active_nodes_statistics[0], active_nodes_statistics[1], active_nodes_statistics[2],
             active_nodes_statistics[3], active_nodes_statistics[4],  # Model size stats
             semantic_diversity  # Semantic diversity
-            #similarity_quartiles[0], similarity_quartiles[1], similarity_quartiles[2],
-            #similarity_quartiles[3], similarity_quartiles[4]  # Similarity stats
+            # similarity_quartiles[0], similarity_quartiles[1], similarity_quartiles[2],
+            # similarity_quartiles[3], similarity_quartiles[4]  # Similarity stats
         )
 
     def save_metrics(self, path=None):
@@ -821,17 +975,22 @@ class CartesianGP:
                         child.better_than_parents = 'beneficial'
 
     def _box_distribution(self, gen):
-        # Access the population once and filter individuals with parent keys
+        """Accumulates crossover distribution statistics by type, enforcing fixed length."""
         individuals_with_parents = [
-            ind for ind in self.population if
-            ind is not None and ind.parent_keys is not None and ind.better_than_parents is not None
+            ind for ind in self.population
+            if ind is not None and ind.parent_keys is not None and ind.better_than_parents is not None
         ]
 
-        # Create a reference to xover_index for quicker access
         xover_index = self.xover_index
+        expected_len = xover_index['beneficial'].shape[1]
 
-        # Set indices based on 'better_than_parents' value and reset xover_index in one pass
         for ind in individuals_with_parents:
+            if ind.xover_index.shape[0] != expected_len:
+                raise ValueError(
+                    f"xover_index length mismatch at generation {gen}: "
+                    f"expected {expected_len}, got {ind.xover_index.shape[0]}"
+                )
+
             if ind.better_than_parents == 'beneficial':
                 xover_index['beneficial'][gen - 1, :] += ind.xover_index
             elif ind.better_than_parents == 'deleterious':
@@ -839,8 +998,7 @@ class CartesianGP:
             else:
                 xover_index['neutral'][gen - 1, :] += ind.xover_index
 
-            # Reset the xover_index after assignment
-            ind.xover_index.fill(0)  # More efficient than np.zeros() if we're resetting the entire array
+            ind.xover_index.fill(0)
 
     def set_max_gens(self, gens):
         self.max_g = gens
@@ -853,6 +1011,20 @@ class CartesianGP:
         self.mut_index = np.pad(self.mut_index, ((0, pad), (0, 0)), mode='constant')
         for k in self.xover_index:
             self.xover_index[k] = np.pad(self.xover_index[k], ((0, pad), (0, 0)), mode='constant')
+
+    def initialize_xover_index(self):
+        """Initialize self.xover_index dynamically based on self.one_d mode."""
+        if self.one_d:
+            flat, _ = self.flatten_parent(self.population[0])
+            xover_len = len(flat)
+            print(xover_len)
+        else:
+            xover_len = self.max_size + self.outputs
+
+        self.xover_index = {
+            cat: np.zeros((self.max_g, xover_len))
+            for cat in ['deleterious', 'neutral', 'beneficial']
+        }
 
     def fit(self, train_x: np.ndarray, train_y: np.ndarray, step_size: int = None,
             xover_rate: float = 0.5, mutation_rate: float = 0.5):
@@ -878,13 +1050,15 @@ class CartesianGP:
             raise ValueError("Must have a 1:1 mapping for input set to output values.")
         if step_size is not None and not isinstance(step_size, int):
             raise TypeError("Step size must be either of type `int` or `None`.")
-
-        if self.first_submission: #first time setup
+        if self.first_submission:  # first time setup
+            print("First Time Setup")
+            print(f"1D Xover {self.one_d}")
             self.initialize_population()
+            self.initialize_xover_index()
             self.model_key_map = {}  # Add this at the beginning of fit()
 
             # After initializing population (gen = 0)
-            #for i, model in enumerate(self.population):
+            # for i, model in enumerate(self.population):
             #    if model is not None:
             #        model.set_child_key(f'Model_{i:03d}_g0')
             #        self.model_key_map[model.child_keys] = model
@@ -895,13 +1069,19 @@ class CartesianGP:
             self._report_generation(0)
 
             # Setup mutation and crossover tracking
+            """
             model_size = self.model_kwargs.get('max_size', -1)
             if model_size < 0:
                 model_size = self.population[0].max_size
             model_size += self.population[0].outputs
             self.xover_index = {key: np.zeros((self.max_g, model_size)) for key in self.xover_index}
+            """
             genes_per_instruction = self.population[0].arity + 1  # for the operator
-            self.mut_index = np.zeros((self.max_g, model_size * genes_per_instruction))
+            model_size = len(self.xover_index)
+            if self.one_d:
+                self.mut_index = np.zeros((self.max_g, model_size))
+            else:
+                self.mut_index = np.zeros((self.max_g, model_size * genes_per_instruction))
 
         else:
             self.expand_generations_if_needed(self.max_g)
@@ -915,7 +1095,7 @@ class CartesianGP:
             # **Crossover to Generate Children**
             if self.xover:
                 children = self.crossover(selected_parents, xover_rate, gen)
-                #for model in children:
+                # for model in children:
                 #    self.model_key_map[model.child_keys] = model
             else:
                 children = selected_parents  # No crossover, pass parents as is
@@ -926,7 +1106,7 @@ class CartesianGP:
             self._box_distribution(gen)
             # **Mutate Children**
             mutated_children = self._mutate(children, gen, mutation_rate, verbose=False)
-            #for model in mutated_children:
+            # for model in mutated_children:
             #    self.model_key_map[model.child_keys] = model
 
             # **Update Population with New Children**
