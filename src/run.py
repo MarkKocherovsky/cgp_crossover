@@ -87,7 +87,13 @@ test_function = problem_list(test_problem_key, n_dims=problem_dimensions)
 train_x, test_x, train_y, test_y = test_function.return_points()
 
 # establish output path
-run_path = f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}/{selection_type}/trial_{trial_number}'
+CHECKPOINT_PATH = os.path.join(os.environ.get("SCRATCH", "/tmp"), "ckpt")
+if not one_d:
+    run_path = f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}/{selection_type}/trial_{trial_number}'
+    CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}_{selection_type}_trial_{trial_number}_ckpt.pkl"
+else:
+    run_path = f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}_1d/{selection_type}/trial_{trial_number}'
+    CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}_1d_{selection_type}_trial_{trial_number}_ckpt.pkl"
 Path(run_path).mkdir(parents=True, exist_ok=True)
 
 # model parameters
@@ -105,11 +111,9 @@ if asex or max_parents < max_children:
 else:
     mutation_breeding = False
 
-CHECKPOINT_PATH = os.path.join(os.environ.get("SCRATCH", "/tmp"), "ckpt")
 #CHECKPOINT_PATH = '../output/ckpt'
 print(CHECKPOINT_PATH)
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
-CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}_{selection_type}_trial_{trial_number}_ckpt.pkl"
 
 if os.path.exists(CHECKPOINT_FILE):
     evolution_module = CartesianGP.load_checkpoint(filename=CHECKPOINT_FILE)

@@ -132,7 +132,7 @@ class AnalysisToolkit:
         print(f'{graph_filename} saved')
 
     def plot_box_plots(self, selection_method: str, metric: Metric, graph_filename: str, title: str,
-                       x_label: str, y_label: str, log:bool = False):
+                       x_label: str, y_label: str, log:bool = False, violin:bool = False):
         if isinstance(metric, str):
             metric = next((m for m in self.metrics if m.code_name == metric), None)
             if metric is None:
@@ -175,9 +175,15 @@ class AnalysisToolkit:
                 colors.append(xover_obj.color)
 
             # Draw box plot
-            bp = ax.boxplot(box_data, patch_artist=True, showfliers=False)
-            for patch, color in zip(bp['boxes'], colors):
-                patch.set_facecolor(color)
+            if violin:
+                violins = ax.violinplot(box_data, widths=0.9, showmeans=False, showmedians=False)
+                for pc,color in zip(violins['bodies'], colors):
+                    pc.set_facecolor(color)
+                    pc.set_edgecolor('none')
+                    pc.set_alpha(0.5)  # ✅ semi-transparent so boxplot is visible
+            #bp = ax.boxplot(box_data, patch_artist=True, showfliers=False, notch=True)
+            #for patch, color in zip(bp['boxes'], colors):
+            #    patch.set_facecolor(color)
 
             ax.set_title(problem_name)
             if log:

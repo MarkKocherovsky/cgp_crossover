@@ -186,7 +186,7 @@ class CartesianGP:
                 ind.xover_index = np.zeros(len(flat))
                 #print(f"📦 Initialized xover_index for individual {i}: {ind.xover_index.shape}")
             else:
-                ind.xover_index = np.zeros(self.max_size + self.outputs)
+                ind.xover_index = np.zeros(ind.max_size + ind.outputs)
 
             self.population[i] = ind
 
@@ -466,6 +466,8 @@ class CartesianGP:
         def get_crossover_points(length, offset=0, weights=None):
             indices = np.arange(offset, length)
             if weights is not None and weights.sum() > 0:
+                if len(indices) > len(weights):
+                    indices = indices[:len(weights)]
                 return np.sort(np.random.choice(indices, size=self.n_points, replace=False, p=weights))
             return np.sort(np.random.choice(indices, size=self.n_points, replace=False))
 
@@ -537,13 +539,12 @@ class CartesianGP:
                 weights /= weights.sum()
 
         xover_points_p1 = get_crossover_points(len(p1.model), p1.first_body_node, weights)
-        xover_points_p2 = get_crossover_points(len(p2.model), p2.first_body_node, weights)
 
         p1.xover_index[xover_points_p1 - fb_node] += 1
-        p2.xover_index[xover_points_p2 - fb_node] += 1
+        p2.xover_index[xover_points_p1 - fb_node] += 1
 
         parts1 = np.split(p1.model, xover_points_p1)
-        parts2 = np.split(p2.model, xover_points_p2)
+        parts2 = np.split(p2.model, xover_points_p1)
         child1 = np.concatenate(parts1[::2] + parts2[1::2])
         child2 = np.concatenate(parts2[::2] + parts1[1::2])
 
@@ -1019,7 +1020,7 @@ class CartesianGP:
             xover_len = len(flat)
             print(xover_len)
         else:
-            xover_len = self.max_size + self.outputs
+            xover_len = self.population[0].max_size + self.population[0].outputs
 
         self.xover_index = {
             cat: np.zeros((self.max_g, xover_len))

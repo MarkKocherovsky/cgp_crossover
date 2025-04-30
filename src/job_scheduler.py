@@ -65,11 +65,13 @@ CHECKPOINT_FILE = "checkpoint.json"
 
 # Problem configuration
 functions = Collection()
-function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
-                 'Ackley']
-#function_list = ['Nguyen7', 'Griewank', 'Levy', 'Rastrigin', 'Ackley']
-xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
-          'homologous_semantic_uniform']
+#function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
+#                 'Ackley']
+function_list = ['Nguyen7', 'Griewank', 'Levy', 'Rastrigin', 'Ackley']
+#xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
+#          'homologous_semantic_uniform']
+xovers = ['semantic_uniform', 'homologous_semantic_uniform']
+#xovers = ['subgraph']
 #xovers = ['None']
 #xovers = ['subgraph']
 #xovers = ['n_point', 'uniform', 'subgraph', 'semantic_uniform']

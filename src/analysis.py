@@ -23,7 +23,10 @@ metrics = {
     'Semantic Diversity': Metric('semantic_diversity', 'Semantic Diversity',r"\mathrm{Median}(\mathrm{Semantic Diversity})", False),
 }
 # canonical will always have 'elite'
-selection_methods = {'elite_tournament': 'Elite Tournament'}
+selection_methods = {
+#                      'elite_tournament': 'Elite Tournament', 
+                      'competent_tournament': 'Competent Tournament'
+                    }
 
 # key->name
 problems = {
@@ -53,10 +56,11 @@ problems = {
 #                   xover_density_neutral.csv
 
 analyzer = AnalysisToolkit(crossover_methods, selection_methods, problems, metrics, 50, 3000)
-#analyzer.compile_averages([0, 2, 5, 8, 11])
-analyzer.plot_box_plots('elite_tournament', metrics['Minimum Fitness'], 'minimum_fitness_box_graph',
-                             'Fitness of Best Models', 'Crossover Methods', 'min_fitness', log=True)
-for metric in list(metrics.values()):
-    analyzer.plot_line_graph('elite_tournament', metric, f'{metric.full_name.lower().replace(" ", "_")}_graph',
+analyzer.compile_averages([0, 2, 5, 8, 11])
+for selection in (selection_methods.keys()):
+    analyzer.plot_box_plots(selection, metrics['Minimum Fitness'], f'minimum_fitness_{selection}_box_graph',
+                             'Fitness of Best Models', 'Crossover Methods', 'min_fitness', log=True, violin=True)
+    for metric in list(metrics.values()):
+        analyzer.plot_line_graph(selection, metric, f'{metric.full_name.lower().replace(" ", "_")}_{selection}_graph',
                              f'{metric.full_name} Over Generations', 'Generations', f'metric.short_name', log=metric.log)
 
