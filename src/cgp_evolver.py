@@ -1,17 +1,14 @@
 import numpy as np
 import pickle
 import os
-import heapq
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy, copy
-from time import sleep
 
 from cgp_model import CGP
 from fitness_functions import correlation
-from helper import _validate_int_param, _get_quartiles, pairwise_minkowski_distance, get_score, get_ssd, get_weights, \
+from helper import _get_quartiles, pairwise_minkowski_distance, get_score, get_ssd, get_weights, \
     clean_values
-from scipy.spatial.distance import cdist
 from Bio.Align import PairwiseAligner, Seq
 
 class CartesianGP:
@@ -216,29 +213,12 @@ class CartesianGP:
         new_population = np.empty(n_to_select, dtype=object)
 
         # Filter out None values from population
-        t_pop = self.population[self.population != None]
+        t_pop = self.population[self.population is not None]
 
-        if self.tournament_diversity:
-            # Use a list to track available individuals to prevent reselection
-            available_indices = list(range(len(t_pop)))
+        available_indices = list(range(len(t_pop)))
+        remaining_slots = len(new_population)
 
-        for i in range(n_to_select):
-            if self.tournament_diversity and len(available_indices) < self.tournament_size:
-                # If fewer individuals remain than tournament size, use all available ones
-                contestants_indices = available_indices
-            else:
-                # Randomly select contestants from available indices
-                contestants_indices = np.random.choice(available_indices, size=self.tournament_size, replace=False)
-
-            contestants = t_pop[contestants_indices]
-
-            # Select the best individual based on fitness
-            best_index = min(contestants_indices, key=lambda idx: t_pop[idx].fitness)
-            new_population[i] = t_pop[best_index]
-
-            # Remove selected individual from available pool if enforcing diversity
-            if self.tournament_diversity:
-                available_indices.remove(best_index)
+        new_population = self.t_select(available_indices, new_population, remaining_slots, t_pop)
 
         return new_population
 
@@ -251,7 +231,7 @@ class CartesianGP:
 
         # Step 2: Prepare for tournament selection
         remaining_slots = self.max_p - len(elite_population)
-        t_pop = self.population[self.population != None]  # Remove None values
+        t_pop = self.population[self.population is not None]  # Remove None values
 
         # If enforcing diversity, track available individuals
         if self.tournament_diversity:
@@ -262,6 +242,13 @@ class CartesianGP:
         new_population = np.empty(remaining_slots, dtype=object)
 
         # Step 3: Perform tournament selection
+        new_population = self.t_select(available_indices, new_population, remaining_slots, t_pop)
+
+        # Step 4: Combine elite and tournament-selected individuals
+        final_population = np.concatenate((elite_population, new_population))
+        return final_population
+
+    def t_select(self, available_indices, new_population, remaining_slots, t_pop):
         for i in range(remaining_slots):
             if self.tournament_diversity and len(available_indices) < self.tournament_size:
                 # Use all remaining individuals if fewer than tournament size
@@ -270,7 +257,7 @@ class CartesianGP:
                 # Randomly select contestants
                 contestants_indices = np.random.choice(available_indices, size=self.tournament_size, replace=False)
 
-            contestants = t_pop[contestants_indices]
+            #contestants = t_pop[contestants_indices]
 
             # Select the best individual based on fitness
             best_index = min(contestants_indices, key=lambda idx: t_pop[idx].fitness)
@@ -279,10 +266,7 @@ class CartesianGP:
             # Remove selected individual to enforce diversity
             if self.tournament_diversity:
                 available_indices.remove(best_index)
-
-        # Step 4: Combine elite and tournament-selected individuals
-        final_population = np.concatenate((elite_population, new_population))
-        return final_population
+            return new_population
 
     def _compute_semantics(self):
         """

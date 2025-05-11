@@ -2,6 +2,20 @@ import numpy as np
 from cgp_operators import *
 
 
+def int_to_node(i):
+    l = ['Input', 'Constant', 'Function', 'Output']
+    return l[i]
+
+
+def node_to_int(node):
+    l = ['Input', 'Constant', 'Function', 'Output']
+    try:
+        return l.index(node)
+    except ValueError:
+        raise ValueError(
+            f'Tried to convert node {node} to an integer. The only valid types are \"Input\", \"Constant\", \"Function\", and \"Output\"')
+
+
 def generate_model(max_size: int, inputs: int, constants: list | np.ndarray, arity: int, outputs: int,
                    n_operations: int, function_bank: tuple, fixed_length: bool = True):
     """
@@ -18,27 +32,26 @@ def generate_model(max_size: int, inputs: int, constants: list | np.ndarray, ari
         fixed_length (bool): If False, the model size can be <= max_size.
 
     Returns:
-        np.ndarray: Structured NumPy array representing the model.
+        np.ndarray: NumPy array representing the model.
+        list: Names of Model Columns
+
+    Structured numpy arrays don't work because of copy issues
     """
 
     constants = np.array(constants) if isinstance(constants, list) else constants
 
-    # Define structured NumPy dtype for the model
-    dtype = [
-        ('NodeType', 'U8'),  # 'Input', 'Constant', 'Function', or 'Output'
-        ('Value', 'f8'),  # Value for constants (or 0 for others)
-        ('Operator', 'U10'),  # Function reference (only for function nodes)
-        *[(f'Operand{i}', 'i4') for i in range(arity)],  # Operands (for function nodes)
-        ('Active', 'i4')  # Active status (0 or 1)
-    ]
+    # Define model keys
+    model_keys = ['NodeType', 'Value', 'Operator', *[f'Operand{i}' for i in range(arity)], 'Active']
+    num_keys = len(model_keys)
+    model_keys = {key: i for i, key in enumerate(model_keys)}
 
     # Input and Constant Nodes
     num_constants = len(constants)
     num_inputs = inputs + num_constants
-    input_nodes = np.zeros(num_inputs, dtype=dtype)
-    input_nodes['NodeType'][:inputs] = 'Input'
-    input_nodes['NodeType'][inputs:] = 'Constant'
-    input_nodes['Value'][inputs:] = constants  # Assign constant values
+    input_nodes = np.zeros((num_inputs, num_keys))
+    input_nodes[model_keys['NodeType']][:inputs] = node_to_int('Input') #should be 0
+    input_nodes[model_keys['NodeType']][inputs:] = node_to_int('Constant')
+    input_nodes[model_keys['Value']][inputs:] = constants  # Assign constant values
 
     # Determine the actual number of function nodes
     model_size = max_size if fixed_length else np.random.randint(1, max_size)
@@ -46,20 +59,20 @@ def generate_model(max_size: int, inputs: int, constants: list | np.ndarray, ari
     last_body_node = first_body_node + model_size
 
     # Function Nodes
-    body_nodes = np.zeros(model_size, dtype=dtype)
-    body_nodes['NodeType'] = 'Function'
-    body_nodes['Operator'] = np.random.choice(list(function_bank), model_size)
+    body_nodes = np.zeros((model_size, num_keys))
+    body_nodes[model_keys['NodeType']] = node_to_int('Function')
+    body_nodes[model_keys['Operator']] = np.random.choice(list(function_bank), model_size)
 
     # Generate operands correctly
     for i in range(arity):
-        body_nodes[f'Operand{i}'] = np.random.randint(0, first_body_node + np.arange(model_size), size=model_size)
+        body_nodes[model_keys[f'Operand{i}']] = np.random.randint(0, first_body_node + np.arange(model_size), size=model_size)
 
     # Output Nodes
-    output_nodes = np.zeros(outputs, dtype=dtype)
-    output_nodes['NodeType'] = 'Output'
-    output_nodes['Operand0'] = np.random.randint(0, last_body_node, outputs)
+    output_nodes = np.zeros((outputs, num_keys))
+    output_nodes[model_keys['NodeType']] = 'Output'
+    output_nodes[model_keys['Operand0']] = np.random.randint(0, last_body_node, outputs)
 
     # Combine all nodes into a single structured NumPy array
-    model = np.concatenate((input_nodes, body_nodes, output_nodes))
+    model = np.concatenate((input_nodes, body_nodes, output_nodes), axis=0)
 
-    return model
+    return model, model_keys

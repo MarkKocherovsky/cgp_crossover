@@ -1,15 +1,15 @@
 import numpy as np
 import uuid
 import hashlib
-import json
-from numpy.random import randint, choice
-from cgp_generator import generate_model
+from cgp_generator import generate_model, node_to_int
 from cgp_operators import add, sub, mul, div
 from fitness_functions import correlation, align
-from copy import copy, deepcopy
+from copy import deepcopy
+
 
 class CGP:
-    def __init__(self, model=None, fixed_length=True, fitness_function='Correlation', mutation_type='Point',
+    def __init__(self, model=None, model_keys=None, fixed_length=True, fitness_function='Correlation',
+                 mutation_type='Point',
                  parent_keys=None, xover_length=None, **kwargs):
         self.id = uuid.uuid4()
         self.mutation = None
@@ -33,9 +33,12 @@ class CGP:
         assert self.n_operations >= 1, 'At least one operator is required.'
 
         # Initialize model
-        if model is not None:
+        if model is not None and model_keys is not None:
             self.model = model
+            self.model_keys = model_keys
             self._initialize_from_model()
+        elif (model is not None and model_keys is None) or (model is None and model_keys is not None):
+            raise RuntimeError('Must specify both model and model_keys.')
         else:
             self._initialize_from_kwargs(kwargs)
 
@@ -73,7 +76,7 @@ class CGP:
         assert self.max_size >= 1, 'There must be at least one instruction.'
 
         # Generate the model using NumPy instead of Pandas
-        self.model = generate_model(
+        self.model, self.model_keys = generate_model(
             self.max_size, self.inputs, self.constants, self.arity, self.outputs,
             self.n_operations, self.function_bank, self.fixed_length
         )
@@ -82,12 +85,7 @@ class CGP:
         data = np.atleast_2d(data)
 
         if not mutable:
-            model = self._copy_structured_array(self.model)
-            print("Checking memory sharing...")
-            print("model is self.model:", model is self.model)
-            print("np.shares_memory(model, self.model):", np.shares_memory(model, self.model))
-            for name in self.model.dtype.names:
-                print(f"Field {name} shared? ", np.shares_memory(model[name], self.model[name]))
+            model = np.copy(self.model)
             assert not np.shares_memory(model, self.model), "❌ Model and self.model share memory!"
         else:
             model = self.model
@@ -100,7 +98,6 @@ class CGP:
             outputs = outputs * self.slope + self.intercept
 
         return outputs
-
 
     def _get_node_value(self, model, operand, mutable, visited=None):
         """Compute the value of a node, with cycle detection."""
@@ -119,25 +116,22 @@ class CGP:
             print(f'model size: {model.shape}')
             exit()
 
-        node_type = node['NodeType']
+        node_type = node[self.model_keys['NodeType']]
 
-        if node_type in {'Input', 'Constant'}:
-            return node['Value']
+        if node_type in map(node_to_int, ['Input', 'Constant']):
+            return node[self.model_keys['Value']]
 
-        elif node_type == 'Function':
+        elif node_type == node_to_int('Function'):
             operand_values = np.array([
-                self._get_node_value(model, node[f'Operand{i}'], mutable, visited.copy())
+                self._get_node_value(model, node[self.model_keys[f'Operand{i}']], mutable, visited.copy())
                 for i in range(self.arity)
             ])
 
-            try:
-                result = self.function_bank[node['Operator']](*operand_values)
-            except Exception:
-                result = np.nan
+            result = self.function_bank[node[self.model_keys['Operator']]](*operand_values)
 
             if mutable:
-                model[operand]['Value'] = result
-                model[operand]['Active'] = 1
+                model[operand, self.model_keys['Value']] = result
+                model[operand, self.model_keys['Active']] = 1
 
             return result
 
@@ -145,31 +139,31 @@ class CGP:
             print(node)
             raise ValueError(f"Invalid node type: {node_type}")
 
-
     def _run(self, model, mutable):
         """Run the model and compute output values."""
         if mutable:
-            model['Active'] = 0  # Reset active flags
-            model['Value'][model['NodeType'] == 'Function'] = 0  # Reset intermediate values
+            model[:, self.model_keys['Active']] = 0  # Reset active flags
+            model[model[:, self.model_keys['NodeType']] == 'Function', self.model_keys['Value']] = 0
 
-        output_indices = np.where(model['NodeType'] == 'Output')[0]
-        output_values = np.empty(len(output_indices), dtype=np.float64)
+        output_indices = list(range(len(model) - self.outputs, len(model)))
+
+        output_values = np.empty(self.outputs)
 
         for i, idx in enumerate(output_indices):
-            output_values[i] = self._get_node_value(model, model[idx]['Operand0'], mutable, visited=set())
+            output_values[i] = self._get_node_value(model, model[idx, self.model_keys['Operand0']], mutable,
+                                                    visited=set())
 
         if mutable:
-            model['Value'][output_indices] = output_values
+            model[output_indices, self.model_keys['Value']] = output_values
 
         return output_values
 
-
     def _compute_single_input(self, datum, model, mutable):
-        input_indices = np.where(model['NodeType'] == 'Input')[0]
+        input_indices = list(range(self.inputs))
         if not mutable:
             model = model.copy()
-            model['Value'] = model['Value'].copy()
-        model['Value'][input_indices] = datum
+            model[:, self.model_keys['Value']] = model[:, self.model_keys['Value']].copy()
+        model[input_indices, self.model_keys['Value']] = datum
         return self._run(model, mutable)
 
     def fit(self, data, ground_truth, mutable=True):
@@ -184,7 +178,7 @@ class CGP:
         self.fitness = self.fitness_function(predictions, ground_truth)
         fitness_check = self.fitness_function(predictions, ground_truth)
         if not np.isclose(self.fitness, fitness_check, atol=1e-8):
-            raise RuntimeError(f"Fitness changed on recomputation: {self.fitness} vs {fitness_check}")
+            raise RuntimeError(f"Fitness changed on re-computation: {self.fitness} vs {fitness_check}")
 
         # Now align (only for prediction)
         if self.fitness_function == correlation:
@@ -192,12 +186,11 @@ class CGP:
 
         return self.fitness
 
-
     def get_active_nodes(self):
-        return self.model[self.model['Active'] == 1]
+        return self.model[self.model[:, self.model_keys['Active']] == 1]
 
     def count_active_nodes(self):
-        return np.sum(self.model['Active'] == 1)
+        return np.sum(self.model[:, self.model_keys['Active']] == 1)
 
     def _choose_mutation(self, mutation_type):
         """Assign mutation function."""
@@ -208,45 +201,47 @@ class CGP:
         self.mutation = mutations[mutation_type]
 
     def _point_mutation(self, verbose=False):
-        """Efficient point mutation ensuring changes affect active nodes."""
         # active_indices = np.where((self.model['NodeType'] == 'Function') & (self.model['Active'] == 1))[0]
-        active_indices = np.where((self.model['NodeType'] == 'Function') | (self.model['NodeType'] == 'Output'))[0]
+        active_indices = np.where((self.model[:, self.model_keys['NodeType']] == node_to_int('Function')) | (
+                self.model[:, self.model_keys['NodeType']] == node_to_int('Output')))
 
-        if len(active_indices) == 0:
-            # Fallback: Mutate any function node if no active ones exist
-            active_indices = np.where((self.model['NodeType'] == 'Function') | (self.model['NodeType'] == 'Output'))[0]
+        # if len(active_indices) == 0:
+        #    # Fallback: Mutate any function node if no active ones exist
+        #    active_indices = np.where((self.model[:, self.model_keys['NodeType']] == node_to_int('Function)) | (self.model['NodeType'] == 'Output'))[0]
 
-        # Select a random active function node
+        # Select a random function node
         mutation_index = np.random.choice(active_indices)
         if verbose:
             print(f'Mutating at index {mutation_index}')
-        if self.model[mutation_index]['NodeType'] == 'Function':
-            mutation_column = np.random.choice(['Operator'] + [f'Operand{i}' for i in range(self.arity)])
-            if mutation_column == 'Operator':
-                current_op = self.model[mutation_index]['Operator']
+        if self.model[mutation_index, self.model_keys['NodeType']] == node_to_int('Function'):
+            mutation_column = np.random.choice(
+                [self.model_keys['Operator']] + [self.model_keys[f'Operand{i}'] for i in range(self.arity)]
+                )
+            if mutation_column == self.model_keys['Operator']:
+                current_op = self.model[mutation_index, self.model_keys['Operator']]
                 ops = list(self.function_bank.keys())
                 new_operator = np.random.choice(ops)
                 while new_operator == current_op:
                     new_operator = np.random.choice(ops)
                 if verbose:
                     print(f'Mutating column {mutation_column} to {new_operator}')
-                self.model[mutation_index]['Operator'] = new_operator
+                self.model[mutation_index, self.model_keys['Operator']] = new_operator
             else:
                 # Mutate operand, ensuring a different value
                 new_operand = np.random.randint(0, mutation_index)
-                while new_operand == self.model[mutation_index][mutation_column]:
+                while new_operand == self.model[mutation_index, self.model_keys[mutation_column]]:
                     new_operand = np.random.randint(0, mutation_index)
                 if verbose:
                     print(f'Mutating column {mutation_column} to {new_operand}')
-                self.model[mutation_index][mutation_column] = new_operand
+                self.model[mutation_index, self.model_keys[mutation_column]] = new_operand
         else:  # mutate output node
-            old_operand = self.model[mutation_index]['Operand0']
+            old_operand = self.model[mutation_index, self.model_keys['Operand0']]
             new_operand = old_operand
             while old_operand == new_operand:
                 new_operand = np.random.randint(0, mutation_index)
             if verbose:
                 print(f'Mutating output to {new_operand}')
-            self.model[mutation_index]['Operand0'] = new_operand
+            self.model[mutation_index, self.model_keys['Operand0']] = new_operand
 
     def mutate(self, verbose=False):
         """Return a mutated copy of the individual."""
@@ -257,7 +252,6 @@ class CGP:
             raise ValueError("Mutation function not set. Call _choose_mutation() first.")
         clone.mutation(verbose)
         return clone
-
 
     def print_parameters(self):
         """Print key parameters of the CGP model."""
@@ -277,30 +271,8 @@ class CGP:
 
     def set_child_key(self, key):
         self.child_keys = key
-    
+
     @staticmethod
     def _hash_model(model: np.ndarray) -> str:
         """Return a hash of the model's raw bytes for integrity checking."""
         return hashlib.md5(model.tobytes()).hexdigest()
-
-
-    @staticmethod
-    def _copy_structured_array(array: np.ndarray) -> np.ndarray:
-        """Deep copy a structured NumPy array without any memory sharing."""
-        copy = np.empty(array.shape, dtype=array.dtype)
-        for field in array.dtype.names:
-            copy[field] = np.array(array[field], copy=True)
-        return copy
-
-
-    def __deepcopy__(self, memo):
-        cls = self.__class__
-        result = cls.__new__(cls)
-        memo[id(self)] = result
-        for key, value in self.__dict__.items():
-            if key == 'model':
-                setattr(result, key, self._copy_structured_array(value))
-            else:
-                setattr(result, key, deepcopy(value, memo))
-        return result
-
