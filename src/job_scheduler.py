@@ -65,24 +65,27 @@ CHECKPOINT_FILE = "checkpoint.json"
 
 # Problem configuration
 functions = Collection()
-#function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
-#                 'Ackley']
-function_list = ['Nguyen7', 'Griewank', 'Levy', 'Rastrigin', 'Ackley']
+function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
+                 'Ackley']
+#function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6']
+#function_list = ['Rastrigin']
+#function_list = ['Nguyen7', 'Griewank', 'Levy', 'Rastrigin', 'Ackley']
+#function_list = ['Nguyen6']
 #xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
 #          'homologous_semantic_uniform']
-xovers = ['semantic_uniform', 'homologous_semantic_uniform']
+#xovers = ['n_point', 'uniform']
+#xovers = ['semantic_uniform', 'homologous_semantic_uniform', 'semantic_n_point', 'homologous_semantic_n_point']
+#xovers = ['homologous_semantic_n_point', 'homologous_semantic_uniform']
 #xovers = ['subgraph']
-#xovers = ['None']
-#xovers = ['subgraph']
+xovers = ['None']
 #xovers = ['n_point', 'uniform', 'subgraph', 'semantic_uniform']
 #function_list = ['Koza1', 'Koza2']
-#xovers = ['n_point', 'uniform']
 
 #xovers = ['homologous_semantic_uniform', 'homologous_semantic_n_point']
 mutation = 'point'
-#selection = 'elite'
+selection = 'elite'
 #selection = 'elite_tournament'
-selection = 'competent_tournament'
+#selection = 'competent_tournament'
 output_dir = "../output/logs/"
 error_dir = "../output/err/"
 os.makedirs(output_dir, exist_ok=True)
@@ -90,19 +93,19 @@ os.makedirs(error_dir, exist_ok=True)
 
 # Parameters
 max_g = 3000
-max_p = 40
-max_c = 40
+max_p = 1
+max_c = 4
 max_n = 64
 x_rate = 0.5
-m_rate = 0.025
+m_rate = 1.0
 n_points = 1
 n_elites = 1
 t_size = 4
 p_dim = 1
 step_size = 100
-asexual_reproduction = False
+asexual_reproduction = True
 job_count = 0
-
+one_d = False
 
 def load_checkpoint():
     """Load progress from checkpoint, handling interrupted jobs separately."""
@@ -182,7 +185,7 @@ for function in function_list:
                 print("Max job limit reached. Waiting...")
                 time.sleep(60)  # Check every 60 seconds
                 resubmit()
-
+            print(one_d)
             slurm_script = f"""#!/bin/bash --login
 #SBATCH --job-name={job_name}
 #SBATCH --output={output_dir}{job_name}.out
@@ -209,7 +212,7 @@ if [[ "$(which python3)" != "/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bi
 fi
 
 
-/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u run.py {i} {max_g} {max_n} {max_p} {max_c} {xover} {x_rate} {mutation} {m_rate} {selection} {function} --n_points {n_points} --n_elites {n_elites} --problem_dimensions {p_dim} --step_size {step_size} --tournament_size {t_size} --asexual_reproduction {asexual_reproduction}
+/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u run.py {i} {max_g} {max_n} {max_p} {max_c} {xover} {x_rate} {mutation} {m_rate} {selection} {function} --n_points {n_points} --n_elites {n_elites} --problem_dimensions {p_dim} --step_size {step_size} --tournament_size {t_size} --asexual_reproduction {asexual_reproduction} --one_dimensional_xover {one_d}
 
 # Capture exit code
 ret=$?

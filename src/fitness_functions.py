@@ -9,30 +9,32 @@ from scipy.stats import pearsonr
 import numpy as np
 
 def correlation(preds, truth):
-    # Check if predictions or ground_truth are constant
-    if not isinstance(preds, np.ndarray):
-        preds = np.array(preds)
-    if not isinstance(truth, np.ndarray):
-        truth = np.array(truth)
-    predictions = preds.flatten()
-    ground_truth = truth.flatten()
-    if not np.all(np.isfinite(predictions)) or np.all(predictions == predictions[0]) or np.all(
-            ground_truth == ground_truth[0]):
+    print(f"[DEBUG] Correlation input checksum: preds={np.sum(preds)}, truth={np.sum(truth)}")
+ 
+    predictions = np.asarray(preds).flatten()
+    ground_truth = np.asarray(truth).flatten()
+
+    if not np.all(np.isfinite(predictions)) or not np.all(np.isfinite(ground_truth)):
+        print("⚠️ Non-finite values detected")
         return 1.0
 
-    # Check for near constant input
-    if np.linalg.norm(predictions - np.mean(predictions)) < 1e-13 * abs(np.mean(predictions)) or np.std(predictions) < 1e-10:
-        return 1.0  # Treat as maximally uncorrelated
+    try:
+        r, _ = pearsonr(predictions, ground_truth)
+    except Exception as e:
+        print(f"⚠️ Pearson correlation failed: {e}")
+        return 1.0
 
-    # Calculate Pearson correlation
-    r, _ = pearsonr(predictions, ground_truth)
+    if np.abs(r) > 1:
+        raise ValueError(f"Invalid Pearson r value: r = {r}")
 
-    # Ensure r is valid before computing the result
+
     if not np.isfinite(r):
-        return 1.0  # Treat invalid correlation as uncorrelated
+        print("⚠️ Non-finite correlation, returning 1.0")
+        return 1.0
 
-    return 1 - r ** 2
-
+    fitness = 1 - r**2
+    print(f"[DEBUG] Correlation: r = {r}, fitness = {fitness}")
+    return fitness
 
 
 # updated with chatgpt

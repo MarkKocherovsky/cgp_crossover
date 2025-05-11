@@ -52,10 +52,12 @@ class AnalysisToolkit:
         trial_data = []
         for trial in range(self.trials):
             path = self.base_path / problem / xover / selection_key / f'trial_{trial}/statistics.csv'
-            print(path)
+            #print(path)
             trial_data.append(np.loadtxt(path, delimiter=','))
-            if len(trial_data[-1]) < self.max_generations:
+            if len(trial_data[trial][-1]) < self.max_generations:
                 print(path, len(trial_data[-1]))
+            if np.array(trial_data)[trial, -1, 0] > 0.99:
+                print(f'Recommend re-running {path}, best fitness = {np.array(trial_data)[trial, -1, 0]}')
         return trial_data
 
     def compile_averages(self, metric_list):
@@ -86,6 +88,7 @@ class AnalysisToolkit:
                             q_table.to_csv(output_dir / f'{problem}_{xover}_{selection}_{self.metrics[metric].code_name}.csv', index=False)
                         except ValueError as e:
                             print(f'analysis_helper.py::AnalysisToolkit::compile_averages ValueError {e}')
+                            print(f'{problem} {xover_method} {selection} {metric}\n#########')
                             print(f'{problem} {xover_method} {selection} {metric.full_name}\n#########')
     def make_path(self, problem: str, xover: str, selection: str, metric: str):
         return Path(f'../output/intermediate_results/{problem}_{xover}_{selection}_{metric}.csv')
@@ -132,7 +135,7 @@ class AnalysisToolkit:
         print(f'{graph_filename} saved')
 
     def plot_box_plots(self, selection_method: str, metric: Metric, graph_filename: str, title: str,
-                       x_label: str, y_label: str, log:bool = False, violin:bool = False):
+                       x_label: str, y_label: str, log:bool = False, violin:bool = False, jitter:bool = False):
         if isinstance(metric, str):
             metric = next((m for m in self.metrics if m.code_name == metric), None)
             if metric is None:
@@ -181,9 +184,14 @@ class AnalysisToolkit:
                     pc.set_facecolor(color)
                     pc.set_edgecolor('none')
                     pc.set_alpha(0.5)  # ✅ semi-transparent so boxplot is visible
-            #bp = ax.boxplot(box_data, patch_artist=True, showfliers=False, notch=True)
-            #for patch, color in zip(bp['boxes'], colors):
-            #    patch.set_facecolor(color)
+            bp = ax.boxplot(box_data, patch_artist=True, showfliers=False, notch=True, widths = 0.75)
+            positions = np.arange(1, len(box_data) + 1)  # x-axis positions of boxes
+            for patch, color in zip(bp['boxes'], colors):
+                patch.set_facecolor(color)
+            if jitter:
+                for i, data in enumerate(box_data):
+                    x = np.random.normal(loc=positions[i], scale=0.06, size=len(data))
+                    ax.scatter(x, data, alpha=0.5, s=8, color='black', zorder=3)  # s=10 for point size
 
             ax.set_title(problem_name)
             if log:

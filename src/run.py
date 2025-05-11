@@ -14,6 +14,18 @@ from cgp_evolver import CartesianGP
 from cgp_operators import add, sub, mul, div
 from test_problems import Collection
 
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 # get arguments, until the end of the print statements this is a chatgpt innovation
 parser = argparse.ArgumentParser(description="Run a genetic algorithm with configurable parameters.")
 
@@ -37,8 +49,8 @@ parser.add_argument("--tournament_size", type=int, default=5, help="Size of the 
 parser.add_argument("--n_elites", type=int, default=1, help="Number of elites (default: 1).")
 parser.add_argument("--problem_dimensions", type=int, default=1, help="Controls number of dimensions for test data.")
 parser.add_argument("--step_size", type=int, default=100, help="Prints out generation data every N generations.")
-parser.add_argument("--asexual_reproduction", type=bool, default=False, help="Controls whether or not asexual reproduction can occur.")
-parser.add_argument("--one_dimensional_xover", type=bool, default=False, help="If True, parents will be flattened before crossover. Not compatible with subgraph or semantic methods.")
+parser.add_argument("--asexual_reproduction", type=str2bool, default=False, help="Controls whether or not asexual reproduction can occur.")
+parser.add_argument("--one_dimensional_xover", type=str2bool, default=False, help="If True, parents will be flattened before crossover. Not compatible with subgraph or semantic methods.")
 args = parser.parse_args()
 
 # Access arguments
@@ -77,7 +89,7 @@ print(f"Test Problem: {test_problem_key}")
 print(f"Number of Points: {n_points}")
 print(f"Tournament Size: {tournament_size}")
 print(f"Number of Elites: {n_elites}")
-
+print(f"One Dimensional Crossover: {one_d}")
 # data sanitizing is done in the CartesianGP class, see cgp_evolver.py
 
 # initialize problem data
