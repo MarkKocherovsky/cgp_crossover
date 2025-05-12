@@ -9,10 +9,15 @@ from scipy.stats import pearsonr
 import numpy as np
 
 def correlation(preds, truth):
-    print(f"[DEBUG] Correlation input checksum: preds={np.sum(preds)}, truth={np.sum(truth)}")
+    #print(f"[DEBUG] Correlation input checksum: predictions={preds}, truth={truth}")
  
     predictions = np.asarray(preds).flatten()
     ground_truth = np.asarray(truth).flatten()
+
+    std_pred = np.std(predictions)
+    std_truth = np.std(ground_truth)
+    if std_pred < 1e-6 or std_truth < 1e-6:
+        return 1.0  # worst fitness if no variance
 
     if not np.all(np.isfinite(predictions)) or not np.all(np.isfinite(ground_truth)):
         print("⚠️ Non-finite values detected")
@@ -33,8 +38,8 @@ def correlation(preds, truth):
         return 1.0
 
     fitness = 1 - r**2
-    print(f"[DEBUG] Correlation: r = {r}, fitness = {fitness}")
-    return fitness
+    #print(f"[DEBUG] Correlation: r = {r}, fitness = {fitness}")
+    return float(np.round(fitness, 12))
 
 
 # updated with chatgpt

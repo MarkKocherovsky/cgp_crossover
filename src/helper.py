@@ -1,5 +1,5 @@
 import numpy as np
-
+from cgp_generator import node_to_int
 
 def _get_quartiles(data):
     data = np.where(data == np.inf, 1, data)
@@ -67,8 +67,8 @@ def clean_values(model, x_train, include_output=False):
     @return: Matrix of values with rows as node numbers and columns as inputs
     """
     # Get boolean masks for function and output nodes
-    function_mask = model.model['NodeType'] == 'Function'
-    output_mask = model.model['NodeType'] == 'Output'
+    function_mask = model.model[model.model_keys['NodeType']] == node_to_int('Function')
+    output_mask = model.model[model.model_keys['NodeType']] == node_to_int('Output')
 
     # Compute matrix size
     model_length = np.sum(function_mask)
@@ -83,11 +83,11 @@ def clean_values(model, x_train, include_output=False):
         model(input_value)  # Run the model with the input
 
         # Extract function node values
-        function_values = model.model['Value'][function_mask]
+        function_values = model.model[function_mask, model.model_keys['Value']]
 
         if include_output:
             # Extract output node values
-            output_values = model.model['Value'][output_mask]
+            output_values = model.model[output_mask, model.model_keys['Value']]
             values = np.concatenate([function_values, output_values])
         else:
             values = function_values

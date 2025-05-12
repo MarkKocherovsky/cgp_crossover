@@ -3,7 +3,6 @@
 # to actually queue up jobs run job_scheduler.py
 import argparse
 import os
-import pickle
 from datetime import datetime
 from pathlib import Path
 
@@ -153,7 +152,7 @@ else:
     )
 
 start = datetime.now()
-best_model = evolution_module.fit(train_x, train_y, step_size=step_size)
+best_model = evolution_module.fit(train_x, train_y, step_size=step_size, plot=True)
 end = datetime.now()
 
 duration = end - start
@@ -166,7 +165,7 @@ if test_x is not None:
 evolution_module.save_metrics(run_path)
 best_model.print_model()
 df = pd.DataFrame(best_model.model)
-df.to_csv(f'{run_path}/best_model.csv', index=False)
+df.to_csv(f'{run_path}/best_model.csv', index=True)
 
 # Clean up checkpoint and temporary file if run completes successfully
 try:

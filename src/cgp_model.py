@@ -29,6 +29,7 @@ class CGP:
 
         # Function bank setup
         self.function_bank = kwargs.get('function_bank', {'add': add, 'sub': sub, 'mul': mul, 'div': div})
+        self.function_bank = {mapping: key for mapping, key in enumerate(self.function_bank.values())}
         self.n_operations = len(self.function_bank)
         assert self.n_operations >= 1, 'At least one operator is required.'
 
@@ -42,7 +43,7 @@ class CGP:
         else:
             self._initialize_from_kwargs(kwargs)
 
-        self.first_body_node = self.inputs + len(self.model[self.model['NodeType'] == 'Constant'])
+        self.first_body_node = self.inputs + len(self.model[:, self.model[self.model_keys['NodeType']] == node_to_int('Constant')])
         self.last_body_node = self.first_body_node + self.max_size - 1
         # ✅ Initialize xover_index correctly
         if xover_length is not None:
@@ -104,14 +105,17 @@ class CGP:
         if visited is None:
             visited = set()
 
+        operand = int(operand)
+
         if operand in visited:
             raise RuntimeError(f"Cycle detected at node {operand} — already visited")
 
         visited.add(operand)
         try:
-            node = model[operand]
+            node = model[int(operand)]
         except IndexError as e:
             print(f'_get_node_value(): {e}')
+            print(f'operand: {operand}')
             print(model)
             print(f'model size: {model.shape}')
             exit()
@@ -126,8 +130,8 @@ class CGP:
                 self._get_node_value(model, node[self.model_keys[f'Operand{i}']], mutable, visited.copy())
                 for i in range(self.arity)
             ])
-
-            result = self.function_bank[node[self.model_keys['Operator']]](*operand_values)
+            operator = self.function_bank[node[self.model_keys["Operator"]]]
+            result = operator(*operand_values)
 
             if mutable:
                 model[operand, self.model_keys['Value']] = result
@@ -203,7 +207,7 @@ class CGP:
     def _point_mutation(self, verbose=False):
         # active_indices = np.where((self.model['NodeType'] == 'Function') & (self.model['Active'] == 1))[0]
         active_indices = np.where((self.model[:, self.model_keys['NodeType']] == node_to_int('Function')) | (
-                self.model[:, self.model_keys['NodeType']] == node_to_int('Output')))
+                self.model[:, self.model_keys['NodeType']] == node_to_int('Output')))[0]
 
         # if len(active_indices) == 0:
         #    # Fallback: Mutate any function node if no active ones exist
@@ -229,11 +233,11 @@ class CGP:
             else:
                 # Mutate operand, ensuring a different value
                 new_operand = np.random.randint(0, mutation_index)
-                while new_operand == self.model[mutation_index, self.model_keys[mutation_column]]:
+                while new_operand == self.model[mutation_index, mutation_column]:
                     new_operand = np.random.randint(0, mutation_index)
                 if verbose:
                     print(f'Mutating column {mutation_column} to {new_operand}')
-                self.model[mutation_index, self.model_keys[mutation_column]] = new_operand
+                self.model[mutation_index, mutation_column] = new_operand
         else:  # mutate output node
             old_operand = self.model[mutation_index, self.model_keys['Operand0']]
             new_operand = old_operand
@@ -252,6 +256,19 @@ class CGP:
             raise ValueError("Mutation function not set. Call _choose_mutation() first.")
         clone.mutation(verbose)
         return clone
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for key, value in self.__dict__.items():
+            if key == 'model':
+                result.model = np.copy(value)
+            elif key == 'model_keys':
+                result.model_keys = deepcopy(value, memo)
+            else:
+                setattr(result, key, deepcopy(value, memo))
+        return result
 
     def print_parameters(self):
         """Print key parameters of the CGP model."""
