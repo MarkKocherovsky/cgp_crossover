@@ -42,8 +42,8 @@ class CGP:
             raise RuntimeError('Must specify both model and model_keys.')
         else:
             self._initialize_from_kwargs(kwargs)
-
-        self.first_body_node = self.inputs + len(self.model[:, self.model[self.model_keys['NodeType']] == node_to_int('Constant')])
+        
+        self.first_body_node = self.inputs + np.sum(self.model[:, self.model_keys['NodeType']] == node_to_int('Constant'))
         self.last_body_node = self.first_body_node + self.max_size - 1
         # ✅ Initialize xover_index correctly
         if xover_length is not None:
@@ -55,12 +55,14 @@ class CGP:
 
     def _initialize_from_model(self):
         """Initialize attributes from a pre-built model."""
-        self.constants = self.model['Value'][self.model['NodeType'] == 'Constant']
-        self.inputs = np.sum(self.model['NodeType'] == 'Input')
-        self.outputs = np.sum(self.model['NodeType'] == 'Output')
-        self.max_size = np.sum(self.model['NodeType'] == 'Function')
-        self.n_operations = len(set(self.model['Operator']))
-        self.arity = sum(name.startswith('Operand') for name in self.model.dtype.names)
+        self.constants = self.model[:, self.model_keys['Value']][
+            self.model[:, self.model_keys['NodeType']] == node_to_int('Constant')
+        ]
+        self.inputs = np.sum(self.model[:, self.model_keys['NodeType']] == node_to_int('Input'))
+        self.outputs = np.sum(self.model[:, self.model_keys['NodeType']] == node_to_int('Output'))
+        self.max_size = np.sum(self.model[:, self.model_keys['NodeType']] == node_to_int('Function'))
+        self.n_operations = len(set(self.model[:, self.model_keys['Operator']]))
+        self.arity = sum(name.startswith('Operand') for name in self.model_keys)
 
     def _initialize_from_kwargs(self, kwargs):
         """Initialize attributes from keyword arguments."""
@@ -84,7 +86,7 @@ class CGP:
 
     def __call__(self, data, mutable=True):
         data = np.atleast_2d(data)
-
+        self.visited = set()
         if not mutable:
             model = np.copy(self.model)
             assert not np.shares_memory(model, self.model), "❌ Model and self.model share memory!"
@@ -97,20 +99,19 @@ class CGP:
 
         if self.slope is not None and self.intercept is not None:
             outputs = outputs * self.slope + self.intercept
-
         return outputs
 
     def _get_node_value(self, model, operand, mutable, visited=None):
         """Compute the value of a node, with cycle detection."""
-        if visited is None:
-            visited = set()
+        if self.visited is None:
+            self.visited = set()
 
         operand = int(operand)
 
         if operand in visited:
             raise RuntimeError(f"Cycle detected at node {operand} — already visited")
 
-        visited.add(operand)
+        self.visited.add(operand)
         try:
             node = model[int(operand)]
         except IndexError as e:
@@ -135,7 +136,7 @@ class CGP:
 
             if mutable:
                 model[operand, self.model_keys['Value']] = result
-                model[operand, self.model_keys['Active']] = 1
+            model[operand, self.model_keys['Active']] = 1
 
             return result
 
@@ -145,8 +146,8 @@ class CGP:
 
     def _run(self, model, mutable):
         """Run the model and compute output values."""
+        model[:, self.model_keys['Active']] = 0  # Reset active flags
         if mutable:
-            model[:, self.model_keys['Active']] = 0  # Reset active flags
             model[model[:, self.model_keys['NodeType']] == 'Function', self.model_keys['Value']] = 0
 
         output_indices = list(range(len(model) - self.outputs, len(model)))
@@ -191,10 +192,10 @@ class CGP:
         return self.fitness
 
     def get_active_nodes(self):
-        return self.model[self.model[:, self.model_keys['Active']] == 1]
+        return self.visited
 
     def count_active_nodes(self):
-        return np.sum(self.model[:, self.model_keys['Active']] == 1)
+        return len(self.visited)
 
     def _choose_mutation(self, mutation_type):
         """Assign mutation function."""

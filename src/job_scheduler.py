@@ -73,18 +73,19 @@ function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Ng
 #function_list = ['Nguyen6']
 #xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
 #          'homologous_semantic_uniform']
-#xovers = ['n_point', 'uniform']
+xovers = ['aligned_homologous_semantic_n_point']
 #xovers = ['semantic_uniform', 'homologous_semantic_uniform', 'semantic_n_point', 'homologous_semantic_n_point']
 #xovers = ['homologous_semantic_n_point', 'homologous_semantic_uniform']
 #xovers = ['subgraph']
-xovers = ['None']
+#xovers = ['homologous_semantic_n_point'] #, 'semantic_uniform']
+#xovers = ['None']
 #xovers = ['n_point', 'uniform', 'subgraph', 'semantic_uniform']
 #function_list = ['Koza1', 'Koza2']
 
 #xovers = ['homologous_semantic_uniform', 'homologous_semantic_n_point']
 mutation = 'point'
-selection = 'elite'
-#selection = 'elite_tournament'
+#selection = 'elite'
+selection = 'elite_tournament'
 #selection = 'competent_tournament'
 output_dir = "../output/logs/"
 error_dir = "../output/err/"
@@ -93,17 +94,17 @@ os.makedirs(error_dir, exist_ok=True)
 
 # Parameters
 max_g = 3000
-max_p = 1
-max_c = 4
+max_p = 40
+max_c = 40
 max_n = 64
 x_rate = 0.5
-m_rate = 1.0
+m_rate = 0.025
 n_points = 1
 n_elites = 1
 t_size = 4
 p_dim = 1
 step_size = 100
-asexual_reproduction = True
+asexual_reproduction = False
 job_count = 0
 one_d = False
 

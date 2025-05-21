@@ -1,10 +1,59 @@
 import numpy as np
+from cgp_model import CGP
 from cgp_generator import node_to_int
+from scipy.optimize import linear_sum_assignment
+from scipy.spatial.distance import cdist
 
 def _get_quartiles(data):
     data = np.where(data == np.inf, 1, data)
     return np.quantile(data, [0, 0.25, 0.5, 0.75, 1])
 
+
+def _get_semantic_alignment(model1: CGP, model2: CGP, x_train, cumulative: bool = False):
+    """
+    Compute semantic alignment weights between two CGP models.
+
+    This function calculates a set of weights representing the semantic similarity between 
+    corresponding nodes of two Cartesian Genetic Programming (CGP) models. The alignment 
+    can be based either on the final output semantics (cumulative) or on intermediate 
+    node-level semantics.
+
+    Parameters:
+        model1 (CGP): The first CGP model.
+        model2 (CGP): The second CGP model.
+        cumulative (bool, optional): If True, compute alignment based on final output semantics 
+                                     (1D vector). If False, use intermediate semantics for all 
+                                     active nodes (2D matrix). Defaults to False.
+
+    Returns:
+        np.ndarray: An array of alignment weights indicating semantic similarity between nodes.
+    """
+
+    # Get internal semantics (n_nodes, n_samples)
+    if cumulative:
+        semantics_1 = np.array([model1(x) for x in x_train])  # shape: (n_samples,) -> will need reshape
+        semantics_2 = np.array([model2(x) for x in x_train])
+        semantics_1 = semantics_1.T.reshape(1, -1)  # shape: (1, n_samples)
+        semantics_2 = semantics_2.T.reshape(1, -1)
+    else:
+        semantics_1 = clean_values(model1, x_train)  # shape: (n_nodes, n_samples)
+        semantics_2 = clean_values(model2, x_train)
+
+    # Align nodes using optimal assignment
+    cost_matrix = cdist(semantics_1, semantics_2, metric='euclidean')
+    row_ind, col_ind = linear_sum_assignment(cost_matrix)
+
+    # Align semantics according to optimal mapping
+    aligned_1 = semantics_1[row_ind]
+    aligned_2 = semantics_2[col_ind]
+
+    # Compute semantic difference (SSD per node)
+    ssd = get_ssd(aligned_1, aligned_2)  # shape: (n_nodes,)
+
+    # Map SSD to crossover weights
+    weights = get_weights(ssd, alpha=1e-4, beta=0.4, epsilon=0.0)  # shape: (n_nodes,)
+    return weights
+        
 
 def _validate_int_param(param_name, value, min_val, max_val):
     """
@@ -67,9 +116,8 @@ def clean_values(model, x_train, include_output=False):
     @return: Matrix of values with rows as node numbers and columns as inputs
     """
     # Get boolean masks for function and output nodes
-    function_mask = model.model[model.model_keys['NodeType']] == node_to_int('Function')
-    output_mask = model.model[model.model_keys['NodeType']] == node_to_int('Output')
-
+    function_mask = model.model[:, model.model_keys['NodeType']] == node_to_int('Function')
+    output_mask = model.model[:, model.model_keys['NodeType']] == node_to_int('Output')
     # Compute matrix size
     model_length = np.sum(function_mask)
     if include_output:

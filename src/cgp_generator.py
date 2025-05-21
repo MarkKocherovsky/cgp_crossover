@@ -14,6 +14,8 @@ def node_to_int(node):
     except ValueError:
         raise ValueError(
             f'Tried to convert node {node} to an integer. The only valid types are \"Input\", \"Constant\", \"Function\", and \"Output\"')
+    except RecursionError:
+        raise RecursionError(f'Recursion Error in cgp_generator.py::node_to_int\tTried to call {node}')
 
 
 def generate_model(max_size: int, inputs: int, constants: list | np.ndarray, arity: int, outputs: int,

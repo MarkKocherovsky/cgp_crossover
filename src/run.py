@@ -152,7 +152,7 @@ else:
     )
 
 start = datetime.now()
-best_model = evolution_module.fit(train_x, train_y, step_size=step_size, plot=True)
+best_model = evolution_module.fit(train_x, train_y, step_size=step_size, plot=False)
 end = datetime.now()
 
 duration = end - start
