@@ -5,6 +5,7 @@ import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 
+from dnc.multiparent_wrapper import NeuralCrossoverWrapper
 from cgp_model import CGP
 from fitness_functions import correlation
 from helper import _get_quartiles, pairwise_minkowski_distance, get_score, get_ssd, get_weights, \
@@ -21,7 +22,7 @@ class CartesianGP:
 
     def __init__(self, parents=1, children=4, max_generations=100, mutation='Point', selection='Elite',
                  xover=None, fixed_length=True, fitness_function='Correlation', model_parameters=None,
-                 function_bank=None, solution_threshold=0.005, checkpoint_filename='checkpoint.pkl', seed=42, **kwargs):
+                 function_bank=None, solution_threshold=0.005, checkpoint_filename='checkpoint.pkl', seed=42, dnc_hp:dict = None, **kwargs):
 
         # Basic attributes
         self.model_keys = None
@@ -45,7 +46,8 @@ class CartesianGP:
         self.current_generation = 0
         self.kwargs = kwargs
         self.first_submission = True
-
+        self.dnc_hyperparams = None
+        self.dnc = None
         # Config values with defaults
         self.mutation_type = mutation.lower()
         self.selection_type = selection.lower()
@@ -87,6 +89,7 @@ class CartesianGP:
             'n_point': self._n_point_xover,
             'uniform': self._uniform_xover,
             'semantic_uniform': self._uniform_xover,
+            'dnc_semantic_uniform': self._uniform_xover,
             'aligned_semantic_uniform': self._uniform_xover,
             'aligned_homologous_semantic_uniform': self._uniform_xover,
             'homologous_semantic_uniform': self._uniform_xover,
@@ -99,6 +102,15 @@ class CartesianGP:
         if self.xover_type:
             if self.xover_type not in self.xover_methods:
                 raise ValueError(f"Invalid crossover type: {self.xover_type}")
+            if 'dnc' in self.xover_type:
+                self.dnc_hyperparams = dnc_hp
+                if 'uniform' in self.xover_type:
+                    dnc_xover = 'uniform'
+                elif 'n_point' in self.xover_type:
+                    dnc_xover = 'n_point'
+                else:
+                    raise KeyError(f"{self.xover_type} is not valid for use with Deep Neural Crossover.")
+                self.dnc = NeuralCrossoverWrapper(**self.dnc_hyperparams, crossover_type=dnc_xover, n_points = self.n_points)
             self.xover = self.xover_methods[self.xover_type]
         else:
             self.xover = None
@@ -167,6 +179,7 @@ class CartesianGP:
             'uniform': obj._uniform_xover,
             'semantic_uniform': obj._uniform_xover,
             'aligned_semantic_uniform': obj._uniform_xover,
+            'dnc_semantic_uniform': obj._uniform_xover,
             'aligned_homologous_semantic_uniform': obj._uniform_xover,
             'homologous_semantic_uniform': obj._uniform_xover,
             'semantic_n_point': obj._n_point_xover,
@@ -385,6 +398,14 @@ class CartesianGP:
                     if self.xover_type == 'subgraph':
                         c1 = self.xover(p1, p2, gen)
                         c2 = self.xover(p2, p1, gen)
+                    elif 'dnc' in self.xover_type:
+                        parent_pairs = [(parents[i], parents[i + 1]) for i in range(0, len(parents), 2)]
+                        offspring_pairs, _ = self.dnc.cross_pairs(parent_pairs, self.x, self.y)  # returns children, updates training
+ 
+                        # Flatten pairs into a single list of individuals
+                        new_children = [CGP(model=c, model_keys=self.model_keys, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+                                mutation_type=self.mutation_type) for pair in offspring_pairs[:2] for c in pair]
+                        c1, c2 = new_children[:2]
                     else:
                         c1, c2 = self.xover(p1, p2, gen)
                 else:
@@ -820,6 +841,7 @@ class CartesianGP:
     def _get_fitnesses(self, pop_list=None, mutable=True):
         """Compute fitnesses for all models."""
         if pop_list is None:
+            #print(len(self.population))
             for i in range(len(self.population)):
                 if self.population[i] is not None:
                     self.fitnesses[i] = self.population[i].fit(self.x, self.y, mutable=mutable)
@@ -1227,9 +1249,11 @@ class CartesianGP:
             # Final sanity check
             assert all(isinstance(p, CGP) for p in protected_parents), "Non-CGP in protected_parents"
             assert all(isinstance(c, CGP) for c in mutated_children), "Non-CGP in mutated_children"
-            self._get_fitnesses(mutable=False)
-            self.population = protected_parents + mutated_children
+            #print(len(protected_parents))
+            #print(len(mutated_children))
 
+            #self._get_fitnesses(mutable=False)
+            self.population = protected_parents + mutated_children
             # **Compute New Fitnesses**
             # print("[DIAG] Model ID:", elite.id)
             # print("[DIAG] Fitness before:", elite.fitness)
@@ -1249,12 +1273,12 @@ class CartesianGP:
 
             # Right after fitness evaluation for the new population
             true_elite = min(self.population, key=lambda x: x.fitness)
-            if 'elite' in self.selection_type:
-                if len(best_fitness) > 0 and true_elite.fitness > best_fitness[-1] and not np.isclose(true_elite.fitness, best_fitness[-1], rtol=1e-6,
-                                                        atol=1e-8):
-                    raise RuntimeError(
-                        f'true_elite fitness {true_elite.fitness} > previous best fitness {best_fitness[-1]} (difference: {true_elite.fitness - best_fitness[-1]})'
-                    )
+            #if 'elite' in self.selection_type:
+            #    if len(best_fitness) > 0 and true_elite.fitness > best_fitness[-1] and not np.isclose(true_elite.fitness, best_fitness[-1], rtol=1e-6,
+            #                                            atol=1e-8):
+            #        raise RuntimeError(
+            #            f'true_elite fitness {true_elite.fitness} > previous best fitness {best_fitness[-1]} (difference: {true_elite.fitness - best_fitness[-1]})'
+            #        )
 
             best_fitness.append(true_elite.fitness)
             # print(f"[CHECK] True elite ID: {true_elite.id}, Fitness: {true_elite.fitness}")

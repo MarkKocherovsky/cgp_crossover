@@ -12,7 +12,7 @@ import pandas as pd
 from cgp_evolver import CartesianGP
 from cgp_operators import add, sub, mul, div
 from test_problems import Collection
-
+from fitness_functions import *
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -122,6 +122,14 @@ if asex or max_parents < max_children:
 else:
     mutation_breeding = False
 
+sequence_length = model_size*(1+model_parameters['arity']+1+1)
+dnc_hyperparameters = {
+    'embedding_dim': 32,
+    'sequence_length': sequence_length,
+    'input_dim': 6,
+    'get_fitness_function': correlation
+}
+
 #CHECKPOINT_PATH = '../output/ckpt'
 print(CHECKPOINT_PATH)
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
@@ -148,7 +156,8 @@ else:
         mutation_breeding=mutation_breeding,
         checkpoint_filename=CHECKPOINT_FILE,
         one_dimensional_xover=one_d,
-        seed=trial_number
+        seed=trial_number,
+        dnc_hp = dnc_hyperparameters
     )
 
 start = datetime.now()

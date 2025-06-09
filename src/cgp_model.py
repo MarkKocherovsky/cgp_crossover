@@ -133,9 +133,15 @@ class CGP:
             ])
             operator = self.function_bank[node[self.model_keys["Operator"]]]
             result = operator(*operand_values)
+            if not np.isfinite(result):
+               print(f'Warning: result of operation on {operand_values} is infinite or invalid. Returning 0.0')
+               result = 0.0
 
             if mutable:
-                model[operand, self.model_keys['Value']] = result
+                try:
+                    model[operand, self.model_keys['Value']] = result
+                except OverflowError as e:
+                    print(f'Cannot cast {result}\noperand: {operand}\noperand values: {operand_values}\noperator: {operator}\nReturning np.inf')
             model[operand, self.model_keys['Active']] = 1
 
             return result

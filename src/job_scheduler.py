@@ -65,15 +65,16 @@ CHECKPOINT_FILE = "checkpoint.json"
 
 # Problem configuration
 functions = Collection()
-function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
-                 'Ackley']
+#function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
+#                 'Ackley']
 #function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6']
-#function_list = ['Rastrigin']
+function_list = ['Griewank']
 #function_list = ['Nguyen7', 'Griewank', 'Levy', 'Rastrigin', 'Ackley']
 #function_list = ['Nguyen6']
 #xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
 #          'homologous_semantic_uniform']
-xovers = ['aligned_homologous_semantic_n_point']
+xovers = ['dnc_semantic_uniform']
+#xovers = ['aligned_semantic_uniform']
 #xovers = ['semantic_uniform', 'homologous_semantic_uniform', 'semantic_n_point', 'homologous_semantic_n_point']
 #xovers = ['homologous_semantic_n_point', 'homologous_semantic_uniform']
 #xovers = ['subgraph']
@@ -191,10 +192,10 @@ for function in function_list:
 #SBATCH --job-name={job_name}
 #SBATCH --output={output_dir}{job_name}.out
 #SBATCH --error={error_dir}{job_name}.err
-#SBATCH --time=1-00:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=8G
+#SBATCH --mem=16G
 #SBATCH --qos=scavenger  # Uncomment if using preemptible jobs
 
 module purge

@@ -16,6 +16,7 @@ class Method:
     short_name: str
     long_name: str
     color: str
+    linestyle: str
 
 @dataclass(frozen=True)
 class Metric:
@@ -118,7 +119,7 @@ class AnalysisToolkit:
                     raise FileNotFoundError(f"File {file_name} not found.")
                 if log:
                     axs[i//2, i%2].set_yscale('log')
-                axs[i//2, i%2].plot(range(self.max_generations), median, label=self.crossover_methods[xover_method].short_name, c=self.crossover_methods[xover_method].color)
+                axs[i//2, i%2].plot(range(self.max_generations), median, label=self.crossover_methods[xover_method].short_name, c=self.crossover_methods[xover_method].color, linestyle=self.crossover_methods[xover_method].linestyle)
                 axs[i//2, i%2].fill_between(range(self.max_generations), quartile_1, quartile_3, alpha=0.2)
                 axs[i//2, i%2].set_title(self.problems[problem])
                 axs[i//2, i%2].set_xlabel(x_label)
@@ -184,7 +185,7 @@ class AnalysisToolkit:
                     pc.set_facecolor(color)
                     pc.set_edgecolor('none')
                     pc.set_alpha(0.5)  # ✅ semi-transparent so boxplot is visible
-            bp = ax.boxplot(box_data, patch_artist=True, showfliers=False, notch=True, widths = 0.75)
+            bp = ax.boxplot(box_data, patch_artist=True, showfliers=False, notch=False, widths = 0.75)
             positions = np.arange(1, len(box_data) + 1)  # x-axis positions of boxes
             for patch, color in zip(bp['boxes'], colors):
                 patch.set_facecolor(color)
