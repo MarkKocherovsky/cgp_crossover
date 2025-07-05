@@ -97,14 +97,19 @@ problem_list = Collection()
 test_function = problem_list(test_problem_key, n_dims=problem_dimensions)
 train_x, test_x, train_y, test_y = test_function.return_points()
 
+
+if mutation_type != 'point':
+    mut_type = mutation_type
+else:
+    mut_type = ''
 # establish output path
 CHECKPOINT_PATH = os.path.join(os.environ.get("SCRATCH", "/tmp"), "ckpt")
 if not one_d:
-    run_path = f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}/{selection_type}/trial_{trial_number}'
-    CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}_{selection_type}_trial_{trial_number}_ckpt.pkl"
+    run_path = f'/mnt/gs21/scratch/kocherov/Documents/cgp/output/{test_problem_key}_{problem_dimensions}d/{xover_type}/{mut_type}/{selection_type}/trial_{trial_number}'
+    CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}{mut_type}_{selection_type}_trial_{trial_number}_ckpt.pkl"
 else:
-    run_path = f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}_1d/{selection_type}/trial_{trial_number}'
-    CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}_1d_{selection_type}_trial_{trial_number}_ckpt.pkl"
+    run_path = f'/mnt/gs21/scratch/kocherov/Documents/cgp/output/{test_problem_key}_{problem_dimensions}d/{xover_type}_1d/{mut_type}/{selection_type}/trial_{trial_number}'
+    CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}{mut_type}_1d_{selection_type}_trial_{trial_number}_ckpt.pkl"
 Path(run_path).mkdir(parents=True, exist_ok=True)
 
 # model parameters
@@ -122,14 +127,23 @@ if asex or max_parents < max_children:
 else:
     mutation_breeding = False
 
-sequence_length = model_size*(1+model_parameters['arity']+1+1)
+#if it's DNC semantic, then the learning should be on the semantics, not the actual nodes
+sequence_length = model_size if 'semantic' not in xover_type else train_x.shape[0] 
+#a gene is NodeType, Value, Operator, *Operands, Active
+input_dim = (1+1+model_parameters['arity']+1+1) if 'semantic' not in xover_type else train_x.shape[0]
 dnc_hyperparameters = {
-    'embedding_dim': 32,
+    'embedding_dim': 64,
     'sequence_length': sequence_length,
-    'input_dim': 6,
-    'get_fitness_function': correlation
+    'input_dim': input_dim,
+    'get_fitness_function': correlation,
+    'batch_size': 820,
+    'epsilon_greedy': 0.2,
+    'learning_rate': 0.0001,
+    'running_mean_decay': 0.0001,
+    'adam_decay': 0.0001
 }
-
+if 'dnc' in xover_type:
+    print(dnc_hyperparameters)
 #CHECKPOINT_PATH = '../output/ckpt'
 print(CHECKPOINT_PATH)
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
@@ -161,19 +175,22 @@ else:
     )
 
 start = datetime.now()
-best_model = evolution_module.fit(train_x, train_y, step_size=step_size, plot=False)
+best_model, best_test_model = evolution_module.fit(train_x, test_x, train_y, test_y, step_size=step_size, plot=False)
 end = datetime.now()
 
 duration = end - start
 print(f'Duration: {duration}')
-print(f'Best Model Training Fitness: {best_model.fitness}')
-if test_x is not None:
-    test_fitness = best_model.fit(test_x, test_y)
-    print(f'Best Model Testing Fitness: {test_fitness}')
+#print(f'Best Model Training Fitness: {best_model.fitness}')
+#print(f'Best Model Testing Fitness: {best_model.fitness}')
+#if test_x is not None:
+#    test_fitness = best_model.fit(test_x, test_y)
+#    print(f'Best Model Testing Fitness: {test_fitness}')
 
 evolution_module.save_metrics(run_path)
 best_model.print_model()
-df = pd.DataFrame(best_model.model)
+print('---')
+best_test_model.print_model()
+df = pd.DataFrame(best_test_model.model)
 df.to_csv(f'{run_path}/best_model.csv', index=True)
 
 # Clean up checkpoint and temporary file if run completes successfully

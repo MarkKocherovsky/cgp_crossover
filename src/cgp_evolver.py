@@ -31,10 +31,13 @@ class CartesianGP:
         self.child_id_counter = 0
         self.population = np.empty(parents + children, dtype=object)
         self.fitnesses = np.full(parents + children, np.inf, dtype=np.float64)
+        self.fitnesses_test = np.full(parents + children, np.inf, dtype=np.float64)
         self.best_model = None
         self.function_bank = function_bank
         self.x = None
+        self.x_test = None
         self.y = None
+        self.y_test = None
         self.solution_threshold = solution_threshold
         self.max_p = parents
         self.max_c = children
@@ -90,10 +93,13 @@ class CartesianGP:
             'uniform': self._uniform_xover,
             'semantic_uniform': self._uniform_xover,
             'dnc_semantic_uniform': self._uniform_xover,
+            'dnc_uniform': self._uniform_xover,
             'aligned_semantic_uniform': self._uniform_xover,
             'aligned_homologous_semantic_uniform': self._uniform_xover,
             'homologous_semantic_uniform': self._uniform_xover,
             'semantic_n_point': self._n_point_xover,
+            'dnc_semantic_n_point': self._n_point_xover,
+            'dnc_n_point': self._n_point_xover,
             'homologous_semantic_n_point': self._n_point_xover,
             'aligned_homologous_semantic_n_point': self._n_point_xover,
             'aligned_semantic_n_point': self._n_point_xover,
@@ -127,7 +133,7 @@ class CartesianGP:
                 raise ValueError(f"Invalid n_points: {self.n_points}")
 
         # Metrics and tracking
-        self.metrics = np.zeros((self.max_g + 1, 12), dtype=np.float64)
+        self.metrics = np.zeros((self.max_g + 1, 17), dtype=np.float64)
         self.xover_index = {cat: np.zeros((self.max_g, self.max_p)) for cat in ['deleterious', 'neutral', 'beneficial']}
         self.mut_index = np.zeros((self.max_g, self.max_p))
 
@@ -180,9 +186,12 @@ class CartesianGP:
             'semantic_uniform': obj._uniform_xover,
             'aligned_semantic_uniform': obj._uniform_xover,
             'dnc_semantic_uniform': obj._uniform_xover,
+            'dnc_uniform': obj._uniform_xover,
             'aligned_homologous_semantic_uniform': obj._uniform_xover,
             'homologous_semantic_uniform': obj._uniform_xover,
             'semantic_n_point': obj._n_point_xover,
+            'dnc_semantic_n_point': obj._n_point_xover,
+            'dnc_n_point': obj._n_point_xover,
             'homologous_semantic_n_point': obj._n_point_xover,
             'aligned_homologous_semantic_n_point': obj._n_point_xover,
             'aligned_semantic_n_point': obj._n_point_xover,
@@ -400,7 +409,8 @@ class CartesianGP:
                         c2 = self.xover(p2, p1, gen)
                     elif 'dnc' in self.xover_type:
                         parent_pairs = [(parents[i], parents[i + 1]) for i in range(0, len(parents), 2)]
-                        offspring_pairs, _ = self.dnc.cross_pairs(parent_pairs, self.x, self.y)  # returns children, updates training
+                        semantic_pairs = [(clean_values(p[0], self.x, include_output=True), clean_values(p[1], self.x, include_output=True)) for p in parent_pairs] if self.semantic else None
+                        offspring_pairs, _ = self.dnc.cross_pairs(parent_pairs, self.x, self.y, semantic_pairs)  # returns children, updates training
  
                         # Flatten pairs into a single list of individuals
                         new_children = [CGP(model=c, model_keys=self.model_keys, fixed_length=self.fixed_length, fitness_function=self.ff_string,
@@ -838,21 +848,24 @@ class CartesianGP:
 
             return models
 
-    def _get_fitnesses(self, pop_list=None, mutable=True):
+    def _get_fitnesses(self, mode='train', pop_list=None, mutable=True):
         """Compute fitnesses for all models."""
+        if mode == 'train':
+            x = self.x
+            y = self.y
+            f_list = self.fitnesses
+        elif mode == 'test':
+            x = self.x_test
+            y = self.y_test
+            f_list = self.fitnesses_test
+        if pop_list is not None:
+            f_list = deepcopy(self.fitnesses)
         if pop_list is None:
-            #print(len(self.population))
-            for i in range(len(self.population)):
-                if self.population[i] is not None:
-                    self.fitnesses[i] = self.population[i].fit(self.x, self.y, mutable=mutable)
-        else:
-            fs = []
-            for i in range(len(pop_list)):
-                if pop_list[i] is not None:
-                    fs.append(pop_list[i].fit(self.x, self.y, mutable=mutable))
-                else:
-                    fs.append(1.0)
-            return np.array(fs)
+            pop_list = self.population
+        for i in range(len(pop_list)):
+            if pop_list[i] is not None:
+                f_list[i] = pop_list[i].fit(x, y, mutable=mutable)
+        return np.array(f_list)
 
     def _group_parents_and_children(self):
         individuals_with_parents = [
@@ -962,6 +975,7 @@ class CartesianGP:
         """
         # Extract fitness values & active node counts
         fit_list = [m.fitness for m in self.population if m is not None]
+        fit_test_list = [self.fitnesses_test[i] for i in range(len(self.population)) if self.population[i] is not None]
         active_nodes_list = []
         for p in range(len(self.population)):
             if self.population[p] is not None:
@@ -974,10 +988,12 @@ class CartesianGP:
 
         # Find the best model by fitness (lower is better)
         best_model_index = np.argmin(fit_list)
+        best_test_model_index = np.argmin(fit_test_list)
         self.best_model = self.population[best_model_index]
 
         # Compute quartile statistics efficiently
         fit_statistics = _get_quartiles(fit_list)
+        fit_test_statistics = _get_quartiles(fit_test_list)
         active_nodes_statistics = _get_quartiles(active_nodes_list)
         semantic_diversity = np.nanstd(fit_list)
         """
@@ -989,14 +1005,11 @@ class CartesianGP:
         """
         # Store metrics in the NumPy structured array
         self.metrics[gen] = (
-            fit_statistics[0], fit_statistics[1], fit_statistics[2], fit_statistics[3], fit_statistics[4],
-            # Fitness stats
+            *fit_statistics,
+            *fit_test_statistics,
             self.best_model.count_active_nodes(),
-            active_nodes_statistics[0], active_nodes_statistics[1], active_nodes_statistics[2],
-            active_nodes_statistics[3], active_nodes_statistics[4],  # Model size stats
+            *active_nodes_statistics,
             semantic_diversity  # Semantic diversity
-            # similarity_quartiles[0], similarity_quartiles[1], similarity_quartiles[2],
-            # similarity_quartiles[3], similarity_quartiles[4]  # Similarity stats
         )
 
     def save_metrics(self, path=None):
@@ -1119,7 +1132,7 @@ class CartesianGP:
             self.population[idx] = elite
             self.fitnesses[idx] = elite.fitness
 
-    def fit(self, train_x: np.ndarray, train_y: np.ndarray, step_size: int = None,
+    def fit(self, train_x: np.ndarray, test_x: np.ndarray, train_y: np.ndarray, test_y: np.ndarray, step_size: int = None,
             xover_rate: float = 0.5, mutation_rate: float = 0.5, plot: bool = False):
         """
         Trains the Cartesian Genetic Programming model using evolutionary techniques.
@@ -1134,8 +1147,9 @@ class CartesianGP:
         Returns:
             CGP: The best evolved model.
         """
-        self.x, self.y = train_x, train_y
-        best_fitness = []
+        self.x, self.x_test, self.y, self.y_test = train_x, test_x, train_y, test_y
+        best_fitness_train = []
+        best_fitness_test = []
         # Sanity checks
         if len(self.x) < 1:
             raise ValueError("Must have at least one input value.")
@@ -1151,28 +1165,14 @@ class CartesianGP:
             self.initialize_xover_index()
             self.model_key_map = {}  # Add this at the beginning of fit()
 
-            # After initializing population (gen = 0)
-            # for i, model in enumerate(self.population):
-            #    if model is not None:
-            #        model.set_child_key(f'Model_{i:03d}_g0')
-            #        self.model_key_map[model.child_keys] = model
 
-            # Compute fitnesses for the initial population
-            self._get_fitnesses()
-            # self.best_model = self.population[np.argmin(self.fitnesses)].copy()
-            # self.best_fitness = self.best_model.fitness
+            self._get_fitnesses(mode='train')
+            self._get_fitnesses(mode='test')
 
             self._record_metrics(0)
             self._report_generation(0)
 
             # Setup mutation and crossover tracking
-            """
-            model_size = self.model_kwargs.get('max_size', -1)
-            if model_size < 0:
-                model_size = self.population[0].max_size
-            model_size += self.population[0].outputs
-            self.xover_index = {key: np.zeros((self.max_g, model_size)) for key in self.xover_index}
-            """
             genes_per_instruction = self.population[0].arity + 1  # for the operator
             model_size = len(self.xover_index)
             if self.one_d:
@@ -1184,25 +1184,19 @@ class CartesianGP:
             self.expand_generations_if_needed(self.max_g)
 
         # ✅ **Evolutionary Process**
+        self.current_generation += 1 if self.current_generation else self.current_generation
         for gen in range(self.current_generation, self.max_g + 1):
             self.current_generation = gen
             # **Parent Selection**
             elite = deepcopy(self.population[np.argmin(self.fitnesses)])
-            # print(f'before called mutate(): {elite.fitness}')
             selected_parents = [deepcopy(p) for p in self.selection()]
-            # for elite in selected_parents:
-            #    print(f"[SELECTED] ID: {elite.id}, Fitness: {elite.fitness}")
 
             # **Crossover to Generate Children**
             if self.xover:
                 children = self.crossover(selected_parents, xover_rate, gen)
-                # **Compare children to parents & track distributions**
-                child_fitnesses = self._get_fitnesses(pop_list=children, mutable=False)
+                child_fitnesses = self._get_fitnesses(pop_list=children, mutable=False, mode='train')
                 self._compare_child_parents()
-                #self._box_distribution(gen)
 
-                # for model in children:
-                #    self.model_key_map[model.child_keys] = model
             else:
                 children = deepcopy(selected_parents)  # No crossover, pass parents as is
 
@@ -1217,19 +1211,7 @@ class CartesianGP:
             for i, (orig, protected) in enumerate(zip(selected_parents, protected_parents)):
                 assert not np.shares_memory(orig.model, protected.model), f"Memory shared at index {i}"
 
-            # for child in children:
-            #    print(f"[BEFORE MUTATION] ID: {child.id}, Fitness: {child.fitness}")
-            # print(f"[CHECK] Protected parent IDs: {[p.id for p in protected_parents]}")
-            # print(f"[CHECK] Protected fitnesses: {[p.fitness for p in protected_parents]}")
-
             mutated_children = self._mutate(children, gen, mutation_rate)
-            #for parent in protected_parents:
-            #    for child in mutated_children:
-            #        if parent.id == child.id:
-            #            print("❌ ID collision: child mutated in place!", parent.id)
-            #            exit()
-            # for child in mutated_children:
-            #    print(f"[AFTER MUTATION] ID: {child.id}, Fitness: {child.fitness}")
 
             if self.mutation_can_make_children:
                 assert all(
@@ -1249,45 +1231,17 @@ class CartesianGP:
             # Final sanity check
             assert all(isinstance(p, CGP) for p in protected_parents), "Non-CGP in protected_parents"
             assert all(isinstance(c, CGP) for c in mutated_children), "Non-CGP in mutated_children"
-            #print(len(protected_parents))
-            #print(len(mutated_children))
 
-            #self._get_fitnesses(mutable=False)
             self.population = protected_parents + mutated_children
-            # **Compute New Fitnesses**
-            # print("[DIAG] Model ID:", elite.id)
-            # print("[DIAG] Fitness before:", elite.fitness)
+            self._get_fitnesses(mutable=False, mode='test')
+            self._get_fitnesses(mutable=True, mode='train')
+            true_elite_train = min(self.population, key=lambda x: x.fitness)
+            true_elite_test = self.population[np.argmin(self.fitnesses_test)]
+            best_fitness_train.append(true_elite_train.fitness)
+            best_fitness_test.append(self.fitnesses_test[np.argmin(self.fitnesses_test)])
 
-            # print("[DIAG] Fitness after:", elite.fitness)
-            # print("Hash before:", self.hash_model(elite.model))
-            # elite.fit(self.x, self.y, mutable=False)
-            # print("Hash after:", self.hash_model(elite.model))
-
-            # print("[ELITE VERIFY] ID:", elite.id)
-            # print("Stored Fitness:", elite.fitness)
-            # print("Recomputed Fitness:", elite.fit(self.x, self.y))
-
-            # self._reinsert_elites(protected_parents)
-            # Recalculate fitnesses in case any elites were reinserted
-            # self._get_fitnesses(mutable=False)
-
-            # Right after fitness evaluation for the new population
-            true_elite = min(self.population, key=lambda x: x.fitness)
-            #if 'elite' in self.selection_type:
-            #    if len(best_fitness) > 0 and true_elite.fitness > best_fitness[-1] and not np.isclose(true_elite.fitness, best_fitness[-1], rtol=1e-6,
-            #                                            atol=1e-8):
-            #        raise RuntimeError(
-            #            f'true_elite fitness {true_elite.fitness} > previous best fitness {best_fitness[-1]} (difference: {true_elite.fitness - best_fitness[-1]})'
-            #        )
-
-            best_fitness.append(true_elite.fitness)
-            # print(f"[CHECK] True elite ID: {true_elite.id}, Fitness: {true_elite.fitness}")
-
-            # self._clear_fitnesses()
             self._record_metrics(gen)
 
-            # print(f'after called mutate(): {elite.fitness}')
-            # **Step-wise Reporting**
             if step_size and gen % step_size == 0:
                 self._report_generation(gen)
                 self.save_checkpoint(filename=self.ckpt_filename, generation=gen)
@@ -1301,4 +1255,4 @@ class CartesianGP:
             ax.set_ylim(1e-5, 1.0)
             ax.set_yscale('log')
             plt.show(block=True)
-        return self.population[np.argmin(self.fitnesses)]
+        return self.population[np.argmin(self.fitnesses)], self.population[np.argmin(self.fitnesses_test)]

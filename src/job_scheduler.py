@@ -65,36 +65,41 @@ CHECKPOINT_FILE = "checkpoint.json"
 
 # Problem configuration
 functions = Collection()
-#function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Griewank', 'Levy', 'Rastrigin',
-#                 'Ackley']
-#function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6']
-function_list = ['Griewank']
-#function_list = ['Nguyen7', 'Griewank', 'Levy', 'Rastrigin', 'Ackley']
+#function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Levy', 'Rastrigin',
+#                 'Ackley', 'Diabetes', 'California']
+function_list = ['Levy']
+#function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7']
+#function_list = ['Griewank']
+#function_list = ['Koza1']
+#function_list = ['Griewank', 'Levy', 'Rastrigin', 'Ackley']
 #function_list = ['Nguyen6']
 #xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
 #          'homologous_semantic_uniform']
-xovers = ['dnc_semantic_uniform']
-#xovers = ['aligned_semantic_uniform']
+#xovers = ['dnc_n_point', 'dnc_uniform', 'dnc_semantic_uniform', 'dnc_semantic_n_point']
+#xovers = ['aligned_homologous_semantic_n_point']
 #xovers = ['semantic_uniform', 'homologous_semantic_uniform', 'semantic_n_point', 'homologous_semantic_n_point']
 #xovers = ['homologous_semantic_n_point', 'homologous_semantic_uniform']
 #xovers = ['subgraph']
 #xovers = ['homologous_semantic_n_point'] #, 'semantic_uniform']
 #xovers = ['None']
-#xovers = ['n_point', 'uniform', 'subgraph', 'semantic_uniform']
+xovers = ['n_point', 'uniform', 'subgraph',
+          'semantic_n_point', 'aligned_homologous_semantic_n_point', 'aligned_semantic_uniform',
+          'aligned_homologous_semantic_uniform', 'homologous_semantic_uniform']
 #function_list = ['Koza1', 'Koza2']
 
 #xovers = ['homologous_semantic_uniform', 'homologous_semantic_n_point']
+#mutation = 'full'
 mutation = 'point'
 #selection = 'elite'
 selection = 'elite_tournament'
 #selection = 'competent_tournament'
-output_dir = "../output/logs/"
-error_dir = "../output/err/"
+output_dir = "/mnt/gs21/scratch/kocherov/Documents/cgp/output/logs/"
+error_dir = "/mnt/gs21/scratch/kocherov/Documents/cgp/output/err/"
 os.makedirs(output_dir, exist_ok=True)
 os.makedirs(error_dir, exist_ok=True)
 
 # Parameters
-max_g = 3000
+max_g = 6000
 max_p = 40
 max_c = 40
 max_n = 64
@@ -166,11 +171,14 @@ def resubmit():
 
 
 # Load checkpoint state
+
+
 state = load_checkpoint()
 completed_jobs = set(state["completed_jobs"])
 
 for function in function_list:
     f_no_space = function.replace(' ', '')
+    days = '4' if function == 'Diabetes' or function == 'California' else '3'
     for xover in xovers:
         Path(f'../output/{f_no_space}/{xover}/').mkdir(parents=True, exist_ok=True)
         for i in range(50):  # Create 50 jobs per function/xover combination
@@ -187,22 +195,23 @@ for function in function_list:
                 print("Max job limit reached. Waiting...")
                 time.sleep(60)  # Check every 60 seconds
                 resubmit()
-            print(one_d)
+            #print(one_d)
             slurm_script = f"""#!/bin/bash --login
 #SBATCH --job-name={job_name}
 #SBATCH --output={output_dir}{job_name}.out
 #SBATCH --error={error_dir}{job_name}.err
-#SBATCH --time=2-00:00:00
+#SBATCH --time={days}-00:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=16G
+#SBATCH --mem=8G
 #SBATCH --qos=scavenger  # Uncomment if using preemptible jobs
 
 module purge
+export CONDA3PATH=$HOME/miniforge3
 module load Conda/3
 
-source ~/.bashrc
 conda activate cgp
+
 
 # Move to working directory
 cd /mnt/home/kocherov/Documents/cgp/src/

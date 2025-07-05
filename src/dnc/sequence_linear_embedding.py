@@ -22,5 +22,7 @@ class SequenceLinearEmbedding(nn.Module):
         """
         if not torch.is_floating_point(x):
             x = x.float()
+        #print("Embedding input shape:", x.shape)
+        #print("Expected input_dim:", self.linear.in_features)
         return self.linear(x)
 

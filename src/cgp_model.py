@@ -206,11 +206,30 @@ class CGP:
     def _choose_mutation(self, mutation_type):
         """Assign mutation function."""
         mutation_type = mutation_type.lower()
-        mutations = {'point': self._point_mutation}
+        mutations = {'point': self._point_mutation, 'full': self._full_mutation}
         if mutation_type not in mutations:
             raise ValueError(f'{mutation_type} is an invalid mutation operator.')
         self.mutation = mutations[mutation_type]
 
+    def _full_mutation(self, verbose=True):
+        active_indices = np.where((self.model[:, self.model_keys['NodeType']] == node_to_int('Function')) | (
+                self.model[:, self.model_keys['NodeType']] == node_to_int('Output')))[0]
+
+        # Select a random function node
+        mutation_index = np.random.choice(active_indices)
+        if verbose:
+            print(f'Mutating at index {mutation_index}')
+        if self.model[mutation_index, self.model_keys['NodeType']] == node_to_int('Function'):
+            new_node = [node_to_int('Function'), 0, np.random.choice(list(self.function_bank.keys())), *[np.random.randint(0, mutation_index) for _ in range(self.arity)], 1]
+            if verbose:
+                print(f'Replacing {self.model[mutation_index]} at index {mutation_index} to {new_node}')
+            self.model[mutation_index] = deepcopy(new_node)
+        else:
+            new_node = [node_to_int('Output'), 0, 0, np.random.randint(0, self.first_body_node+self.max_size), *[0 for _ in range(self.arity-1)], 0]
+            if verbose:
+                print(f'Replacing {self.model[mutation_index]} at index {mutation_index} to {new_node}')
+            self.model[mutation_index] = deepcopy(new_node)
+    
     def _point_mutation(self, verbose=False):
         # active_indices = np.where((self.model['NodeType'] == 'Function') & (self.model['Active'] == 1))[0]
         active_indices = np.where((self.model[:, self.model_keys['NodeType']] == node_to_int('Function')) | (
