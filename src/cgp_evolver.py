@@ -22,7 +22,8 @@ class CartesianGP:
 
     def __init__(self, parents=1, children=4, max_generations=100, mutation='Point', selection='Elite',
                  xover=None, fixed_length=True, fitness_function='Correlation', model_parameters=None,
-                 function_bank=None, solution_threshold=0.005, checkpoint_filename='checkpoint.pkl', seed=42, dnc_hp:dict = None, **kwargs):
+                 function_bank=None, solution_threshold=0.005, checkpoint_filename='checkpoint.pkl', seed=42,
+                 dnc_hp: dict = None, **kwargs):
 
         # Basic attributes
         self.model_keys = None
@@ -116,7 +117,8 @@ class CartesianGP:
                     dnc_xover = 'n_point'
                 else:
                     raise KeyError(f"{self.xover_type} is not valid for use with Deep Neural Crossover.")
-                self.dnc = NeuralCrossoverWrapper(**self.dnc_hyperparams, crossover_type=dnc_xover, n_points = self.n_points)
+                self.dnc = NeuralCrossoverWrapper(**self.dnc_hyperparams, crossover_type=dnc_xover,
+                                                  n_points=self.n_points)
             self.xover = self.xover_methods[self.xover_type]
         else:
             self.xover = None
@@ -196,7 +198,7 @@ class CartesianGP:
             'aligned_homologous_semantic_n_point': obj._n_point_xover,
             'aligned_semantic_n_point': obj._n_point_xover,
             'subgraph': obj._subgraph_xover
-        } 
+        }
 
         obj.selection = obj.selection_methods.get(obj.selection_type)
         obj.xover = obj.xover_methods.get(obj.xover_type)
@@ -221,7 +223,7 @@ class CartesianGP:
 
             # ✅ Force re-initialize xover_index for consistency in 1D
             if self.one_d:
-                n_zeros = (ind.arity+1)*ind.max_size+ind.outputs
+                n_zeros = (ind.arity + 1) * ind.max_size + ind.outputs
                 ind.xover_index = np.zeros(n_zeros)
                 print(f"📦 Initialized xover_index for individual {i}: {ind.xover_index.shape}")
             else:
@@ -242,7 +244,6 @@ class CartesianGP:
 
         # Sort pairs by model fitness
         sorted_pairs = sorted(valid_pairs, key=lambda x: x[1].fitness)
-
         # Unpack sorted indices and models
         sorted_indices, sorted_models = zip(*sorted_pairs) if sorted_pairs else ([], [])
         # print("Fitnesses:", self.fitnesses)
@@ -281,7 +282,7 @@ class CartesianGP:
         new_population = np.empty(remaining_slots, dtype=object)
         available_indices, new_population = self.t_select(available_indices, new_population,
                                                           remaining_slots)
-    
+
         # Step 4: Combine elite and tournament-selected individuals
         final_population = np.concatenate((elite_population, new_population))
         return final_population
@@ -302,8 +303,6 @@ class CartesianGP:
                 available_indices.remove(best_index)
 
         return available_indices, new_population
-
-
 
     def _compute_semantics(self):
         """
@@ -409,12 +408,17 @@ class CartesianGP:
                         c2 = self.xover(p2, p1, gen)
                     elif 'dnc' in self.xover_type:
                         parent_pairs = [(parents[i], parents[i + 1]) for i in range(0, len(parents), 2)]
-                        semantic_pairs = [(clean_values(p[0], self.x, include_output=True), clean_values(p[1], self.x, include_output=True)) for p in parent_pairs] if self.semantic else None
-                        offspring_pairs, _ = self.dnc.cross_pairs(parent_pairs, self.x, self.y, semantic_pairs)  # returns children, updates training
- 
+                        semantic_pairs = [(clean_values(p[0], self.x, include_output=True),
+                                           clean_values(p[1], self.x, include_output=True)) for p in
+                                          parent_pairs] if self.semantic else None
+                        offspring_pairs, _ = self.dnc.cross_pairs(parent_pairs, self.x, self.y,
+                                                                  semantic_pairs)  # returns children, updates training
+
                         # Flatten pairs into a single list of individuals
-                        new_children = [CGP(model=c, model_keys=self.model_keys, fixed_length=self.fixed_length, fitness_function=self.ff_string,
-                                mutation_type=self.mutation_type) for pair in offspring_pairs[:2] for c in pair]
+                        new_children = [CGP(model=c, model_keys=self.model_keys, fixed_length=self.fixed_length,
+                                            fitness_function=self.ff_string,
+                                            mutation_type=self.mutation_type) for pair in offspring_pairs[:2] for c in
+                                        pair]
                         c1, c2 = new_children[:2]
                     else:
                         c1, c2 = self.xover(p1, p2, gen)
@@ -451,7 +455,7 @@ class CartesianGP:
             flat: np.ndarray of [Operator, Operand0, ..., Operand{arity-1}, ...]
             node_types: np.ndarray of corresponding NodeTypes (to distinguish Function vs Output)
         """
-        mask = parent.model[:, self.model_keys['NodeType']] == node_to_int('Function') 
+        mask = parent.model[:, self.model_keys['NodeType']] == node_to_int('Function')
         nodes = parent.model[mask]
         arity = parent.arity  # number of operands per function/output node
         flat = []
@@ -475,8 +479,8 @@ class CartesianGP:
         """
         num_nodes = len(node_types)
         stride = 1 + arity  # number of fields per node
-        model = np.zeros((num_nodes, len(self.model_keys)),dtype=np.int64)
-        
+        model = np.zeros((num_nodes, len(self.model_keys)), dtype=np.int64)
+
         for i in range(num_nodes):
             offset = i * stride
             model[i, self.model_keys['NodeType']] = node_types[i]
@@ -491,6 +495,7 @@ class CartesianGP:
 
     def _n_point_xover(self, p1, p2, gen, **kwargs):
         """Performs n-point crossover, supporting semantic and homologous crossover."""
+
         def get_crossover_points(length, offset=0, weights=None):
             indices = np.arange(offset, length)
             if weights is not None and weights.sum() > 0:
@@ -543,15 +548,17 @@ class CartesianGP:
             # Add back Input and Constant nodes
             def insert_io_nodes(original, body, o_nodes):
                 i_nodes = [node for node in original.model if
-                            node[self.model_keys['NodeType']] in map(node_to_int, ['Input', 'Constant'])]
-                return np.array(i_nodes + list(body)+o_nodes, dtype=original.model.dtype)
+                           node[self.model_keys['NodeType']] in map(node_to_int, ['Input', 'Constant'])]
+                return np.array(i_nodes + list(body) + o_nodes, dtype=original.model.dtype)
 
             full_model_1 = insert_io_nodes(p1, child1_model, o2_nodes)
             full_model_2 = insert_io_nodes(p2, child2_model, o1_nodes)
 
-            c1 = CGP(model=full_model_1, model_keys=self.model_keys, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+            c1 = CGP(model=full_model_1, model_keys=self.model_keys, fixed_length=self.fixed_length,
+                     fitness_function=self.ff_string,
                      mutation_type=self.mutation_type, xover_length=xover_length)
-            c2 = CGP(model=full_model_2, model_keys=self.model_keys, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+            c2 = CGP(model=full_model_2, model_keys=self.model_keys, fixed_length=self.fixed_length,
+                     fitness_function=self.ff_string,
                      mutation_type=self.mutation_type, xover_length=xover_length)
             return c1, c2
 
@@ -577,9 +584,11 @@ class CartesianGP:
         child1 = np.concatenate(parts1[::2] + parts2[1::2])
         child2 = np.concatenate(parts2[::2] + parts1[1::2])
 
-        c1 = CGP(model=child1, model_keys=self.model_keys, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+        c1 = CGP(model=child1, model_keys=self.model_keys, fixed_length=self.fixed_length,
+                 fitness_function=self.ff_string,
                  mutation_type=self.mutation_type)
-        c2 = CGP(model=child2, model_keys=self.model_keys, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+        c2 = CGP(model=child2, model_keys=self.model_keys, fixed_length=self.fixed_length,
+                 fitness_function=self.ff_string,
                  mutation_type=self.mutation_type)
         return c1, c2
 
@@ -610,13 +619,13 @@ class CartesianGP:
             for n1, n2 in zip(o1_nodes, o2_nodes):
                 if np.random.rand() > 0.5:
                     o_nodes.append(n1)
-                    p1.xover_index[o_count-p1.arity+1] +=1
+                    p1.xover_index[o_count - p1.arity + 1] += 1
                     o_nodes_complement.append(n2)
                 else:
                     o_nodes.append(n2)
-                    p2.xover_index[o_count-p2.arity+1] +=1
+                    p2.xover_index[o_count - p2.arity + 1] += 1
                     o_nodes_complement.append(n1)
-                o_count -=1
+                o_count -= 1
 
                 # Track swapped indices
             for idx in np.where(swap_mask)[0]:
@@ -632,16 +641,18 @@ class CartesianGP:
             # Add back input + constant nodes
             def insert_io_nodes(original, body, o_nodes):
                 i_nodes = [node for node in original.model if
-                            node[self.model_keys['NodeType']] in map(node_to_int, ['Input', 'Constant'])]
-                return np.array(i_nodes + list(body)+o_nodes, dtype=original.model.dtype)
+                           node[self.model_keys['NodeType']] in map(node_to_int, ['Input', 'Constant'])]
+                return np.array(i_nodes + list(body) + o_nodes, dtype=original.model.dtype)
 
             full_model_1 = insert_io_nodes(p1, child1_body, o_nodes_complement)
             full_model_2 = insert_io_nodes(p2, child2_body, o_nodes)
 
-            c1 = CGP(model=full_model_1, model_keys=self.model_keys, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+            c1 = CGP(model=full_model_1, model_keys=self.model_keys, fixed_length=self.fixed_length,
+                     fitness_function=self.ff_string,
                      mutation_type=self.mutation_type, xover_length=xover_length)
 
-            c2 = CGP(model=full_model_2, model_keys=self.model_keys, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+            c2 = CGP(model=full_model_2, model_keys=self.model_keys, fixed_length=self.fixed_length,
+                     fitness_function=self.ff_string,
                      mutation_type=self.mutation_type, xover_length=xover_length)
 
             return c1, c2
@@ -691,9 +702,11 @@ class CartesianGP:
         p2.xover_index[swapped_indices - fb_node] += 1
 
         # Final CGP children
-        c1 = CGP(model=c1_model, model_keys = self.model_keys, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+        c1 = CGP(model=c1_model, model_keys=self.model_keys, fixed_length=self.fixed_length,
+                 fitness_function=self.ff_string,
                  mutation_type=self.mutation_type)
-        c2 = CGP(model=c2_model, model_keys = self.model_keys, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+        c2 = CGP(model=c2_model, model_keys=self.model_keys, fixed_length=self.fixed_length,
+                 fitness_function=self.ff_string,
                  mutation_type=self.mutation_type)
         return c1, c2
 
@@ -743,8 +756,8 @@ class CartesianGP:
             for n in n_a:
                 if n > c_p:
                     for operand in [self.model_keys[op] for op in operand_indices]:
-                        if model[n,operand] not in n_a:
-                            model[n,operand] = random_node_number(n_i, I=input_nodes, n_f=n_a, m=c_p)
+                        if model[n, operand] not in n_a:
+                            model[n, operand] = random_node_number(n_i, I=input_nodes, n_f=n_a, m=c_p)
 
             output_nodes = np.where(model[self.model_keys['NodeType']] == node_to_int('Output'))[0]
             for idx in output_nodes:
@@ -755,7 +768,7 @@ class CartesianGP:
 
         def ensure_active_nodes(parent):
             """Ensures a model has active nodes before crossover."""
-            active_nodes = np.array(list(parent.get_active_nodes())) 
+            active_nodes = np.array(list(parent.get_active_nodes()))
             while len(active_nodes) < 1:  # If there are no active nodes, mutate until one is found
                 parent.mutate()
                 generic = np.zeros((1, parent.inputs))
@@ -770,7 +783,8 @@ class CartesianGP:
         # Determine crossover point
         xover_point = determine_crossover_point(m1, m2)
         if xover_point <= 0:
-            return CGP(model=g1, model_keys=self.model_keys, fixed_length=self.fixed_length, fitness_function=self.ff_string,
+            return CGP(model=g1, model_keys=self.model_keys, fixed_length=self.fixed_length,
+                       fitness_function=self.ff_string,
                        mutation_type=self.mutation_type)
 
         # Create new model by swapping sections
@@ -1132,7 +1146,8 @@ class CartesianGP:
             self.population[idx] = elite
             self.fitnesses[idx] = elite.fitness
 
-    def fit(self, train_x: np.ndarray, test_x: np.ndarray, train_y: np.ndarray, test_y: np.ndarray, step_size: int = None,
+    def fit(self, train_x: np.ndarray, test_x: np.ndarray, train_y: np.ndarray, test_y: np.ndarray,
+            step_size: int = None,
             xover_rate: float = 0.5, mutation_rate: float = 0.5, plot: bool = False):
         """
         Trains the Cartesian Genetic Programming model using evolutionary techniques.
@@ -1165,7 +1180,6 @@ class CartesianGP:
             self.initialize_xover_index()
             self.model_key_map = {}  # Add this at the beginning of fit()
 
-
             self._get_fitnesses(mode='train')
             self._get_fitnesses(mode='test')
 
@@ -1183,12 +1197,22 @@ class CartesianGP:
         else:
             self.expand_generations_if_needed(self.max_g)
 
-        # ✅ **Evolutionary Process**
+        self._get_fitnesses(mode='train')
+        self._get_fitnesses(mode='test')
+
+        n_elites = self.n_elites if hasattr(self, 'n_elites') else 1  # or pass as parameter
+        # Generation 0: Just record metrics, no elite reinsertion
+        self._record_metrics(0)
+        self._report_generation(0)
+        elite_prev = self.elite_selection(n_elites=n_elites)
+
         self.current_generation += 1 if self.current_generation else self.current_generation
-        for gen in range(self.current_generation, self.max_g + 1):
+        for gen in range(self.current_generation + 1, self.max_g + 1):
             self.current_generation = gen
             # **Parent Selection**
-            elite = deepcopy(self.population[np.argmin(self.fitnesses)])
+            # self._get_fitnesses(mutable=False, mode='test')
+            # self._get_fitnesses(mutable=True, mode='train')
+
             selected_parents = [deepcopy(p) for p in self.selection()]
 
             # **Crossover to Generate Children**
@@ -1231,10 +1255,29 @@ class CartesianGP:
             # Final sanity check
             assert all(isinstance(p, CGP) for p in protected_parents), "Non-CGP in protected_parents"
             assert all(isinstance(c, CGP) for c in mutated_children), "Non-CGP in mutated_children"
+            assert all(p is not None for p in protected_parents), "❌ protected_parents contains None"
+            assert all(c is not None for c in mutated_children), "❌ mutated_children contains None"
 
             self.population = protected_parents + mutated_children
+
             self._get_fitnesses(mutable=False, mode='test')
             self._get_fitnesses(mutable=True, mode='train')
+            # ✅ Step 2: Save elite for next generation
+            if elite_prev and 'elite' in self.selection_type:
+                fitnesses = [m.fitness for m in self.population if m is not None]
+                worst_indices = np.argsort(fitnesses)[-n_elites:]
+                for i, idx in enumerate(worst_indices):
+                    self.population[idx] = deepcopy(elite_prev[i])
+                print(f"[Gen {gen}] Reinserted {n_elites} elite(s) with fitnesses:",
+                      [f"{e.fitness:.4e}" for e in elite_prev])
+
+            elite_prev = self.elite_selection(n_elites=n_elites)
+            for e in elite_prev:
+                print(f"🔍 Elite fitness: {e.fitness}")
+
+            assert all(isinstance(e, CGP) for e in elite_prev), "❌ elite_selection returned non-CGPs"
+            assert all(hasattr(e, "fitness") and e.fitness is not None for e in elite_prev), "❌ elite has no fitness"
+
             true_elite_train = min(self.population, key=lambda x: x.fitness)
             true_elite_test = self.population[np.argmin(self.fitnesses_test)]
             best_fitness_train.append(true_elite_train.fitness)

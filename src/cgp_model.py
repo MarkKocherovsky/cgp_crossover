@@ -42,8 +42,9 @@ class CGP:
             raise RuntimeError('Must specify both model and model_keys.')
         else:
             self._initialize_from_kwargs(kwargs)
-        
-        self.first_body_node = self.inputs + np.sum(self.model[:, self.model_keys['NodeType']] == node_to_int('Constant'))
+
+        self.first_body_node = self.inputs + np.sum(
+            self.model[:, self.model_keys['NodeType']] == node_to_int('Constant'))
         self.last_body_node = self.first_body_node + self.max_size - 1
         # ✅ Initialize xover_index correctly
         if xover_length is not None:
@@ -57,7 +58,7 @@ class CGP:
         """Initialize attributes from a pre-built model."""
         self.constants = self.model[:, self.model_keys['Value']][
             self.model[:, self.model_keys['NodeType']] == node_to_int('Constant')
-        ]
+            ]
         self.inputs = np.sum(self.model[:, self.model_keys['NodeType']] == node_to_int('Input'))
         self.outputs = np.sum(self.model[:, self.model_keys['NodeType']] == node_to_int('Output'))
         self.max_size = np.sum(self.model[:, self.model_keys['NodeType']] == node_to_int('Function'))
@@ -134,14 +135,15 @@ class CGP:
             operator = self.function_bank[node[self.model_keys["Operator"]]]
             result = operator(*operand_values)
             if not np.isfinite(result):
-               print(f'Warning: result of operation on {operand_values} is infinite or invalid. Returning 0.0')
-               result = 0.0
+                print(f'Warning: result of operation on {operand_values} is infinite or invalid. Returning 0.0')
+                result = 0.0
 
             if mutable:
                 try:
                     model[operand, self.model_keys['Value']] = result
                 except OverflowError as e:
-                    print(f'Cannot cast {result}\noperand: {operand}\noperand values: {operand_values}\noperator: {operator}\nReturning np.inf')
+                    print(
+                        f'Cannot cast {result}\noperand: {operand}\noperand values: {operand_values}\noperator: {operator}\nReturning np.inf')
             model[operand, self.model_keys['Active']] = 1
 
             return result
@@ -220,16 +222,18 @@ class CGP:
         if verbose:
             print(f'Mutating at index {mutation_index}')
         if self.model[mutation_index, self.model_keys['NodeType']] == node_to_int('Function'):
-            new_node = [node_to_int('Function'), 0, np.random.choice(list(self.function_bank.keys())), *[np.random.randint(0, mutation_index) for _ in range(self.arity)], 1]
+            new_node = [node_to_int('Function'), 0, np.random.choice(list(self.function_bank.keys())),
+                        *[np.random.randint(0, mutation_index) for _ in range(self.arity)], 1]
             if verbose:
                 print(f'Replacing {self.model[mutation_index]} at index {mutation_index} to {new_node}')
             self.model[mutation_index] = deepcopy(new_node)
         else:
-            new_node = [node_to_int('Output'), 0, 0, np.random.randint(0, self.first_body_node+self.max_size), *[0 for _ in range(self.arity-1)], 0]
+            new_node = [node_to_int('Output'), 0, 0, np.random.randint(0, self.first_body_node + self.max_size),
+                        *[0 for _ in range(self.arity - 1)], 0]
             if verbose:
                 print(f'Replacing {self.model[mutation_index]} at index {mutation_index} to {new_node}')
             self.model[mutation_index] = deepcopy(new_node)
-    
+
     def _point_mutation(self, verbose=False):
         # active_indices = np.where((self.model['NodeType'] == 'Function') & (self.model['Active'] == 1))[0]
         active_indices = np.where((self.model[:, self.model_keys['NodeType']] == node_to_int('Function')) | (
@@ -246,7 +250,7 @@ class CGP:
         if self.model[mutation_index, self.model_keys['NodeType']] == node_to_int('Function'):
             mutation_column = np.random.choice(
                 [self.model_keys['Operator']] + [self.model_keys[f'Operand{i}'] for i in range(self.arity)]
-                )
+            )
             if mutation_column == self.model_keys['Operator']:
                 current_op = self.model[mutation_index, self.model_keys['Operator']]
                 ops = list(self.function_bank.keys())
@@ -294,6 +298,7 @@ class CGP:
                 result.model_keys = deepcopy(value, memo)
             else:
                 setattr(result, key, deepcopy(value, memo))
+        result.fitness = self.fitness
         return result
 
     def print_parameters(self):

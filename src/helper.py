@@ -4,6 +4,7 @@ from cgp_generator import node_to_int
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
 
+
 def _get_quartiles(data):
     data = np.where(data == np.inf, 1, data)
     return np.quantile(data, [0, 0.25, 0.5, 0.75, 1])
@@ -53,7 +54,7 @@ def _get_semantic_alignment(model1: CGP, model2: CGP, x_train, cumulative: bool 
     # Map SSD to crossover weights
     weights = get_weights(ssd, alpha=1e-4, beta=0.4, epsilon=0.0)  # shape: (n_nodes,)
     return weights
-        
+
 
 def _validate_int_param(param_name, value, min_val, max_val):
     """

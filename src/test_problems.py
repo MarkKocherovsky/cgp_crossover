@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from numpy import sin, cos, log, sqrt, exp, pi
 from sklearn.model_selection import train_test_split
 
@@ -9,7 +10,7 @@ def distance(xs):
 
 class Function:
     def __init__(self, name: str, dimensions: int, x_domain: list | np.ndarray, function, points: int,
-                 test_train_fraction: float = 1/3):
+                 test_train_fraction: float = 1 / 3):
         self.name = name
         self.dimensions = dimensions
         self.x_domain = np.array(x_domain)
@@ -64,24 +65,27 @@ class Function:
 
 class OneDimensionalFunction(Function):  # functions that will always be 1-dimensional
     def __init__(self, name: str, x_domain: list | np.ndarray, function, points: int,
-                 test_train_fraction: float = 1/3):
+                 test_train_fraction: float = 1 / 3):
         super().__init__(name, 1, x_domain, function, points, test_train_fraction)
 
 
 class TwoDimensionalFunction(Function):  # functions that will always be 2-dimensional
     def __init__(self, name: str, x_domain: list | np.ndarray, function, points: int,
-                 test_train_fraction: float = 1/3):
+                 test_train_fraction: float = 1 / 3):
         super().__init__(name, 2, x_domain, function, points, test_train_fraction)
 
+
 class RealWorldProblem():
-    def __init__(self, name: str, x_data: list | np.ndarray, y_data: list | np.ndarray, test_train_split:float = 0.3):
+    def __init__(self, name: str, x_data: list | np.ndarray, y_data: list | np.ndarray, test_train_split: float = 0.3):
         self.train_x, self.test_x, self.train_y, self.test_y = train_test_split(
-                x_data, y_data, test_size=test_train_split
-            )
+            x_data, y_data, test_size=test_train_split
+        )
         self.name = name
         self.dimensions = self.train_x.shape[1]
+
     def return_points(self):
         return self.train_x, self.test_x, self.train_y, self.test_y
+
 
 koza_1 = OneDimensionalFunction(
     name='Koza1',
@@ -509,22 +513,75 @@ def michaelewiz(n_dim):
 from sklearn.datasets import load_diabetes
 from sklearn.model_selection import train_test_split
 
+
 def diabetes(split):
-    x, y = load_diabetes(return_X_y = True)
-    #name: str, x_data: list | np.ndarray, y_data: list | np.ndarray, test_train_split:float = 0.3
+    x, y = load_diabetes(return_X_y=True)
+    # name: str, x_data: list | np.ndarray, y_data: list | np.ndarray, test_train_split:float = 0.3
     diabetes_function = RealWorldProblem(
         'Diabetes', x, y, test_train_split=split
     )
     return diabetes_function
 
+
+def ann_arbor(split):
+    x = np.arange(1860, 2021, 10).astype(np.int32)
+    y = [5097, 7363, 8061, 9431, 14509, 14817, 19516, 26944, 29815, 48251, 67340, 100035, 107969, 109592, 114024,
+         113934, 123851]
+    ann_arbor_function = RealWorldProblem(
+        'Ann Arbor', x, y, test_train_split=split
+    )
+    return ann_arbor_function
+
+
 from sklearn.datasets import fetch_california_housing
+
+
 def california(split):
-    x, y = fetch_california_housing(return_X_y = True)
-    #name: str, x_data: list | np.ndarray, y_data: list | np.ndarray, test_train_split:float = 0.3
+    x, y = fetch_california_housing(return_X_y=True)
+    # name: str, x_data: list | np.ndarray, y_data: list | np.ndarray, test_train_split:float = 0.3
     california_function = RealWorldProblem(
         'California', x, y, test_train_split=split
     )
     return california_function
+
+
+from ucimlrepo import fetch_ucirepo
+
+
+# https://archive.ics.uci.edu/dataset/291/airfoil+self+noise
+def airfoil(split):
+    airfoil_self_noise = fetch_ucirepo(id=291)
+    x = airfoil_self_noise.data.features
+    y = airfoil_self_noise.data.targets
+    airfoil_function = RealWorldProblem(
+        'Airfoil', x, y, test_train_split=split
+    )
+    return airfoil_function
+
+
+# https://archive.ics.uci.edu/dataset/1/abalone
+def abalone(split):
+    abalone = fetch_ucirepo(id=1)
+    x = abalone.data.features
+    # x['Sex'] = x['Sex'].map({'M': 0, 'F': 1, 'I': 2})
+    x = pd.get_dummies(x, columns=['Sex'], drop_first=False)
+    y = abalone.data.targets
+    abalone_function = RealWorldProblem(
+        'Abalone', x, y, test_train_split=split
+    )
+    return abalone_function
+
+
+# https://archive.ics.uci.edu/dataset/242/energy+efficiency
+def energy_efficiency(split):
+    energy_efficiency = fetch_ucirepo(id=242)
+    x = energy_efficiency.data.features
+    y = energy_efficiency.data.targets
+    energy_function = RealWorldProblem(
+        'Energy Efficiency', x, y, test_train_split=split
+    )
+    return energy_function
+
 
 class Collection:
     def __init__(self):
@@ -575,10 +632,14 @@ class Collection:
             'Trid': trid,
             'Zakharov': zakharov,
             'Diabetes': diabetes,
-            'California': california
+            'California': california,
+            'AnnArbor': ann_arbor,
+            'Abalone': abalone,
+            'Airfoil': airfoil,
+            'Energy Efficiency': energy_efficiency
         }
 
-    def __call__(self, function_name, n_dims=1, train_test_fraction=(1/3)):
+    def __call__(self, function_name, n_dims=1, train_test_fraction=(1 / 3)):
         assert function_name in self.function_list, f'{function_name} not a valid function.'
         try:
             f = self.function_list[function_name]
@@ -586,6 +647,6 @@ class Collection:
                 return f(n_dims)
             else:
                 return f
-        
+
         except TypeError:
             return self.function_list.get(function_name)

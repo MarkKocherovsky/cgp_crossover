@@ -4,13 +4,13 @@ import numpy as np
 from scipy.stats import pearsonr
 from numpy.exceptions import RankWarning
 
-
 from scipy.stats import pearsonr
 import numpy as np
 
+
 def correlation(preds, truth):
-    #print(f"[DEBUG] Correlation input checksum: predictions={preds}, truth={truth}")
- 
+    # print(f"[DEBUG] Correlation input checksum: predictions={preds}, truth={truth}")
+
     predictions = np.asarray(preds).flatten()
     ground_truth = np.asarray(truth).flatten()
 
@@ -32,13 +32,12 @@ def correlation(preds, truth):
     if np.abs(r) > 1:
         raise ValueError(f"Invalid Pearson r value: r = {r}")
 
-
     if not np.isfinite(r):
         print("⚠️ Non-finite correlation, returning 1.0")
         return 1.0
 
-    fitness = 1 - r**2
-    #print(f"[DEBUG] Correlation: r = {r}, fitness = {fitness}")
+    fitness = 1 - r ** 2
+    # print(f"[DEBUG] Correlation: r = {r}, fitness = {fitness}")
     return float(np.round(fitness, 12))
 
 

@@ -57,6 +57,47 @@ def get_job_id():
     return job_id
 
 
+import json
+
+import json
+
+
+def get_parameters(cfg: str = 'canonical'):
+    """Load parameters from a JSON config file with default values."""
+    defaults = {
+        "mutation": "point",
+        "selection": "elite",
+        "max_g": 6000,
+        "max_p": 1,
+        "max_c": 4,
+        "max_n": 64,
+        "x_rate": 0.0,
+        "m_rate": 1.0,
+        "n_points": 1,
+        "n_elites": 1,
+        "t_size": 4,
+        "p_dim": 1,
+        "step_size": 100,
+        "asexual_reproduction": False,
+        "one_d": False,
+    }
+
+    cfg_src = f'configs/{cfg}.json'
+    try:
+        with open(cfg_src, 'r') as f:
+            user_cfg = json.load(f)
+            print('Config Loaded')
+    except FileNotFoundError:
+        print(f'{cfg_src} not found')
+        exit()
+        user_cfg = {}
+
+    # Merge defaults with user config, giving priority to user values
+    params = {**defaults, **user_cfg}
+
+    return params
+
+
 job_id = get_job_id()
 
 # SLURM settings
@@ -65,54 +106,76 @@ CHECKPOINT_FILE = "checkpoint.json"
 
 # Problem configuration
 functions = Collection()
-#function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Levy', 'Rastrigin',
-#                 'Ackley', 'Diabetes', 'California']
-function_list = ['Levy']
-#function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7']
-#function_list = ['Griewank']
-#function_list = ['Koza1']
-#function_list = ['Griewank', 'Levy', 'Rastrigin', 'Ackley']
-#function_list = ['Nguyen6']
-#xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
+# function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Levy', 'Rastrigin', 'Ackley']
+# function_list = ['Diabetes']
+# function_list = ['California', 'Abalone', 'Airfoil']
+# function_list = ['Rastrigin', 'Levy', 'Ackley', 'Nguyen7']
+# function_list = ['Koza1', 'Koza2']
+# function_list = ['Koza3', 'Nguyen4']
+# function_list = ['Koza2', 'Nguyen6']
+# function_list = ['Nguyen5', 'Nguyen4']
+# function_list = ['Nguyen5', 'Nguyen6']
+# function_list = ['Nguyen7', 'Ackley']
+# function_list = ['Rastrigin', 'Levy']
+# function_list = ['Nguyen6, Nguyen7']
+# , 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7']
+# function_list = ['Griewank']
+# function_list = ['Koza1']
+# function_list = ['Levy', 'Ackley']
+# function_list = ['Rastrigin']
+function_list = ['Ackley', 'Levy', 'Rastrigin']
+# xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
 #          'homologous_semantic_uniform']
-#xovers = ['dnc_n_point', 'dnc_uniform', 'dnc_semantic_uniform', 'dnc_semantic_n_point']
-#xovers = ['aligned_homologous_semantic_n_point']
-#xovers = ['semantic_uniform', 'homologous_semantic_uniform', 'semantic_n_point', 'homologous_semantic_n_point']
-#xovers = ['homologous_semantic_n_point', 'homologous_semantic_uniform']
-#xovers = ['subgraph']
-#xovers = ['homologous_semantic_n_point'] #, 'semantic_uniform']
-#xovers = ['None']
-xovers = ['n_point', 'uniform', 'subgraph',
-          'semantic_n_point', 'aligned_homologous_semantic_n_point', 'aligned_semantic_uniform',
-          'aligned_homologous_semantic_uniform', 'homologous_semantic_uniform']
-#function_list = ['Koza1', 'Koza2']
+# xovers = ['dnc_n_point', 'dnc_uniform', 'dnc_semantic_uniform', 'dnc_semantic_n_point']
+# xovers = ['aligned_homologous_semantic_n_point']
+# xovers = ['semantic_uniform', 'homologous_semantic_uniform', 'semantic_n_point', 'homologous_semantic_n_point']
+# xovers = ['homologous_semantic_n_point', 'homologous_semantic_uniform']
+# xovers = ['subgraph']
+# xovers = ['homologous_semantic_n_point'] #, 'semantic_uniform']
+# xovers = ['None']
+# xovers = ['n_point']
+# xovers = ['n_point', 'uniform', 'subgraph']
+#          'semantic_n_point', 'aligned_homologous_semantic_n_point', 'aligned_semantic_uniform',
+#          'aligned_homologous_semantic_uniform', 'homologous_semantic_uniform']
+xovers = ['n_point', 'uniform']
+# function_list = ['Koza1', 'Koza2']
 
-#xovers = ['homologous_semantic_uniform', 'homologous_semantic_n_point']
-#mutation = 'full'
-mutation = 'point'
-#selection = 'elite'
-selection = 'elite_tournament'
-#selection = 'competent_tournament'
+# xovers = ['homologous_semantic_uniform', 'homologous_semantic_n_point']
+# mutation = 'full'
+# selection = 'elite_tournament'
+# selection = 'competent_tournament'
 output_dir = "/mnt/gs21/scratch/kocherov/Documents/cgp/output/logs/"
 error_dir = "/mnt/gs21/scratch/kocherov/Documents/cgp/output/err/"
 os.makedirs(output_dir, exist_ok=True)
 os.makedirs(error_dir, exist_ok=True)
 
+# params = get_parameters('one_d')
+# params = get_parameters('canonical')
+# params = get_parameters('crossover')
+# params = get_parameters('crossover_full_mutation')
+params = get_parameters('one_d_full_mutation')
+# params = get_parameters('canonical_full_mutation')
+
 # Parameters
-max_g = 6000
-max_p = 40
-max_c = 40
-max_n = 64
-x_rate = 0.5
-m_rate = 0.025
-n_points = 1
-n_elites = 1
-t_size = 4
-p_dim = 1
-step_size = 100
-asexual_reproduction = False
+mutation = params['mutation']
+selection = params['selection']
+max_g = params['max_g']  # max generations
+max_p = params['max_p']  # max number of parents
+max_c = params['max_c']  # max number of children
+max_n = params['max_n']  # max number of function nodes
+x_rate = params['x_rate']  # crossover rate
+m_rate = params['m_rate']  # mutation rate
+n_points = params['n_points']  # n-point crossover
+n_elites = params['n_elites']  # number of elites for elitism
+t_size = params['t_size']  # tournament size
+p_dim = params['p_dim']  # problem dimension
+step_size = params['step_size']  # report step size
+asexual_reproduction = params['asexual_reproduction']  # whether asexual reproduction is permitted
+one_d = params['one_d']  # whether crossover preserves nodes (False) or not (True)
+
+print(params)
 job_count = 0
-one_d = False
+
 
 def load_checkpoint():
     """Load progress from checkpoint, handling interrupted jobs separately."""
@@ -178,7 +241,6 @@ completed_jobs = set(state["completed_jobs"])
 
 for function in function_list:
     f_no_space = function.replace(' ', '')
-    days = '4' if function == 'Diabetes' or function == 'California' else '3'
     for xover in xovers:
         Path(f'../output/{f_no_space}/{xover}/').mkdir(parents=True, exist_ok=True)
         for i in range(50):  # Create 50 jobs per function/xover combination
@@ -195,35 +257,25 @@ for function in function_list:
                 print("Max job limit reached. Waiting...")
                 time.sleep(60)  # Check every 60 seconds
                 resubmit()
-            #print(one_d)
+            # print(one_d)
             slurm_script = f"""#!/bin/bash --login
 #SBATCH --job-name={job_name}
 #SBATCH --output={output_dir}{job_name}.out
 #SBATCH --error={error_dir}{job_name}.err
-#SBATCH --time={days}-00:00:00
+#SBATCH --time=7-00:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=8G
 #SBATCH --qos=scavenger  # Uncomment if using preemptible jobs
 
-module purge
-export CONDA3PATH=$HOME/miniforge3
-module load Conda/3
-
-conda activate cgp
-
+export MAMBA_EXE="/mnt/ffs24/home/kocherov/.local/bin/micromamba"
+export MAMBA_ROOT_PREFIX="/mnt/ffs24/home/kocherov/micromamba"
+micromamba activate cgp
 
 # Move to working directory
 cd /mnt/home/kocherov/Documents/cgp/src/
 
-# Verify Conda activation
-if [[ "$(which python3)" != "/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3" ]]; then
-    echo "Error: Conda environment 'cgp' not properly activated!"
-    exit 1
-fi
-
-
-/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 -u run.py {i} {max_g} {max_n} {max_p} {max_c} {xover} {x_rate} {mutation} {m_rate} {selection} {function} --n_points {n_points} --n_elites {n_elites} --problem_dimensions {p_dim} --step_size {step_size} --tournament_size {t_size} --asexual_reproduction {asexual_reproduction} --one_dimensional_xover {one_d}
+python3 -u run.py {i} {max_g} {max_n} {max_p} {max_c} {xover} {x_rate} {mutation} {m_rate} {selection} {function} --n_points {n_points} --n_elites {n_elites} --problem_dimensions {p_dim} --step_size {step_size} --tournament_size {t_size} --asexual_reproduction {asexual_reproduction} --one_dimensional_xover {one_d}
 
 # Capture exit code
 ret=$?
@@ -239,7 +291,6 @@ fi
 conda deactivate
 exit $ret
 """
- 
 
             print(f"Preparing job {job_name}")
 

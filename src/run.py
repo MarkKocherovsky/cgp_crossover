@@ -111,7 +111,7 @@ else:
     run_path = f'/mnt/gs21/scratch/kocherov/Documents/cgp/output/{test_problem_key}_{problem_dimensions}d/{xover_type}_1d/{mut_type}/{selection_type}/trial_{trial_number}'
     CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}{mut_type}_1d_{selection_type}_trial_{trial_number}_ckpt.pkl"
 Path(run_path).mkdir(parents=True, exist_ok=True)
-
+print(run_path)
 # model parameters
 model_parameters = {
     'max_size': model_size,
