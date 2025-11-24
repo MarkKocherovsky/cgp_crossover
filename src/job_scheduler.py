@@ -107,9 +107,10 @@ CHECKPOINT_FILE = "checkpoint.json"
 # Problem configuration
 functions = Collection()
 # function_list = ['Koza1', 'Koza2', 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7', 'Levy', 'Rastrigin', 'Ackley']
-# function_list = ['Diabetes']
-# function_list = ['California', 'Abalone', 'Airfoil']
+function_list = ['Diabetes', 'California', 'Abalone', 'Airfoil']
+# function_list = ['Diabetes', 'Airfoil']
 # function_list = ['Rastrigin', 'Levy', 'Ackley', 'Nguyen7']
+# function_list = ['Diabetes']
 # function_list = ['Koza1', 'Koza2']
 # function_list = ['Koza3', 'Nguyen4']
 # function_list = ['Koza2', 'Nguyen6']
@@ -123,7 +124,7 @@ functions = Collection()
 # function_list = ['Koza1']
 # function_list = ['Levy', 'Ackley']
 # function_list = ['Rastrigin']
-function_list = ['Ackley', 'Levy', 'Rastrigin']
+# function_list = ['Ackley', 'Levy', 'Rastrigin']
 # xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
 #          'homologous_semantic_uniform']
 # xovers = ['dnc_n_point', 'dnc_uniform', 'dnc_semantic_uniform', 'dnc_semantic_n_point']
@@ -131,13 +132,14 @@ function_list = ['Ackley', 'Levy', 'Rastrigin']
 # xovers = ['semantic_uniform', 'homologous_semantic_uniform', 'semantic_n_point', 'homologous_semantic_n_point']
 # xovers = ['homologous_semantic_n_point', 'homologous_semantic_uniform']
 # xovers = ['subgraph']
-# xovers = ['homologous_semantic_n_point'] #, 'semantic_uniform']
-# xovers = ['None']
 # xovers = ['n_point']
+# xovers = ['homologous_semantic_n_point'] #, 'semantic_uniform']
+xovers = ['None']
+# xovers = ['uniform']
 # xovers = ['n_point', 'uniform', 'subgraph']
 #          'semantic_n_point', 'aligned_homologous_semantic_n_point', 'aligned_semantic_uniform',
 #          'aligned_homologous_semantic_uniform', 'homologous_semantic_uniform']
-xovers = ['n_point', 'uniform']
+# xovers = ['n_point', 'uniform']
 # function_list = ['Koza1', 'Koza2']
 
 # xovers = ['homologous_semantic_uniform', 'homologous_semantic_n_point']
@@ -150,10 +152,10 @@ os.makedirs(output_dir, exist_ok=True)
 os.makedirs(error_dir, exist_ok=True)
 
 # params = get_parameters('one_d')
-# params = get_parameters('canonical')
+params = get_parameters('canonical')
 # params = get_parameters('crossover')
 # params = get_parameters('crossover_full_mutation')
-params = get_parameters('one_d_full_mutation')
+# params = get_parameters('one_d_full_mutation')
 # params = get_parameters('canonical_full_mutation')
 
 # Parameters

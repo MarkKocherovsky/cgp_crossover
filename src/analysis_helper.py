@@ -66,8 +66,8 @@ class AnalysisToolkit:
             path = self.base_path / problem / xover / mutation / selection_key / f'trial_{trial}/statistics.csv'
             try:
                 mod_time = datetime.datetime.fromtimestamp(path.stat().st_mtime)
-                if mod_time.month < 9:
-                    print(f"{path} — Last modified before September: {mod_time}")
+                if mod_time.month < 10:
+                    print(f"{path} — Last modified before October: {mod_time}")
                     slurm_problem = problem.replace("_1d", "")
                     slurm_script = f"../output/slurm_files/kocherov_{slurm_problem}_{xover}_{trial}.slurm"
                     if restart:
@@ -142,7 +142,7 @@ class AnalysisToolkit:
                                                             'Maximum'])
                             if '/full' in xover:
                                 xover = xover.replace('/full', '_full')
-                            print(f'{problem}_{xover}_{selection}_{self.metrics[metric].code_name}.csv')
+                            # print(f'{problem}_{xover}_{selection}_{self.metrics[metric].code_name}.csv')
                             q_table.to_csv(
                                 output_dir / f'{problem}_{xover}_{selection}_{self.metrics[metric].code_name}.csv',
                                 index=False)
@@ -174,8 +174,9 @@ class AnalysisToolkit:
             for xover_method in self.crossover_methods:
                 xover = self.crossover_methods[xover_method].code_name
                 sel_key = 'elite' if 'None' in xover else selection_method
-                if xover == 'None/full':
-                    xover = 'None_full'
+                if '/full' in xover:
+                    xover = xover.replace('/full', '_full')
+
                 file_name = self.make_path(problem, xover, sel_key, metric.code_name)
                 if file_name.exists():
                     data = pd.read_csv(file_name)
@@ -233,7 +234,8 @@ class AnalysisToolkit:
 
         print(metric)
         n_problems = len(self.problems)
-        fig, axs = plt.subplots(int(np.round(n_problems / 2)), 2, figsize=(8, 10))
+        fig, axs = plt.subplots(int(np.round(n_problems / 2)), 2, figsize=(8, 10), sharex=True)
+        # fig.subplots_adjust(hspace=0.1)
         axs = axs.flatten() if n_problems > 1 else [axs]
 
         for i, (problem_key, problem_name) in enumerate(self.problems.items()):
@@ -245,8 +247,9 @@ class AnalysisToolkit:
             for xover_key, xover_obj in self.crossover_methods.items():
                 xover = xover_obj.code_name
                 sel_key = 'elite' if 'None' in xover else selection_method
-                if xover == 'None/full':
-                    xover = 'None_full'
+                if '/full' in xover:
+                    xover = xover.replace('/full', '_full')
+
                 try:
                     file_name = self.make_path(problem_key, xover, sel_key, metric.code_name)
                     final_values = np.loadtxt(file_name)
@@ -329,8 +332,9 @@ class AnalysisToolkit:
             for xover_key, xover_obj in self.crossover_methods.items():
                 xover = xover_obj.code_name
                 sel_key = 'elite' if 'None' in xover else selection_method
-                if xover == 'None/full':
-                    xover = 'None_full'
+                if '/full' in xover:
+                    xover = xover.replace('/full', '_full')
+
                 try:
                     file_name = self.make_path(problem_key, xover, sel_key, metric)
                     final_values = np.loadtxt(file_name)
@@ -586,3 +590,6 @@ class AnalysisToolkit:
         plt.savefig(f"../output/graphs/{graph_filename}{self.output_format}")
         print(f'{graph_filename} saved')
         plt.close(fig)
+
+
+

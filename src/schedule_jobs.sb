@@ -10,13 +10,17 @@
 
 
 # Load Conda
-module purge
-module load Conda/3
-shopt -s expand_aliases
-module load powertools
-module load DMTCP  # Ensure DMTCP is available
-source ~/.bashrc
-conda activate cgp
+#module purge
+#module load Conda/3
+#shopt -s expand_aliases
+#module load powertools
+#module load DMTCP  # Ensure DMTCP is available
+#source ~/.bashrc
+#conda activate cgp
+
+export MAMBA_EXE="/mnt/ffs24/home/kocherov/.local/bin/micromamba"
+export MAMBA_ROOT_PREFIX="/mnt/ffs24/home/kocherov/micromamba"
+micromamba activate cgp
 
 # Change to the directory containing job_scheduler.py
 cd /mnt/home/kocherov/Documents/cgp/src/
@@ -31,6 +35,6 @@ else
 fi
 
 # Run the job scheduler script
-/mnt/ufs18/home-220/kocherov/miniforge3/envs/cgp/bin/python3 job_scheduler.py
+python3 job_scheduler.py
 # Deactivate Conda
 conda deactivate

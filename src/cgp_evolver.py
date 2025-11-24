@@ -1197,16 +1197,16 @@ class CartesianGP:
         else:
             self.expand_generations_if_needed(self.max_g)
 
-        self._get_fitnesses(mode='train')
-        self._get_fitnesses(mode='test')
+        self._get_fitnesses(mode='test', mutable=False)
+        self._get_fitnesses(mode='train', mutable=True)
 
         n_elites = self.n_elites if hasattr(self, 'n_elites') else 1  # or pass as parameter
         # Generation 0: Just record metrics, no elite reinsertion
-        self._record_metrics(0)
-        self._report_generation(0)
+        self.current_generation += 1 if self.current_generation else self.current_generation
+        self._record_metrics(self.current_generation)
+        self._report_generation(self.current_generation)
         elite_prev = self.elite_selection(n_elites=n_elites)
 
-        self.current_generation += 1 if self.current_generation else self.current_generation
         for gen in range(self.current_generation + 1, self.max_g + 1):
             self.current_generation = gen
             # **Parent Selection**
@@ -1255,8 +1255,8 @@ class CartesianGP:
             # Final sanity check
             assert all(isinstance(p, CGP) for p in protected_parents), "Non-CGP in protected_parents"
             assert all(isinstance(c, CGP) for c in mutated_children), "Non-CGP in mutated_children"
-            assert all(p is not None for p in protected_parents), "❌ protected_parents contains None"
-            assert all(c is not None for c in mutated_children), "❌ mutated_children contains None"
+            assert all(p is not None for p in protected_parents), "protected_parents contains None"
+            assert all(c is not None for c in mutated_children), "mutated_children contains None"
 
             self.population = protected_parents + mutated_children
 
@@ -1289,13 +1289,4 @@ class CartesianGP:
                 self._report_generation(gen)
                 self.save_checkpoint(filename=self.ckpt_filename, generation=gen)
 
-        # ✅ **Return the Best Model**
-        if plot:
-            fig, ax = plt.subplots()
-            # print(best_fitness)
-            ax.plot(best_fitness)
-            ax.plot(self.metrics[:, 0])
-            ax.set_ylim(1e-5, 1.0)
-            ax.set_yscale('log')
-            plt.show(block=True)
         return self.population[np.argmin(self.fitnesses)], self.population[np.argmin(self.fitnesses_test)]
