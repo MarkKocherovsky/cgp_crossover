@@ -6,8 +6,8 @@ from cgp_operators import add, sub, mul, div
 from fitness_functions import correlation, align
 from copy import deepcopy
 
-
 class CGP:
+
     def __init__(self, model=None, model_keys=None, fixed_length=True, fitness_function='Correlation',
                  mutation_type='Point',
                  parent_keys=None, xover_length=None, **kwargs):

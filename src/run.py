@@ -50,6 +50,7 @@ parser.add_argument("--problem_dimensions", type=int, default=1, help="Controls 
 parser.add_argument("--step_size", type=int, default=100, help="Prints out generation data every N generations.")
 parser.add_argument("--asexual_reproduction", type=str2bool, default=False, help="Controls whether or not asexual reproduction can occur.")
 parser.add_argument("--one_dimensional_xover", type=str2bool, default=False, help="If True, parents will be flattened before crossover. Not compatible with subgraph or semantic methods.")
+parser.add_argument("--tuning", type=str2bool, default=False, help="If True, hyperparameters will be tuned. Try to give a smaller generation size for testing.")
 args = parser.parse_args()
 
 # Access arguments
@@ -72,6 +73,7 @@ n_elites = args.n_elites
 step_size = args.step_size
 asex = args.asexual_reproduction
 one_d = args.one_dimensional_xover
+tuning = args.tuning
 np.random.seed(trial_number)
 
 print(f"Trial Number: {trial_number}")
@@ -105,10 +107,10 @@ else:
 # establish output path
 CHECKPOINT_PATH = os.path.join(os.environ.get("SCRATCH", "/tmp"), "ckpt")
 if not one_d:
-    run_path = f'/mnt/gs21/scratch/kocherov/Documents/cgp/output/{test_problem_key}_{problem_dimensions}d/{xover_type}/{mut_type}/{selection_type}/trial_{trial_number}'
+    run_path = f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}/{mut_type}/{selection_type}/trial_{trial_number}'
     CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}{mut_type}_{selection_type}_trial_{trial_number}_ckpt.pkl"
 else:
-    run_path = f'/mnt/gs21/scratch/kocherov/Documents/cgp/output/{test_problem_key}_{problem_dimensions}d/{xover_type}_1d/{mut_type}/{selection_type}/trial_{trial_number}'
+    run_path = f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}_1d/{mut_type}/{selection_type}/trial_{trial_number}'
     CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}{mut_type}_1d_{selection_type}_trial_{trial_number}_ckpt.pkl"
 Path(run_path).mkdir(parents=True, exist_ok=True)
 print(run_path)
@@ -171,11 +173,15 @@ else:
         checkpoint_filename=CHECKPOINT_FILE,
         one_dimensional_xover=one_d,
         seed=trial_number,
-        dnc_hp = dnc_hyperparameters
+        dnc_hp=dnc_hyperparameters,
+        tuning=tuning
     )
 
 start = datetime.now()
-best_model, best_test_model = evolution_module.fit(train_x, test_x, train_y, test_y, step_size=step_size, plot=False)
+if tuning:
+    evolution_module.tune_hyperparameters(train_x, test_x, train_y, test_y)
+else:
+    best_model, best_test_model = evolution_module.fit(train_x, test_x, train_y, test_y, step_size=step_size)
 end = datetime.now()
 
 duration = end - start
@@ -187,11 +193,12 @@ print(f'Duration: {duration}')
 #    print(f'Best Model Testing Fitness: {test_fitness}')
 
 evolution_module.save_metrics(run_path)
-best_model.print_model()
-print('---')
-best_test_model.print_model()
-df = pd.DataFrame(best_test_model.model)
-df.to_csv(f'{run_path}/best_model.csv', index=True)
+if not tuning:
+    best_model.print_model()
+    print('---')
+    best_test_model.print_model()
+    df = pd.DataFrame(best_test_model.model)
+    df.to_csv(f'{run_path}/best_model.csv', index=True)
 
 # Clean up checkpoint and temporary file if run completes successfully
 try:
