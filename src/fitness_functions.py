@@ -6,6 +6,9 @@ from numpy.exceptions import RankWarning
 
 from scipy.stats import pearsonr
 import numpy as np
+from scipy.stats import NearConstantInputWarning
+
+warnings.filterwarnings("ignore", category=NearConstantInputWarning)
 
 
 def correlation(preds, truth):
@@ -20,20 +23,20 @@ def correlation(preds, truth):
         return 1.0  # worst fitness if no variance
 
     if not np.all(np.isfinite(predictions)) or not np.all(np.isfinite(ground_truth)):
-        print("⚠️ Non-finite values detected")
+        #print("⚠️ Non-finite values detected")
         return 1.0
 
     try:
         r, _ = pearsonr(predictions, ground_truth)
     except Exception as e:
-        print(f"⚠️ Pearson correlation failed: {e}")
+        #print(f"⚠️ Pearson correlation failed: {e}")
         return 1.0
 
     if np.abs(r) > 1:
         raise ValueError(f"Invalid Pearson r value: r = {r}")
 
     if not np.isfinite(r):
-        print("⚠️ Non-finite correlation, returning 1.0")
+        #print("⚠️ Non-finite correlation, returning 1.0")
         return 1.0
 
     fitness = 1 - r ** 2

@@ -27,16 +27,6 @@ from smac import HyperparameterOptimizationFacade, Scenario
 
 
 class CartesianGP:
-    #@property
-    def configspace(self, seed=0) -> ConfigurationSpace:
-        # Build Configuration Space which defines all parameters and their ranges
-        # https://automl.github.io/SMAC3/latest/examples/1%20Basics/2_svm_cv/#__tabbed_1_1
-        cs = ConfigurationSpace(seed=seed)
-        max_size = Integer("max_size", (4, 16), default=4)
-
-        cs.add([max_size])
-
-        return cs
 
     def _missing_key_error(self, key):
         raise KeyError(f"'{key}' is required but was not provided.")
@@ -44,13 +34,8 @@ class CartesianGP:
     def __init__(self, parents=1, children=4, max_generations=100, mutation='Point', selection='Elite',
                  xover=None, fixed_length=True, fitness_function='Correlation', model_parameters=None,
                  function_bank=None, solution_threshold=0.005, checkpoint_filename='checkpoint.pkl', seed=42,
-                 dnc_hp: dict = None, tuning: bool = False, **kwargs):
+                 dnc_hp: dict = None, **kwargs):
         # hyperparameter tuning
-        self.tuning = tuning
-        if tuning:
-            self.cs = self.configspace(seed=seed)
-        else:
-            self.cs = ConfigurationSpace(seed=0)
         # Basic attributes
         self.model_keys = None
         np.random.seed(seed)
@@ -1208,8 +1193,6 @@ class CartesianGP:
 
             self._get_fitnesses(mode='train')
             self._get_fitnesses(mode='test')
-            if self.tuning:
-                self.current_generation = 0
 
             # Metrics and tracking
             self.metrics = np.zeros((self.max_g + 1, 17), dtype=np.float64)
@@ -1324,56 +1307,3 @@ class CartesianGP:
                 self.save_checkpoint(filename=self.ckpt_filename, generation=gen)
 
         return self.population[np.argmin(self.fitnesses)], self.population[np.argmin(self.fitnesses_test)]
-
-    def fit_for_tuning(self,train_x: np.ndarray, test_x: np.ndarray, train_y: np.ndarray, test_y: np.ndarray,
-                       xover_rate: float = 0.5, mutation_rate: float = 0.5):
-        _, test_model = self.fit(train_x, test_x, train_y, test_y, step_size=None, xover_rate=xover_rate, mutation_rate=mutation_rate)
-        return float(test_model.fitness)
-
-    def tune_hyperparameters(self, train_x: np.ndarray, test_x: np.ndarray, train_y: np.ndarray,
-                             test_y: np.ndarray, xover_rate: float = 0.5, mutation_rate: float = 0.5,
-                             n_generations: int = None):
-        print(self.cs.seed)
-        scenario = Scenario(
-            self.cs,
-            n_trials = 12,
-            name='test_experiment',
-            output_directory=Path('./test_experiment'),
-        )
-        old_gens = self.max_g
-        self.set_max_gens(n_generations) if n_generations is not None else old_gens
-
-        def objective(config: Configuration, seed: int = 0) -> float:
-            if 'max_size' in self.cs:
-                self.model_kwargs['max_size'] = config['max_size']
-            return self.fit_for_tuning(
-                train_x,
-                test_x,
-                train_y,
-                test_y,
-                xover_rate=xover_rate,
-                mutation_rate=mutation_rate,
-            )
-
-        # We want to run the facade's default initial design, but we want to change the number
-        # of initial configs to 5.
-        initial_design = HyperparameterOptimizationFacade.get_initial_design(scenario, n_configs=5)
-
-        # Now we use SMAC to find the best hyperparameters
-        smac = HyperparameterOptimizationFacade(
-            scenario,
-            objective,
-            initial_design=initial_design,
-            overwrite=True,  # If the run exists, we overwrite it; alternatively, we can continue from last state
-        )
-
-        incumbent = smac.optimize()
-
-        # Get cost of default configuration
-        default_cost = smac.validate(self.cs.get_default_configuration())
-        print(f"Default cost: {default_cost}")
-
-        # Let's calculate the cost of the incumbent
-        incumbent_cost = smac.validate(incumbent)
-        print(f"Incumbent cost: {incumbent_cost}")
-        print(incumbent)

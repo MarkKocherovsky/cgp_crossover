@@ -14,6 +14,11 @@ from cgp_operators import add, sub, mul, div
 from test_problems import Collection
 from fitness_functions import *
 
+from ConfigSpace import Categorical, Configuration, ConfigurationSpace, Float, Integer
+from ConfigSpace.conditions import InCondition
+
+from smac import HyperparameterOptimizationFacade, Scenario
+
 def str2bool(v):
     if isinstance(v, bool):
         return v
@@ -23,6 +28,18 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+def configspace(seed=0) -> ConfigurationSpace:
+    # Build Configuration Space which defines all parameters and their ranges
+    # https://automl.github.io/SMAC3/latest/examples/1%20Basics/2_svm_cv/#__tabbed_1_1
+    cs = ConfigurationSpace(seed=seed)
+    max_size = Categorical("max_size", [4, 8, 16, 32, 64, 128, 256], default=4)
+    n_children = Categorical("n_children", [4, 8, 16], default=4)
+    m_type = Categorical("m_type", ["point", "full"], default="point")
+
+    cs.add([max_size, n_children, m_type])
+
+    return cs
 
 
 # get arguments, until the end of the print statements this is a chatgpt innovation
@@ -150,62 +167,136 @@ if 'dnc' in xover_type:
 print(CHECKPOINT_PATH)
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
-if os.path.exists(CHECKPOINT_FILE):
-    evolution_module = CartesianGP.load_checkpoint(filename=CHECKPOINT_FILE)
-    evolution_module.set_max_gens(max_generations)
-    print(f"Resuming from generation {evolution_module.current_generation}")
-else:
-    evolution_module = CartesianGP(
-        parents=max_parents,
-        children=max_children,
-        max_generations=max_generations,
-        mutation=mutation_type,
-        selection=selection_type,
-        xover=xover_type,
-        fixed_length=True,
-        fitness_function=fitness_function,
-        model_parameters=model_parameters,
-        n_points=n_points,
-        n_elites=n_elites,
-        tournament_size=tournament_size,
-        function_bank=function_bank,
-        mutation_breeding=mutation_breeding,
-        checkpoint_filename=CHECKPOINT_FILE,
-        one_dimensional_xover=one_d,
-        seed=trial_number,
-        dnc_hp=dnc_hyperparameters,
-        tuning=tuning
+
+if tuning:
+    cs = configspace(seed=trial_number)
+    scenario = Scenario(
+        cs,
+        n_trials=24,
+        name=f'trial_{trial_number}',
+        output_directory=Path(f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}/SMAC'),
     )
 
-start = datetime.now()
-if tuning:
-    evolution_module.tune_hyperparameters(train_x, test_x, train_y, test_y)
+    def train(config: Configuration, seed: int = 0) -> float:
+
+        config_model_parameters = {
+            'max_size': model_size,
+            'inputs': test_function.dimensions,
+            'outputs': 1,
+            'arity': 2,
+            'constants': np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        }
+
+        if 'max_size' in cs:
+            config_model_parameters['max_size'] = config['max_size']
+        if 'n_children' in cs:
+            max_children = config['n_children']
+        if 'm_type' in cs:
+            mutation_type = config['m_type']
+
+        tuning_evolution_module = CartesianGP(
+            parents=max_parents,
+            children=max_children,
+            max_generations=max_generations,
+            mutation=mutation_type,
+            selection=selection_type,
+            xover=xover_type,
+            fixed_length=True,
+            fitness_function=fitness_function,
+            model_parameters=config_model_parameters,
+            n_points=n_points,
+            n_elites=n_elites,
+            tournament_size=tournament_size,
+            function_bank=function_bank,
+            mutation_breeding=mutation_breeding,
+            checkpoint_filename=CHECKPOINT_FILE,
+            one_dimensional_xover=one_d,
+            seed=trial_number,
+            dnc_hp=dnc_hyperparameters,
+            tuning=tuning
+        )
+
+        _, best_test_model = tuning_evolution_module.fit(train_x, test_x, train_y, test_y, step_size=step_size)
+        return best_test_model.fitness
+
+
+    # We want to run the facade's default initial design, but we want to change the number
+    # of initial configs to 5.
+    initial_design = HyperparameterOptimizationFacade.get_initial_design(scenario, n_configs=1)
+
+    # Now we use SMAC to find the best hyperparameters
+    smac = HyperparameterOptimizationFacade(
+        scenario,
+        train,
+        initial_design=initial_design,
+        overwrite=True,  # If the run exists, we overwrite it; alternatively, we can continue from last state
+    )
+    incumbent = smac.optimize()
+
+    # Get cost of default configuration
+    default_cost = smac.validate(cs.get_default_configuration())
+    print(f"Default cost: {default_cost}")
+
+    # Let's calculate the cost of the incumbent
+    incumbent_cost = smac.validate(incumbent)
+    print(f"Incumbent cost: {incumbent_cost}")
+
 else:
+    if os.path.exists(CHECKPOINT_FILE):
+        evolution_module = CartesianGP.load_checkpoint(filename=CHECKPOINT_FILE)
+        evolution_module.set_max_gens(max_generations)
+        print(f"Resuming from generation {evolution_module.current_generation}")
+    else:
+        evolution_module = CartesianGP(
+            parents=max_parents,
+            children=max_children,
+            max_generations=max_generations,
+            mutation=mutation_type,
+            selection=selection_type,
+            xover=xover_type,
+            fixed_length=True,
+            fitness_function=fitness_function,
+            model_parameters=model_parameters,
+            n_points=n_points,
+            n_elites=n_elites,
+            tournament_size=tournament_size,
+            function_bank=function_bank,
+            mutation_breeding=mutation_breeding,
+            checkpoint_filename=CHECKPOINT_FILE,
+            one_dimensional_xover=one_d,
+            seed=trial_number,
+            dnc_hp=dnc_hyperparameters,
+            tuning=tuning
+        )
+
+
+
+    start = datetime.now()
+
     best_model, best_test_model = evolution_module.fit(train_x, test_x, train_y, test_y, step_size=step_size)
-end = datetime.now()
+    end = datetime.now()
 
-duration = end - start
-print(f'Duration: {duration}')
-#print(f'Best Model Training Fitness: {best_model.fitness}')
-#print(f'Best Model Testing Fitness: {best_model.fitness}')
-#if test_x is not None:
-#    test_fitness = best_model.fit(test_x, test_y)
-#    print(f'Best Model Testing Fitness: {test_fitness}')
+    duration = end - start
+    print(f'Duration: {duration}')
+    #print(f'Best Model Training Fitness: {best_model.fitness}')
+    #print(f'Best Model Testing Fitness: {best_model.fitness}')
+    #if test_x is not None:
+    #    test_fitness = best_model.fit(test_x, test_y)
+    #    print(f'Best Model Testing Fitness: {test_fitness}')
 
-evolution_module.save_metrics(run_path)
-if not tuning:
+    evolution_module.save_metrics(run_path)
     best_model.print_model()
     print('---')
     best_test_model.print_model()
     df = pd.DataFrame(best_test_model.model)
     df.to_csv(f'{run_path}/best_model.csv', index=True)
 
-# Clean up checkpoint and temporary file if run completes successfully
-try:
-    os.remove(CHECKPOINT_FILE)
-    tmp_file = CHECKPOINT_FILE + ".tmp"
-    if os.path.exists(tmp_file):
-        os.remove(tmp_file)
-    print("✅ Checkpoint and temporary file removed after successful run.")
-except Exception as e:
-    print(f"⚠️ Could not remove checkpoint files: {e}")
+    # Clean up checkpoint and temporary file if run completes successfully
+    try:
+        os.remove(CHECKPOINT_FILE)
+        tmp_file = CHECKPOINT_FILE + ".tmp"
+        if os.path.exists(tmp_file):
+            os.remove(tmp_file)
+        print("✅ Checkpoint and temporary file removed after successful run.")
+    except Exception as e:
+        print(f"⚠️ Could not remove checkpoint files: {e}")
