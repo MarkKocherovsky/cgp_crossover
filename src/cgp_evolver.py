@@ -9,7 +9,7 @@ from copy import deepcopy
 
 from dnc.multiparent_wrapper import NeuralCrossoverWrapper
 from cgp_model import CGP
-from fitness_functions import correlation
+from fitness_functions import correlation, corr_comp_fitness
 from helper import _get_quartiles, pairwise_minkowski_distance, get_score, get_ssd, get_weights, \
     clean_values, _get_semantic_alignment
 from Bio.Align import PairwiseAligner, Seq
@@ -23,16 +23,13 @@ from ConfigSpace.conditions import InCondition
 from smac import HyperparameterOptimizationFacade, Scenario
 
 
-
-
-
 class CartesianGP:
 
     def _missing_key_error(self, key):
         raise KeyError(f"'{key}' is required but was not provided.")
 
     def __init__(self, parents=1, children=4, max_generations=100, mutation='Point', selection='Elite',
-                 xover=None, fixed_length=True, fitness_function='Correlation', model_parameters=None,
+                 xover=None, fixed_length=True, fitness_function='correlation_complexity', model_parameters=None,
                  function_bank=None, solution_threshold=0.005, checkpoint_filename='checkpoint.pkl', seed=42,
                  dnc_hp: dict = None, **kwargs):
         # hyperparameter tuning
@@ -43,7 +40,9 @@ class CartesianGP:
         self.child_id_counter = 0
         self.population = np.empty(parents + children, dtype=object)
         self.fitnesses = np.full(parents + children, np.inf, dtype=np.float64)
+        self.corrs = np.full(parents + children, np.inf, dtype=np.float64)
         self.fitnesses_test = np.full(parents + children, np.inf, dtype=np.float64)
+        self.corr_test = np.full(parents + children, np.inf, dtype=np.float64)
         self.best_model = None
         self.function_bank = function_bank
         self.x = None
@@ -72,6 +71,9 @@ class CartesianGP:
         self.aligned = 'aligned' in self.xover_type if xover else False
         self.homologous = 'homologous' in self.xover_type if xover else False
 
+        self.pareto_layers = []
+        self.pareto_elite = []
+
         # Safe defaults
         self.tournament_size = int(kwargs.get('tournament_size', 2))
         self.n_elites = int(kwargs.get('n_elites', 0))
@@ -83,14 +85,18 @@ class CartesianGP:
         self.mutation_can_make_children = self.max_p < 2 or kwargs.get('asexual_reproduction', False)
 
         # Fitness function
-        self.fitness_function = {'correlation': correlation}.get(fitness_function.lower())
+        self.fitness_function = {'correlation': correlation,
+                                 'correlation_complexity': corr_comp_fitness,
+                                 }.get(fitness_function.lower())
         if not self.fitness_function:
             raise ValueError(f"Invalid fitness function: {fitness_function}")
 
         # Selection methods
         self.selection_methods = {
             'elite': self.elite_selection,
+            'paretoelite': self.pareto_elite_selection,
             'tournament': self.tournament_selection,
+            'paretotournament': self.pareto_tournament_selection,
             'elite_tournament': self.elite_tournament_selection,
             'competent_tournament': self.competent_tournament_selection
         }
@@ -146,7 +152,7 @@ class CartesianGP:
                 raise ValueError(f"Invalid n_points: {self.n_points}")
 
         # Metrics and tracking
-        self.metrics = np.zeros((self.max_g + 1, 17), dtype=np.float64)
+        self.metrics = np.zeros((self.max_g + 1, 32), dtype=np.float64)
         self.xover_index = {cat: np.zeros((self.max_g, self.max_p)) for cat in ['deleterious', 'neutral', 'beneficial']}
         self.mut_index = np.zeros((self.max_g, self.max_p))
 
@@ -187,7 +193,9 @@ class CartesianGP:
         # Restore method bindings after unpickling
         obj.selection_methods = {
             'elite': obj.elite_selection,
+            'paretoelite': obj.pareto_elite_selection,
             'tournament': obj.tournament_selection,
+            'paretotournament': obj.pareto_tournament_selection,
             'elite_tournament': obj.elite_tournament_selection,
             'competent_tournament': obj.competent_tournament_selection
         }
@@ -264,18 +272,135 @@ class CartesianGP:
         else:
             return [deepcopy(m) for m in sorted_models[:n_elites]]
 
+    """
+    def get_pareto_front(self, points):
+        is_efficient = np.arange(points.shape[0])
+        n_points = points.shape[0]
+        next_point_index = 0
+        while next_point_index < len(points):
+            nondominated_point_mask = np.any(points < points[next_point_index], axis=1)
+            nondominated_point_mask[next_point_index] = True
+            is_efficient = is_efficient[nondominated_point_mask]
+            points = points[nondominated_point_mask]
+            next_point_index = np.sum(nondominated_point_mask[:next_point_index]) + 1
+        return is_efficient
+    """
+
+    def get_pareto_front(self, points: np.ndarray) -> np.ndarray:
+        """
+        points: shape (n, 2) with columns [correlation, complexity]
+        returns: array of indices of Pareto-optimal points (minimization)
+        """
+        if points.size == 0:
+            return np.array([], dtype=int)
+
+        # sort by first objective (correlation)
+        order = np.argsort(points[:, 0])
+        best_complexity = np.inf
+        front_indices = []
+
+        for idx in order:
+            comp = points[idx, 1]
+            if comp < best_complexity:
+                best_complexity = comp
+                front_indices.append(idx)
+
+        return np.array(front_indices, dtype=int)
+
+    def pareto_elite_selection(self, models=None, n_elites=None, return_indices=False):
+        """
+            Select elites based on 2D objectives (correlation, complexity).
+
+            - correlation dominates (primary objective, minimize)
+            - complexity is secondary (tie-break / small pressure)
+            - always returns exactly n_elites models (or indices if return_indices=True)
+            """
+        if models is None:
+            models = self.population
+
+
+        # remove Nones but remember their indices
+        valid_pairs = [(i, m) for i, m in enumerate(models) if m is not None]
+        if not valid_pairs:
+            return [] if not return_indices else np.array([], dtype=int)
+
+        orig_indices, models_valid = zip(*valid_pairs)
+        orig_indices = np.array(orig_indices)
+        models_valid = list(models_valid)
+
+        n_elites = n_elites or self.n_elites
+
+        # build points array: [corr, complexity]
+        points = np.array([[m.correlation, m.complexity] for m in models_valid], dtype=float)
+
+        # 1) find Pareto front indices (relative to models_valid)
+        front_idx = self.get_pareto_front(points)
+
+        # 2) rank points on the front lexicographically: corr first, then complexity
+        front_points = points[front_idx]
+
+        corr = front_points[:, 0]
+        comp = front_points[:, 1]
+
+        eps_corr = 1e-3  # ← tune this
+
+        best_corr = np.min(corr)
+        corr_bucket = np.floor((corr - best_corr) / eps_corr)
+
+        order_front = np.lexsort((comp, corr_bucket))
+        front_sorted_idx = front_idx[order_front]
+
+        # 3) pick as many elites as possible from the front
+        chosen_idx = list(front_sorted_idx[:n_elites])
+
+        # 4) if still need more elites, fill from remaining models by lexicographic order
+        if len(chosen_idx) < n_elites:
+            remaining_mask = np.ones(len(models_valid), dtype=bool)
+            remaining_mask[chosen_idx] = False
+            remaining_points = points[remaining_mask]
+
+            order_all = np.lexsort((remaining_points[:, 1], remaining_points[:, 0]))
+            remaining_indices = np.where(remaining_mask)[0][order_all]
+
+            needed = n_elites - len(chosen_idx)
+            chosen_idx.extend(list(remaining_indices[:needed]))
+
+        chosen_idx = np.array(chosen_idx, dtype=int)
+
+        if return_indices:
+            # map back to original indices of self.population
+            return orig_indices[chosen_idx]
+
+        # otherwise return deep-copied models
+        elites = [deepcopy(models_valid[i]) for i in chosen_idx]
+        return elites
+
     def tournament_selection(self, n_to_select=None):
         """Performs tournament selection with optional diversity enforcement."""
         n_to_select = n_to_select or self.max_p
         new_population = np.empty(n_to_select, dtype=object)
 
         # Filter out None values from population
-        t_pop = self.population[self.population is not None]
+        t_pop = self.population[self.population is not None][0]
 
         available_indices = list(range(len(t_pop)))
         remaining_slots = len(new_population)
 
-        new_population = self.t_select(available_indices, new_population, remaining_slots, t_pop)
+        new_population = self.t_select(available_indices, new_population, remaining_slots, pareto=False)
+
+        return new_population
+
+    def pareto_tournament_selection(self, n_to_select=None):
+        n_to_select = n_to_select or self.max_p
+        new_population = np.empty(n_to_select, dtype=object)
+
+        # Filter out None values from population
+        available_indices = np.array([i for i, m in enumerate(self.population) if m is not None])
+
+        # available_indices = list(range(len(t_pop)))
+        remaining_slots = len(new_population)
+
+        new_population = self.t_select(available_indices, new_population, remaining_slots, pareto=True)
 
         return new_population
 
@@ -298,7 +423,7 @@ class CartesianGP:
         final_population = np.concatenate((elite_population, new_population))
         return final_population
 
-    def t_select(self, available_indices, new_population, remaining_slots):
+    def t_select(self, available_indices, new_population, remaining_slots, pareto=False):
         for i in range(remaining_slots):
             if self.tournament_diversity and len(available_indices) < self.tournament_size:
                 contestants_indices = available_indices
@@ -306,14 +431,24 @@ class CartesianGP:
                 contestants_indices = np.random.choice(available_indices, size=self.tournament_size, replace=False)
 
             # Select best contestant
-            best_index = min(contestants_indices, key=lambda idx: self.population[idx].fitness)
+            if not pareto:
+                best_index = min(contestants_indices, key=lambda idx: self.population[idx].fitness)
+            else:
+                selected_models = [self.population[i] for i in contestants_indices]
+
+                best_contestant = self.pareto_elite_selection(
+                    models=selected_models,
+                    return_indices=True,
+                    n_elites=1
+                )
+                best_index = contestants_indices[best_contestant[0]]
             new_population[i] = deepcopy(self.population[best_index])
 
             # Remove selected individual to enforce diversity
             if self.tournament_diversity:
-                available_indices.remove(best_index)
+                available_indices = available_indices[available_indices != best_index]
 
-        return available_indices, new_population
+        return new_population
 
     def _compute_semantics(self):
         """
@@ -875,22 +1010,25 @@ class CartesianGP:
 
     def _get_fitnesses(self, mode='train', pop_list=None, mutable=True):
         """Compute fitnesses for all models."""
+
         if mode == 'train':
             x = self.x
             y = self.y
             f_list = self.fitnesses
+            corr_list = self.corrs
         elif mode == 'test':
             x = self.x_test
             y = self.y_test
             f_list = self.fitnesses_test
+            corr_list = self.corr_test
         if pop_list is not None:
             f_list = deepcopy(self.fitnesses)
         if pop_list is None:
             pop_list = self.population
         for i in range(len(pop_list)):
             if pop_list[i] is not None:
-                f_list[i] = pop_list[i].fit(x, y, mutable=mutable)
-        return np.array(f_list)
+                corr_list[i], _, f_list[i], = pop_list[i].fit(x, y, mutable=mutable)
+        return np.array(f_list), np.array(corr_list)
 
     def _group_parents_and_children(self):
         individuals_with_parents = [
@@ -999,8 +1137,13 @@ class CartesianGP:
         and similarity measurements.
         """
         # Extract fitness values & active node counts
-        fit_list = [m.fitness for m in self.population if m is not None]
+        fit_list = [self.fitnesses[i] for i in range(len(self.population)) if self.population[i] is not None]
         fit_test_list = [self.fitnesses_test[i] for i in range(len(self.population)) if self.population[i] is not None]
+
+        corr_list = [m.correlation for m in self.population if m is not None]
+        corr_test_list = [self.corr_test[i] for i in range(len(self.population)) if self.population[i] is not None]
+        comp_list = [m.complexity for m in self.population if m is not None]
+
         active_nodes_list = []
         for p in range(len(self.population)):
             if self.population[p] is not None:
@@ -1019,6 +1162,11 @@ class CartesianGP:
         # Compute quartile statistics efficiently
         fit_statistics = _get_quartiles(fit_list)
         fit_test_statistics = _get_quartiles(fit_test_list)
+
+        corr_statistics = _get_quartiles(corr_list)
+        corr_test_statistics = _get_quartiles(corr_test_list)
+        comp_statistics = _get_quartiles((comp_list))
+
         active_nodes_statistics = _get_quartiles(active_nodes_list)
         semantic_diversity = np.nanstd(fit_list)
         """
@@ -1030,6 +1178,9 @@ class CartesianGP:
         """
         # Store metrics in the NumPy structured array
         self.metrics[gen] = (
+            *corr_statistics,
+            *corr_test_statistics,
+            *comp_statistics,
             *fit_statistics,
             *fit_test_statistics,
             self.best_model.count_active_nodes(),
@@ -1049,8 +1200,10 @@ class CartesianGP:
 
     def _report_generation(self, g: int):
         # Efficient logging instead of multiple print calls
+        best_ind = self.population[np.argmin(self.fitnesses)]
         print(f'Generation {g}')
-        print(f'Best Fitness: {self.metrics[g, 0]}')
+        print(
+            f'Best Fitness: {np.min(self.fitnesses)}:\tCorrelation: {best_ind.correlation}\tComplexity: {best_ind.complexity}')
         print('################')
 
     def _compare_child_parents(self):
@@ -1195,7 +1348,7 @@ class CartesianGP:
             self._get_fitnesses(mode='test')
 
             # Metrics and tracking
-            self.metrics = np.zeros((self.max_g + 1, 17), dtype=np.float64)
+            self.metrics = np.zeros((self.max_g + 1, 32), dtype=np.float64)
             self.xover_index = {cat: np.zeros((self.max_g, self.max_p)) for cat in
                                 ['deleterious', 'neutral', 'beneficial']}
             self.mut_index = np.zeros((self.max_g, self.max_p))
@@ -1241,7 +1394,6 @@ class CartesianGP:
             else:
                 children = deepcopy(selected_parents)  # No crossover, pass parents as is
 
-            # **Mutate Children**
             if not isinstance(selected_parents, (list, np.ndarray)):
                 selected_parents = [selected_parents]
 
@@ -1279,24 +1431,29 @@ class CartesianGP:
 
             self._get_fitnesses(mutable=False, mode='test')
             self._get_fitnesses(mutable=True, mode='train')
+            """
             # ✅ Step 2: Save elite for next generation
             if elite_prev and 'elite' in self.selection_type:
                 fitnesses = [m.fitness for m in self.population if m is not None]
                 worst_indices = np.argsort(fitnesses)[-n_elites:]
                 for i, idx in enumerate(worst_indices):
+                    print(i)
+                    print(elite_prev)
                     self.population[idx] = deepcopy(elite_prev[i])
+
                 # print(f"[Gen {gen}] Reinserted {n_elites} elite(s) with fitnesses:",
                 #       [f"{e.fitness:.4e}" for e in elite_prev])
 
             elite_prev = self.elite_selection(n_elites=n_elites)
             # for e in elite_prev:
-            #    print(f"🔍 Elite fitness: {e.fitness}")
+            #    print(f"Elite fitness: {e.fitness}")
+            """
 
-            assert all(isinstance(e, CGP) for e in elite_prev), "❌ elite_selection returned non-CGPs"
-            assert all(hasattr(e, "fitness") and e.fitness is not None for e in elite_prev), "❌ elite has no fitness"
+            assert all(isinstance(e, CGP) for e in elite_prev), "Elite_selection returned non-CGPs"
+            assert all(hasattr(e, "fitness") and e.fitness is not None for e in elite_prev), "Elite has no fitness"
 
             true_elite_train = min(self.population, key=lambda x: x.fitness)
-            true_elite_test = self.population[np.argmin(self.fitnesses_test)]
+            # true_elite_test = self.population[np.argmin(self.fitnesses_test)]
             best_fitness_train.append(true_elite_train.fitness)
             best_fitness_test.append(self.fitnesses_test[np.argmin(self.fitnesses_test)])
 
@@ -1304,6 +1461,6 @@ class CartesianGP:
 
             if step_size and gen % step_size == 0:
                 self._report_generation(gen)
-                self.save_checkpoint(filename=self.ckpt_filename, generation=gen)
+                # self.save_checkpoint(filename=self.ckpt_filename, generation=gen)
 
         return self.population[np.argmin(self.fitnesses)], self.population[np.argmin(self.fitnesses_test)]

@@ -8,44 +8,48 @@ from scipy.stats import pearsonr
 import numpy as np
 from scipy.stats import NearConstantInputWarning
 
-warnings.filterwarnings("ignore", category=NearConstantInputWarning)
 
 
-def correlation(preds, truth):
+
+def correlation(preds, truth, active_nodes, max_size, **kwargs):
     # print(f"[DEBUG] Correlation input checksum: predictions={preds}, truth={truth}")
-
+    warnings.filterwarnings("ignore", category=NearConstantInputWarning)
     predictions = np.asarray(preds).flatten()
     ground_truth = np.asarray(truth).flatten()
+    active_nodes = active_nodes if active_nodes > 1 else 1  # exclude output nodes but 0 nodes is not preferred
+    comp = active_nodes / max_size
 
     std_pred = np.std(predictions)
     std_truth = np.std(ground_truth)
     if std_pred < 1e-6 or std_truth < 1e-6:
-        return 1.0  # worst fitness if no variance
+        return 1.0, comp, 1.0  # worst fitness if no variance
 
     if not np.all(np.isfinite(predictions)) or not np.all(np.isfinite(ground_truth)):
-        #print("⚠️ Non-finite values detected")
-        return 1.0
+        #print("Non-finite values detected")
+        return 1.0, comp, 1.0
 
     try:
         r, _ = pearsonr(predictions, ground_truth)
     except Exception as e:
-        #print(f"⚠️ Pearson correlation failed: {e}")
-        return 1.0
+        #print(f"Pearson correlation failed: {e}")
+        return 1.0, comp, 1.0
 
     if np.abs(r) > 1:
         raise ValueError(f"Invalid Pearson r value: r = {r}")
 
     if not np.isfinite(r):
-        #print("⚠️ Non-finite correlation, returning 1.0")
-        return 1.0
+        #print("Non-finite correlation, returning 1.0")
+        return 1.0, 1.0, 1.0
 
-    fitness = 1 - r ** 2
+    corr = 1 - r ** 2
+    corr = np.round(corr, 12)
+
     # print(f"[DEBUG] Correlation: r = {r}, fitness = {fitness}")
-    return float(np.round(fitness, 12))
+    return corr, comp, corr
 
 
 # updated with chatgpt
-def align(preds, truth):
+def align(preds, truth, **kwargs):
     # Filter out non-finite values from both arrays
     predictions = np.array(preds).flatten()
     ground_truth = np.array(truth).flatten()
@@ -85,3 +89,9 @@ def align(preds, truth):
         intercept = 0.0
 
     return slope, intercept
+# correlation and complexity fitness
+def corr_comp_fitness(preds, truth, active_nodes, max_size, **kwargs):
+    active_nodes = active_nodes if active_nodes > 1 else 1 # exclude output nodes but 0 nodes is not preferred
+    cor = correlation(preds, truth, active_nodes, max_size)[0]
+    com = active_nodes/max_size
+    return cor, com, np.sqrt(0.9*cor**2+0.10*com**2)
