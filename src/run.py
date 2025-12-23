@@ -3,6 +3,7 @@
 # to actually queue up jobs run job_scheduler.py
 import argparse
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -182,11 +183,12 @@ if 'dnc' in xover_type:
 print(CHECKPOINT_PATH)
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
+seconds = int(time.time())
 if tuning:
-    cs = configspace(seed=trial_number)
+    cs = configspace(seed=seconds)
     scenario = Scenario(
         cs,
-        n_trials=64,
+        n_trials=100,
         name=f'trial_{trial_number}',
         output_directory=Path(f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}/SMAC'),
         objectives = ['correlation', 'complexity']

@@ -32,3 +32,14 @@ def div(x, y):
 
     return result
 
+def op_and(x, y):
+    return x & y
+
+def op_or(x, y):
+    return x | y
+
+def op_not(x, y):
+    return not x
+
+def op_xor(x, y):
+    return x ^ y

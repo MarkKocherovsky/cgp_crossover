@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+import numpy.random as random
 import pickle
 import os
 import hashlib
@@ -21,7 +22,6 @@ from ConfigSpace import Categorical, Configuration, ConfigurationSpace, Float, I
 from ConfigSpace.conditions import InCondition
 
 from smac import HyperparameterOptimizationFacade, Scenario
-
 
 class CartesianGP:
 
@@ -912,14 +912,14 @@ class CartesianGP:
 
             return model
 
-        def ensure_active_nodes(parent):
+        def ensure_active_nodes(parent, n_max_mutations=64):
             """Ensures a model has active nodes before crossover."""
             active_nodes = np.array(list(parent.get_active_nodes()))
-            while len(active_nodes) < 1:  # If there are no active nodes, mutate until one is found
-                parent.mutate()
+            while len(active_nodes) < 1:  # If there are no active nodes, mutate output until one is found
+                parent.mutate_output()
                 generic = np.zeros((1, parent.inputs))
                 parent.fit(generic, generic)
-                active_nodes = np.where(parent.get_active_nodes())[0]
+                active_nodes = np.array(list(parent.get_active_nodes()))
             return parent.model.copy(), active_nodes
 
         # Ensure active nodes for both parents

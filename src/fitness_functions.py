@@ -95,3 +95,10 @@ def corr_comp_fitness(preds, truth, active_nodes, max_size, **kwargs):
     cor = correlation(preds, truth, active_nodes, max_size)[0]
     com = active_nodes/max_size
     return cor, com, np.sqrt(0.9*cor**2+0.10*com**2)
+
+def ratio_mapped(preds, truth, active_nodes, max_size, **kwargs):
+    active_nodes = active_nodes if active_nodes > 1 else 1
+    correct_mappings = np.count_nonzero(preds==truth)
+    fit = correct_mappings/len(truth)
+    com = active_nodes/max_size
+    return fit, com, fit

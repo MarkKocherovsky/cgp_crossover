@@ -220,6 +220,13 @@ class CGP:
             raise ValueError(f'{mutation_type} is an invalid mutation operator.')
         self.mutation = mutations[mutation_type]
 
+    def mutate_output(self):
+        active_indices = np.where((self.model[:, self.model_keys['NodeType']] == node_to_int('Output')))[0]
+        mutation_index = np.random.choice(active_indices)
+        new_node = [node_to_int('Output'), 0, 0, np.random.randint(0, self.first_body_node + self.max_size),
+                    *[0 for _ in range(self.arity - 1)], 0]
+        self.model[mutation_index] = deepcopy(new_node)
+
     def _full_mutation(self, verbose=True):
         active_indices = np.where((self.model[:, self.model_keys['NodeType']] == node_to_int('Function')) | (
                 self.model[:, self.model_keys['NodeType']] == node_to_int('Output')))[0]
