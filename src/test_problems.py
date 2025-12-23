@@ -195,6 +195,7 @@ decode = BooleanFunction(
 )
 
 multiply = BooleanFunction(
+    name="Multiply",
     x = [[False, False, False, False, False, False],
         [False, False, False, False, False, True],
         [False, False, False, False, True, False],
