@@ -1,14 +1,9 @@
 import warnings
 
 import numpy as np
-from scipy.stats import pearsonr
 from numpy.exceptions import RankWarning
-
-from scipy.stats import pearsonr
-import numpy as np
 from scipy.stats import NearConstantInputWarning
-
-
+from scipy.stats import pearsonr
 
 
 def correlation(preds, truth, active_nodes, max_size, **kwargs):
@@ -25,20 +20,20 @@ def correlation(preds, truth, active_nodes, max_size, **kwargs):
         return 1.0, comp, 1.0  # worst fitness if no variance
 
     if not np.all(np.isfinite(predictions)) or not np.all(np.isfinite(ground_truth)):
-        #print("Non-finite values detected")
+        # print("Non-finite values detected")
         return 1.0, comp, 1.0
 
     try:
         r, _ = pearsonr(predictions, ground_truth)
     except Exception as e:
-        #print(f"Pearson correlation failed: {e}")
+        # print(f"Pearson correlation failed: {e}")
         return 1.0, comp, 1.0
 
     if np.abs(r) > 1:
         raise ValueError(f"Invalid Pearson r value: r = {r}")
 
     if not np.isfinite(r):
-        #print("Non-finite correlation, returning 1.0")
+        # print("Non-finite correlation, returning 1.0")
         return 1.0, 1.0, 1.0
 
     corr = 1 - r ** 2
@@ -89,16 +84,19 @@ def align(preds, truth, **kwargs):
         intercept = 0.0
 
     return slope, intercept
+
+
 # correlation and complexity fitness
 def corr_comp_fitness(preds, truth, active_nodes, max_size, **kwargs):
-    active_nodes = active_nodes if active_nodes > 1 else 1 # exclude output nodes but 0 nodes is not preferred
+    active_nodes = active_nodes if active_nodes > 1 else 1  # exclude output nodes but 0 nodes is not preferred
     cor = correlation(preds, truth, active_nodes, max_size)[0]
-    com = active_nodes/max_size
-    return cor, com, np.sqrt(0.9*cor**2+0.10*com**2)
+    com = active_nodes / max_size
+    return cor, com, np.sqrt(0.9 * cor ** 2 + 0.10 * com ** 2)
+
 
 def ratio_mapped(preds, truth, active_nodes, max_size, **kwargs):
     active_nodes = active_nodes if active_nodes > 1 else 1
-    correct_mappings = np.count_nonzero(preds==truth)
-    fit = correct_mappings/len(truth)
-    com = active_nodes/max_size
+    correct_mappings = np.count_nonzero(preds != truth)  # minimize error, not truth!
+    fit = correct_mappings / len(truth)
+    com = active_nodes / max_size
     return fit, com, fit

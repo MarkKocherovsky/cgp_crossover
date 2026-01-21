@@ -231,7 +231,7 @@ if tuning:
             mutation_breeding=mutation_breeding,
             checkpoint_filename=CHECKPOINT_FILE,
             one_dimensional_xover=one_d,
-            seed=seed,
+            seed=seconds,
             dnc_hp=dnc_hyperparameters,
             tuning=tuning
         )
