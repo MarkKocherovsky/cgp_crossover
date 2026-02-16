@@ -1,0 +1,11 @@
+
+rm: cannot remove '/tmp/ckpt/*': No such file or directory
+sbatch: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+sbatch: You are approaching your yearly limit on CPU hours! You have
+sbatch: used 499760 of your 600482 allotted hours (83.0%).
+sbatch: See https://docs.icer.msu.edu/job_policies/ for more
+sbatch: information about this policy.
+sbatch: Contact ICER support at https://contact.icer.msu.edu/ if you
+sbatch: have any questions.
+sbatch: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Submitted batch job 62975954

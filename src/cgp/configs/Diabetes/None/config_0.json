@@ -1,0 +1,18 @@
+{
+  "mutation": "full",
+  "selection": "paretoelite",
+  "max_g": 6000,
+  "max_p": 1,
+  "max_c": 32,
+  "max_n": 32,
+  "x_rate": 0.0,
+  "m_rate": 1.0,
+  "n_points": 1,
+  "n_elites": 1,
+  "t_size": 4,
+  "p_dim": 1,
+  "step_size": 100,
+  "asexual_reproduction": true,
+  "job_count": 0,
+  "one_d": false
+}

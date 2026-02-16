@@ -1,0 +1,18 @@
+{
+  "mutation": "full",
+  "selection": "elite_tournament",
+  "max_g": 6000,
+  "max_p": 40,
+  "max_c": 40,
+  "max_n": 64,
+  "x_rate": 0.5,
+  "m_rate": 0.5,
+  "n_points": 1,
+  "n_elites": 1,
+  "t_size": 4,
+  "p_dim": 1,
+  "step_size": 100,
+  "asexual_reproduction": false,
+  "job_count": 0,
+  "one_d": true
+}

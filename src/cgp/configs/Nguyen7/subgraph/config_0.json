@@ -1,0 +1,18 @@
+{
+  "mutation": "full",
+  "selection": "paretotournament",
+  "max_g": 6000,
+  "max_p": 32,
+  "max_c": 2,
+  "max_n": 128,
+  "x_rate": 0.50,
+  "m_rate": 0.90,
+  "n_points": 1,
+  "n_elites": 1,
+  "t_size": 4,
+  "p_dim": 1,
+  "step_size": 100,
+  "asexual_reproduction": false,
+  "job_count": 0,
+  "one_d": false
+}
