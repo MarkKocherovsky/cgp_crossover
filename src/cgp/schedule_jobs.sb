@@ -23,7 +23,7 @@ export MAMBA_ROOT_PREFIX="/mnt/ffs24/home/kocherov/micromamba"
 micromamba activate cgp
 
 # Change to the directory containing job_scheduler.py
-cd /mnt/home/kocherov/Documents/cgp/src/
+cd /mnt/home/kocherov/Documents/cgp/src/cgp/
 
 
 # Check if this is the first submission
@@ -37,4 +37,4 @@ fi
 # Run the job scheduler script
 python3 job_scheduler.py
 # Deactivate Conda
-conda deactivate
+micromamba deactivate

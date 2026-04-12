@@ -10,10 +10,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from cgp_evolver import CartesianGP
-from cgp_operators import add, sub, mul, div
-from test_problems import Collection
-from fitness_functions import *
+from .cgp_evolver import CartesianGP
+from .cgp_operators import add, sub, mul, div
+from .test_problems import Collection
+from .fitness_functions import *
 
 from ConfigSpace import Categorical, Configuration, ConfigurationSpace, Float, Integer
 from ConfigSpace.conditions import InCondition
@@ -150,14 +150,19 @@ else:
     CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}{mut_type}_1d_{selection_type}_trial_{trial_number}_ckpt.pkl"
 Path(run_path).mkdir(parents=True, exist_ok=True)
 print(run_path)
+
 # model parameters
+n_inputs = train_x.shape[-1] if train_x.ndim > 1 else 1
+n_outputs = train_y.shape[-1] if train_y.ndim > 1 else 1
+
 model_parameters = {
     'max_size': model_size,
-    'inputs': test_function.dimensions,
-    'outputs': 1,
+    'inputs': n_inputs,
+    'outputs': n_outputs,
     'arity': 2,
     'constants': np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
 }
+print(f'input nodes: {model_parameters["inputs"]}\noutput nodes: {model_parameters["outputs"]}')
 function_bank = {'add': add, 'sub': sub, 'mul': mul, 'div': div}
 
 if asex or max_parents < max_children:
@@ -193,20 +198,22 @@ if tuning:
         cs,
         n_trials=100,
         name=f'trial_{trial_number}',
-        output_directory=Path(f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}/SMAC'),
-        objectives = ['correlation', 'complexity']
+        output_directory=Path(f'/mnt/home/kocherov/Documents/cgp/output/{test_problem_key}_{problem_dimensions}d/{xover_type}/SMAC'),
+        objectives = ['correlation', 'complexity'],
         # n_workers = 8
     )
-    d_path = Path(f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}/SMAC')
+    d_path = Path(f'/mnt/home/kocherov/Documents/cgp/output/{test_problem_key}_{problem_dimensions}d/{xover_type}/SMAC')
     d_path.mkdir(parents=True, exist_ok=True)
     #with open(f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}/SMAC/seeds.txt', "w+") as f:
     #    f.write('')
 
 
     def train(config: Configuration, seed: int = 0):
-
-        config_model_parameters = {'max_size': config.get('max_size', model_size), 'inputs': test_function.dimensions,
-                                   'outputs': 1, 'arity': 2, 'constants': np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])}
+        config_model_parameters = {'max_size': config.get('max_size', model_size),
+                                   'inputs': model_parameters["inputs"],
+                                   'outputs': model_parameters["outputs"], 'arity': 2,
+                                   'constants': np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+                                  }
 
         config_max_children = config.get('n_children', max_children)
         config_max_parents = config.get('n_parents', max_parents)
@@ -263,10 +270,13 @@ if tuning:
             scenario,
             objective_weights=[5, 1],
         ),
-        overwrite=True,  # If the run exists, we overwrite it; alternatively, we can continue from last state
+        overwrite=False,  # If the run exists, we overwrite it; alternatively, we can continue from last state
     )
+    start = datetime.now()
     incumbent = smac.optimize()
-
+    end = datetime.now()
+    duration = end-start
+    print(f"Duration {duration}")
     # Get cost of default configuration
     default_cost = smac.validate(cs.get_default_configuration())
     print(f"Default cost: {default_cost}")

@@ -183,9 +183,9 @@ class CartesianGP:
                     data = _try_load(tmp_file)
                     print("✅ Loaded from backup:", tmp_file)
                 except Exception as e:
-                    raise RuntimeError(f"❌ Failed to load from both '{filename}' and backup: {e}")
+                    raise RuntimeError(f"Failed to load from both '{filename}' and backup: {e}")
             else:
-                raise RuntimeError(f"❌ Checkpoint corrupted and no backup found: {filename}")
+                raise RuntimeError(f"Checkpoint corrupted and no backup found: {filename}")
 
         obj = cls.__new__(cls)  # Don't call __init__!
         obj.__dict__.update(data)
@@ -377,7 +377,7 @@ class CartesianGP:
         new_population = np.empty(n_to_select, dtype=object)
 
         # Filter out None values from population
-        t_pop = self.population[self.population is not None][0]
+        t_pop = self.population[self.population is not None]
 
         available_indices = list(range(len(t_pop)))
         remaining_slots = len(new_population)
@@ -913,8 +913,9 @@ class CartesianGP:
             active_nodes = np.array(list(parent.get_active_nodes()))
             while len(active_nodes) < 1:  # If there are no active nodes, mutate output until one is found
                 parent.mutate_output()
-                generic = np.zeros((1, parent.inputs))
-                parent.fit(generic, generic)
+                generic_x = np.zeros((1, parent.inputs))
+                generic_y = np.zeros((1, parent.outputs))
+                parent.fit(generic_x, generic_y)
                 active_nodes = np.array(list(parent.get_active_nodes()))
             return parent.model.copy(), active_nodes
 
@@ -1004,8 +1005,8 @@ class CartesianGP:
 
             return models
 
+    """
     def _get_fitnesses(self, mode='train', pop_list=None, mutable=True):
-        """Compute fitnesses for all models."""
 
         if mode == 'train':
             x = self.x
@@ -1023,7 +1024,17 @@ class CartesianGP:
             pop_list = self.population
         for i in range(len(pop_list)):
             if pop_list[i] is not None:
-                corr_list[i], _, f_list[i], = pop_list[i].fit(x, y, mutable=mutable)
+                try:
+                    corr_list[i], _, f_list[i], = pop_list[i].fit(x, y, mutable=mutable)
+                except IndexError as e:
+                    print(f'IndexError: {e}')
+                    print(f'len(pop_list)\t{len(pop_list)}')
+                    print(f'len(corr_list)\t{len(corr_list)}')
+                    print(f'len(f_list)\t{len(f_list)}')
+                    print(f'i\t{i}')
+                    exit(1)
+                    
+                    
         return np.array(f_list), np.array(corr_list)
 
     def _group_parents_and_children(self):
@@ -1047,6 +1058,40 @@ class CartesianGP:
         }
 
         return parent_child_groups
+    """
+    def _get_fitnesses(self, mode='train', pop_list=None, mutable=True):
+        # Compute fitnesses for all models
+
+        if mode == 'train':
+            x, y = self.x, self.y
+        elif mode == 'test':
+            x, y = self.x_test, self.y_test
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+
+        if pop_list is None:
+            pop_list = self.population
+            store_results = True
+        else:
+            store_results = False
+
+        n = len(pop_list)
+        f_list = np.full(n, np.inf, dtype=np.float64)
+        corr_list = np.full(n, np.inf, dtype=np.float64)
+
+        for i, model in enumerate(pop_list):
+            if model is not None:
+                corr_list[i], _, f_list[i] = model.fit(x, y, mutable=mutable)
+
+        if store_results:
+            if mode == 'train':
+                self.fitnesses = f_list
+                self.corrs = corr_list
+            else:
+                self.fitnesses_test = f_list
+                self.corr_test = corr_list
+
+        return f_list, corr_list
 
     def _get_similarity_score(self, model1_obj, model2_obj):
         """
@@ -1385,7 +1430,8 @@ class CartesianGP:
             if self.xover:
                 children = self.crossover(selected_parents, xover_rate, gen)
                 child_fitnesses = self._get_fitnesses(pop_list=children, mutable=False, mode='train')
-                self._compare_child_parents()
+                # broken
+                # self._compare_child_parents()
 
             else:
                 children = deepcopy(selected_parents)  # No crossover, pass parents as is
@@ -1424,6 +1470,22 @@ class CartesianGP:
             assert all(c is not None for c in mutated_children), "mutated_children contains None"
 
             self.population = protected_parents + mutated_children
+
+            expected = self.max_p + self.max_c
+            actual = len(self.population)
+
+            if actual != expected:
+                raise RuntimeError(
+                    f"Population size mismatch after reproduction: "
+                    f"expected {expected}, got {actual}. "
+                    f"len(protected_parents)={len(protected_parents)}, "
+                    f"len(mutated_children)={len(mutated_children)}"
+                )
+
+            assert len(self.population) == len(self.fitnesses)
+            assert len(self.population) == len(self.corrs)
+            assert len(self.population) == len(self.fitnesses_test)
+            assert len(self.population) == len(self.corr_test)
 
             self._get_fitnesses(mutable=False, mode='test')
             self._get_fitnesses(mutable=True, mode='train')

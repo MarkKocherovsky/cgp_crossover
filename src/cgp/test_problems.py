@@ -10,7 +10,7 @@ def distance(xs):
 
 class Function:
     def __init__(self, name: str, dimensions: int, x_domain: list | np.ndarray, function, points: int,
-                 test_train_fraction: float = 1 / 3):
+                 test_train_fraction: float = 1.0 / 3.0):
         self.name = name
         self.dimensions = dimensions
         self.x_domain = np.array(x_domain)
@@ -87,7 +87,7 @@ class TwoDimensionalFunction(Function):  # functions that will always be 2-dimen
 
 
 class RealWorldProblem():
-    def __init__(self, name: str, x_data: list | np.ndarray, y_data: list | np.ndarray, test_train_split: float = 0.3):
+    def __init__(self, name: str, x_data: list | np.ndarray, y_data: list | np.ndarray, test_train_split: float = 0.33):
         self.train_x, self.test_x, self.train_y, self.test_y = train_test_split(
             x_data, y_data, test_size=test_train_split
         )
@@ -752,10 +752,8 @@ def michaelewiz(n_dim):
 
 
 from sklearn.datasets import load_diabetes
-from sklearn.model_selection import train_test_split
 
-
-def diabetes(split):
+def diabetes(split = 1.0/3.0):
     x, y = load_diabetes(return_X_y=True)
     # name: str, x_data: list | np.ndarray, y_data: list | np.ndarray, test_train_split:float = 0.3
     diabetes_function = RealWorldProblem(
@@ -806,6 +804,7 @@ def abalone(split):
     x = abalone.data.features
     # x['Sex'] = x['Sex'].map({'M': 0, 'F': 1, 'I': 2})
     x = pd.get_dummies(x, columns=['Sex'], drop_first=False)
+    # measures disease progression after a year
     y = abalone.data.targets
     abalone_function = RealWorldProblem(
         'Abalone', x, y, test_train_split=split
@@ -816,12 +815,25 @@ def abalone(split):
 # https://archive.ics.uci.edu/dataset/242/energy+efficiency
 def energy_efficiency(split):
     energy_efficiency = fetch_ucirepo(id=242)
-    x = energy_efficiency.data.features
-    y = energy_efficiency.data.targets
+    x = energy_efficiency.data.features.to_numpy()
+    # measures heating and cooling load
+    y = energy_efficiency.data.targets.to_numpy()
     energy_function = RealWorldProblem(
         'Energy Efficiency', x, y, test_train_split=split
     )
     return energy_function
+
+# https://archive.ics.uci.edu/dataset/165/concrete+compressive+strength
+def concrete_compressive_strength(split):
+    concrete_compressive_strength = fetch_ucirepo(id=165)
+    x = concrete_compressive_strength.data.features.to_numpy()
+    # measures compressive strength (limit at which concrete fractures)
+    y = concrete_compressive_strength.data.targets.to_numpy()
+    concrete_function = RealWorldProblem(
+        'Concrete Compressive Strength', x, y, test_train_split=split
+    )
+    return concrete_function
+
 
 
 class Collection:
@@ -877,17 +889,22 @@ class Collection:
             'AnnArbor': ann_arbor,
             'Abalone': abalone,
             'Airfoil': airfoil,
-            'Energy Efficiency': energy_efficiency
+            'EnergyEfficiency': energy_efficiency,
+            'ConcreteStrength': concrete_compressive_strength
         }
+        self.fixed_dimensional_functions = ['Koza1', 'Koza2', 'Koza3', 'Koza4', 'Nguyen5', 'Nguyen6', 'Nguyen7']
+        self.real_world_functions = ['Diabetes', 'California', 'AnnArbor', 'Abalone', 'Airfoil', 'EnergyEfficiency']
 
     def __call__(self, function_name, n_dims=1, train_test_fraction=(1 / 3)):
         assert function_name in self.function_list, f'{function_name} not a valid function.'
         try:
             f = self.function_list[function_name]
-            if not isinstance(f, OneDimensionalFunction) and not isinstance(f, TwoDimensionalFunction):
-                return f(n_dims)
-            else:
+            if function_name in self.real_world_functions:
+                return f(split = train_test_fraction)
+            elif function_name in self.fixed_dimensional_functions:
                 return f
+            else:
+                return f(n_dims)
 
         except TypeError:
             return self.function_list.get(function_name)

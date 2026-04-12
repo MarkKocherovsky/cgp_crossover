@@ -45,46 +45,48 @@ def correlation(preds, truth, active_nodes, max_size, **kwargs):
 
 # updated with chatgpt
 def align(preds, truth, **kwargs):
-    # Filter out non-finite values from both arrays
-    predictions = np.array(preds).flatten()
-    ground_truth = np.array(truth).flatten()
+    pred_arr = np.asarray(preds)
+    if pred_arr.dtype == object:
+        pred_flat = pred_arr.ravel()
+        if pred_flat.size == 1:
+            pred_arr = np.asarray(pred_flat.item())
+        else:
+            pred_arr = np.concatenate([np.asarray(x).ravel() for x in pred_flat])
+
+    gt_arr = np.asarray(truth)
+    if gt_arr.dtype == object:
+        gt_flat = gt_arr.ravel()
+        if gt_flat.size == 1:
+            gt_arr = np.asarray(gt_flat.item())
+        else:
+            gt_arr = np.concatenate([np.asarray(x).ravel() for x in gt_flat])
+
+    predictions = np.asarray(pred_arr, dtype=float).squeeze()
+    ground_truth = np.asarray(gt_arr, dtype=float).squeeze()
+
+    # scalar prediction -> broadcast to match truth
+    if predictions.ndim == 0 and ground_truth.ndim > 0:
+        predictions = np.full(ground_truth.shape, predictions.item(), dtype=float)
+
+    if predictions.shape != ground_truth.shape:
+        raise ValueError(
+            f"align(): shape mismatch after coercion: "
+            f"pred={predictions.shape} gt={ground_truth.shape} "
+            f"(preds type={type(preds)}, truth type={type(truth)})"
+        )
+
     mask = np.isfinite(predictions) & np.isfinite(ground_truth)
     if not np.any(mask):
-        return 1.0, 0.0  # Default slope and intercept if no valid data points
+        return 1.0, 0.0
 
     predictions = predictions[mask]
     ground_truth = ground_truth[mask]
 
-    # Handle cases with insufficient variability or numerical instability
     if np.all(predictions == predictions[0]) or np.all(ground_truth == ground_truth[0]):
-        # Return a default slope if predictions or ground truth lack variability
         return 1.0, 0.0
 
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', category=RankWarning)
-            # Fit a linear model with np.polyfit
-            slope, intercept = np.polyfit(predictions, ground_truth, 1, rcond=1e-16)
-            # Guard against numerical instability by rounding results
-            slope, intercept = np.round([slope, intercept], decimals=14)
-    except (TypeError, ValueError, np.linalg.LinAlgError):
-        # Fallback: Estimate slope and intercept
-        mean_pred = np.mean(predictions)
-        mean_truth = np.mean(ground_truth)
-        std_pred = np.std(predictions)
-        std_truth = np.std(ground_truth)
-
-        slope = std_truth / std_pred if std_pred > 0 else 1.0
-        intercept = mean_truth - slope * mean_pred
-
-    # Ensure valid slope and intercept
-    if not np.isfinite(slope):
-        slope = 1.0
-    if not np.isfinite(intercept):
-        intercept = 0.0
-
+    slope, intercept = np.polyfit(predictions, ground_truth, 1, rcond=1e-16)
     return slope, intercept
-
 
 # correlation and complexity fitness
 def corr_comp_fitness(preds, truth, active_nodes, max_size, **kwargs):

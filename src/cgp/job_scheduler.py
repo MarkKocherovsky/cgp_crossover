@@ -135,10 +135,10 @@ function_list = ['Diabetes']
 #xovers = ['semantic_uniform', 'homologous_semantic_uniform', 'semantic_n_point', 'homologous_semantic_n_point']
 #xovers = ['homologous_semantic_n_point', 'homologous_semantic_uniform']
 #xovers = ['subgraph']
-#xovers = ['n_point']
+#xovers = ['None', 'n_point', 'subgraph']
 #xovers = ['homologous_semantic_n_point'] #, 'semantic_uniform']
-#xovers = ['aligned_homologous_semantic_n_point'] #, 'semantic_uniform']
-xovers = ['None']
+xovers = ['homlogous_semantic_n_point', 'aligned_homologous_semantic_n_point'] #, 'semantic_uniform']
+#xovers = ['None']
 #xovers = ['uniform']
 #xovers = ['n_point', 'uniform', 'subgraph']
 #          'semantic_n_point', 'aligned_homologous_semantic_n_point', 'aligned_semantic_uniform',
@@ -257,7 +257,7 @@ for function in function_list:
             print(params)
             job_count = 0
 
-            Path(f'../output/{f_no_space}/{xover}/{config}/').mkdir(parents=True, exist_ok=True)
+            Path(f'/mnt/home/kocherov/Documents/cgp/output/{f_no_space}/{xover}/{config}/').mkdir(parents=True, exist_ok=True)
             for i in range(50):  # Create 50 jobs per function/xover combination
                 job_name = f"kocherov_{f_no_space}_{xover}_cfg{index}_t{i}"
 
@@ -288,9 +288,9 @@ export MAMBA_ROOT_PREFIX="/mnt/ffs24/home/kocherov/micromamba"
 micromamba activate cgp
 
 # Move to working directory
-cd /mnt/home/kocherov/Documents/cgp/src/
+cd /mnt/home/kocherov/Documents/cgp/src/cgp/
 
-python3 -u run.py {i} {max_g} {max_n} {max_p} {max_c} {xover} {x_rate} {mutation} {m_rate} {selection} {function} --n_points {n_points} --n_elites {n_elites} --problem_dimensions {p_dim} --step_size {step_size} --tournament_size {t_size} --asexual_reproduction {asexual_reproduction} --one_dimensional_xover {one_d} --cfg_name cfg{index}
+python3 -m cgp.run {i} {max_g} {max_n} {max_p} {max_c} {xover} {x_rate} {mutation} {m_rate} {selection} {function} --n_points {n_points} --n_elites {n_elites} --problem_dimensions {p_dim} --step_size {step_size} --tournament_size {t_size} --asexual_reproduction {asexual_reproduction} --one_dimensional_xover {one_d} --cfg_name cfg{index}
 
 # Capture exit code
 ret=$?
@@ -311,7 +311,7 @@ exit $ret
                 print(f"Preparing job {job_name}")
 
                 # Write the SLURM script
-                script_path = os.path.join('../output/slurm_files/', f"{job_name}.slurm")
+                script_path = os.path.join('/mnt/home/kocherov/Documents/cgp/output/slurm_files/', f"{job_name}.slurm")
                 print(script_path)
                 with open(script_path, "w") as f:
                     f.write(slurm_script)

@@ -74,6 +74,7 @@ class CGP:
         # self.constants = np.array(kwargs.get('constants', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]))
         self.constants = np.atleast_1d(kwargs.get('constants', [1]))
         self.inputs = kwargs.get('inputs', 1)
+        # print(f "outputs: {kwargs.get('outputs', 'No outputs passed')}")
         self.outputs = kwargs.get('outputs', 1)
         self.arity = kwargs.get('arity', 2)
         self.max_size = kwargs.get('max_size', 16)
@@ -173,7 +174,6 @@ class CGP:
 
         if mutable:
             model[output_indices, self.model_keys['Value']] = output_values
-
         return output_values
 
     def _compute_single_input(self, datum, model, mutable):
@@ -181,25 +181,22 @@ class CGP:
         if not mutable:
             model = model.copy()
             model[:, self.model_keys['Value']] = model[:, self.model_keys['Value']].copy()
-        model[input_indices, self.model_keys['Value']] = datum
+        try:
+            model[input_indices, self.model_keys['Value']] = datum
+        except ValueError as e:
+            print("model.py::_compute_single_input")
+            print(e)
+            print(f'model[input_indices]: {model[input_indices]}')
         return self._run(model, mutable)
 
     def fit(self, data, ground_truth, mutable=True):
         predictions = self.__call__(data, mutable=mutable)
 
-        # Compare raw unaligned outputs
-        # pred1 = self.__call__(data, mutable=False)
-        # pred2 = self.__call__(data, mutable=False)
-        # assert np.allclose(pred1, pred2), "❌ Model output changed between evaluations!"
-
         n_active_nodes = self.count_active_nodes()
 
         # Compute fitness using raw predictions
         self.correlation, self.complexity, self.fitness = self.fitness_function(predictions, ground_truth, n_active_nodes, float(self.max_size))
-        #fitness_check = self.fitness_function(predictions, ground_truth)
-        #if not np.isclose(self.fitness, fitness_check, atol=1e-8):
-        #    raise RuntimeError(f"Fitness changed on re-computation: {self.fitness} vs {fitness_check}")
-
+        
         # Now align (only for prediction)
         if self.fitness_function == correlation:
             self.slope, self.intercept = align(predictions, ground_truth)
