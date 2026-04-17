@@ -1,16 +1,18 @@
 import numpy as np
 import uuid
 import hashlib
-from cgp_generator import generate_model, node_to_int
-from cgp_operators import add, sub, mul, div
-from fitness_functions import correlation, align
+from .cgp_generator import generate_model, node_to_int
+from .cgp_operators import add, sub, mul, div
+from .fitness_functions import correlation, align, corr_comp_fitness
 from copy import deepcopy
 
-
 class CGP:
+
     def __init__(self, model=None, model_keys=None, fixed_length=True, fitness_function='Correlation',
                  mutation_type='Point',
                  parent_keys=None, xover_length=None, **kwargs):
+        self.correlation = 1.0
+        self.complexity = 1.0
         self.id = uuid.uuid4()
         self.mutation = None
         self.slope = None
@@ -24,6 +26,8 @@ class CGP:
         # Assign fitness function
         if fitness_function.lower() == 'correlation':
             self.fitness_function = correlation
+        elif fitness_function.lower() == 'correlation_complexity':
+            self.fitness_function = corr_comp_fitness
         else:
             raise ValueError(f'Invalid Fitness Function: {fitness_function}')
 
@@ -70,6 +74,7 @@ class CGP:
         # self.constants = np.array(kwargs.get('constants', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]))
         self.constants = np.atleast_1d(kwargs.get('constants', [1]))
         self.inputs = kwargs.get('inputs', 1)
+        # print(f "outputs: {kwargs.get('outputs', 'No outputs passed')}")
         self.outputs = kwargs.get('outputs', 1)
         self.arity = kwargs.get('arity', 2)
         self.max_size = kwargs.get('max_size', 16)
@@ -97,7 +102,6 @@ class CGP:
         outputs = np.array([
             self._compute_single_input(datum, model, mutable) for datum in data
         ])
-
         if self.slope is not None and self.intercept is not None:
             outputs = outputs * self.slope + self.intercept
         return outputs
@@ -112,7 +116,6 @@ class CGP:
         if operand in visited:
             raise RuntimeError(f"Cycle detected at node {operand} — already visited")
 
-        self.visited.add(operand)
         try:
             node = model[int(operand)]
         except IndexError as e:
@@ -124,33 +127,43 @@ class CGP:
 
         node_type = node[self.model_keys['NodeType']]
 
-        if node_type in map(node_to_int, ['Input', 'Constant']):
-            return node[self.model_keys['Value']]
+        # print(node_type)
+        try:
+            if node_type in map(node_to_int, ['Input', 'Constant']):
+                return node[self.model_keys['Value']]
 
-        elif node_type == node_to_int('Function'):
-            operand_values = np.array([
-                self._get_node_value(model, node[self.model_keys[f'Operand{i}']], mutable, visited.copy())
-                for i in range(self.arity)
-            ])
-            operator = self.function_bank[node[self.model_keys["Operator"]]]
-            result = operator(*operand_values)
-            if not np.isfinite(result):
-                print(f'Warning: result of operation on {operand_values} is infinite or invalid. Returning 0.0')
-                result = 0.0
 
-            if mutable:
-                try:
-                    model[operand, self.model_keys['Value']] = result
-                except OverflowError as e:
-                    print(
-                        f'Cannot cast {result}\noperand: {operand}\noperand values: {operand_values}\noperator: {operator}\nReturning np.inf')
-            model[operand, self.model_keys['Active']] = 1
+            elif node_type == node_to_int('Function'):
+                self.visited.add(operand)
+                operand_values = np.array([
+                    self._get_node_value(model, node[self.model_keys[f'Operand{i}']], mutable, visited.copy())
+                    for i in range(self.arity)
+                ])
+                operator = self.function_bank[node[self.model_keys["Operator"]]]
+                result = operator(*operand_values)
+                if not np.isfinite(result):
+                    print(f'Warning: result of operation on {operand_values} is infinite or invalid. Returning 0.0')
+                    result = 0.0
 
-            return result
+                if mutable:
+                    try:
+                        model[operand, self.model_keys['Value']] = result
+                    except OverflowError as e:
+                        print(
+                            f'Cannot cast {result}\noperand: {operand}\noperand values: {operand_values}\noperator: {operator}\nReturning np.inf')
+                model[operand, self.model_keys['Active']] = 1
 
-        else:
+                return result
+
+            else:
+                print(node)
+                raise ValueError(f"Invalid node type: {node_type}")
+        except RecursionError as e:
+            print(f'Recursion error: {e}')
+            print(model)
+            print(node_type)
             print(node)
-            raise ValueError(f"Invalid node type: {node_type}")
+            exit()
 
     def _run(self, model, mutable):
         """Run the model and compute output values."""
@@ -168,7 +181,6 @@ class CGP:
 
         if mutable:
             model[output_indices, self.model_keys['Value']] = output_values
-
         return output_values
 
     def _compute_single_input(self, datum, model, mutable):
@@ -176,28 +188,27 @@ class CGP:
         if not mutable:
             model = model.copy()
             model[:, self.model_keys['Value']] = model[:, self.model_keys['Value']].copy()
-        model[input_indices, self.model_keys['Value']] = datum
+        try:
+            model[input_indices, self.model_keys['Value']] = datum
+        except ValueError as e:
+            print("model.py::_compute_single_input")
+            print(e)
+            print(f'model[input_indices]: {model[input_indices]}')
         return self._run(model, mutable)
 
     def fit(self, data, ground_truth, mutable=True):
         predictions = self.__call__(data, mutable=mutable)
 
-        # Compare raw unaligned outputs
-        pred1 = self.__call__(data, mutable=False)
-        pred2 = self.__call__(data, mutable=False)
-        assert np.allclose(pred1, pred2), "❌ Model output changed between evaluations!"
+        n_active_nodes = self.count_active_nodes()
 
         # Compute fitness using raw predictions
-        self.fitness = self.fitness_function(predictions, ground_truth)
-        fitness_check = self.fitness_function(predictions, ground_truth)
-        if not np.isclose(self.fitness, fitness_check, atol=1e-8):
-            raise RuntimeError(f"Fitness changed on re-computation: {self.fitness} vs {fitness_check}")
-
+        self.correlation, self.complexity, self.fitness = self.fitness_function(predictions, ground_truth, n_active_nodes, float(self.max_size))
+        
         # Now align (only for prediction)
         if self.fitness_function == correlation:
             self.slope, self.intercept = align(predictions, ground_truth)
 
-        return self.fitness
+        return self.correlation, self.complexity, self.fitness
 
     def get_active_nodes(self):
         return self.visited
@@ -212,6 +223,13 @@ class CGP:
         if mutation_type not in mutations:
             raise ValueError(f'{mutation_type} is an invalid mutation operator.')
         self.mutation = mutations[mutation_type]
+
+    def mutate_output(self):
+        active_indices = np.where((self.model[:, self.model_keys['NodeType']] == node_to_int('Output')))[0]
+        mutation_index = np.random.choice(active_indices)
+        new_node = [node_to_int('Output'), 0, 0, np.random.randint(0, self.first_body_node + self.max_size),
+                    *[0 for _ in range(self.arity - 1)], 0]
+        self.model[mutation_index] = deepcopy(new_node)
 
     def _full_mutation(self, verbose=True):
         active_indices = np.where((self.model[:, self.model_keys['NodeType']] == node_to_int('Function')) | (

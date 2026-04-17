@@ -57,17 +57,18 @@ class AnalysisToolkit:
         self.metrics = metrics
         self.output_format = output_format
 
-    def _load_trial_data(self, problem: str, xover: str, selection_key: str, restart: bool = False,
+    def _load_trial_data(self, problem: str, xover: str, selection_key: str, config: str, restart: bool = False,
                          mutation: str = None) -> list:
         """Load statistics data for all trials with proper validation."""
         trial_data = []
         mutation = '' if mutation is None else mutation
         for trial in range(self.trials):
-            path = self.base_path / problem / xover / mutation / selection_key / f'trial_{trial}/statistics.csv'
+            path = self.base_path / problem / xover / mutation / selection_key / config / f'trial_{trial}/statistics.csv'
             try:
                 mod_time = datetime.datetime.fromtimestamp(path.stat().st_mtime)
-                if mod_time.month < 9:
-                    print(f"{path} — Last modified before September: {mod_time}")
+                """
+                if mod_time.month < 10:
+                    print(f"{path} — Last modified before October: {mod_time}")
                     slurm_problem = problem.replace("_1d", "")
                     slurm_script = f"../output/slurm_files/kocherov_{slurm_problem}_{xover}_{trial}.slurm"
                     if restart:
@@ -76,7 +77,7 @@ class AnalysisToolkit:
                             print(f"[Resubmitted] {slurm_script}")
                         except subprocess.CalledProcessError as e:
                             print(f"[SLURM Error] Failed to resubmit {slurm_script}: {e}")
-
+                """
                 # print(f"{path} — Last modified: {mod_time}")
                 data = np.loadtxt(path, delimiter=',')
             except FileNotFoundError:
@@ -100,61 +101,180 @@ class AnalysisToolkit:
             # Warn if final fitness is suspiciously high
             elif data.shape[0] != self.max_generations and restart is not True:
                 print(f"[Mismatch] {path}: Expected {self.max_generations}, got {data.shape[0]}.")
-                continue
             if data[-1, 0] > 0.99:
                 print(f"[Warning] High final fitness in {path}: {data[-1, 0]}. Consider re-running.")
-                continue
-
+            data[data == 0.0] = 1.0
             trial_data.append(data[:self.max_generations])
 
         return trial_data
 
-    def compile_averages(self, metric_list, restart=False, mutation=None):
+    import json
+    import datetime
+    import subprocess
+    from pathlib import Path
+
+    def _load_trial_stn(self, problem: str, xover: str, selection_key: str, config: str,
+                        restart: bool = False, mutation: str = None) -> list:
+        """Load STN JSON data for all trials with basic validation."""
+        trial_data = []
+        mutation = '' if mutation is None else mutation
+
+        for trial in range(self.trials):
+            path = self.base_path / problem / xover / mutation / selection_key / config / f'trial_{trial}' / 'stn.json'
+
+            try:
+                mod_time = datetime.datetime.fromtimestamp(path.stat().st_mtime)
+
+                with open(path, "r") as f:
+                    data = json.load(f)
+
+            except FileNotFoundError:
+                print(f"[Missing] {path} not found. Skipping.")
+                continue
+            except json.JSONDecodeError as e:
+                print(f"[JSONDecodeError] {path}: {e}. Skipping.")
+                continue
+            except OSError as e:
+                print(f"[OSError] {path}: {e}. Skipping.")
+                continue
+
+            if not isinstance(data, dict):
+                print(f"[Invalid] {path}: Expected top-level dict, got {type(data).__name__}. Skipping.")
+                continue
+
+            if len(data) == 0:
+                print(f"[Warning] Empty STN in {path}.")
+                continue
+
+            bad_entry = False
+            for key, value in data.items():
+                if not isinstance(value, dict):
+                    print(f"[Invalid] {path}: Entry {key} is not a dict. Skipping file.")
+                    bad_entry = True
+                    break
+
+                required_fields = {"id", "semantics", "fitness", "complexity"}
+                missing_fields = required_fields - value.keys()
+                if missing_fields:
+                    print(f"[Invalid] {path}: Entry {key} missing fields {missing_fields}. Skipping file.")
+                    bad_entry = True
+                    break
+
+            if bad_entry:
+                continue
+
+            trial_data.append({
+                "trial": trial,
+                "stn": data
+            })
+
+        return trial_data
+
+    def compile_averages(self, metric_list, restart=False, mutation="Full"):
         """
         metric_list: positions of metrics we want
         """
         mutation = '' if mutation is None else mutation
         output_dir = Path('../output/intermediate_results') / mutation
         output_dir.mkdir(parents=True, exist_ok=True)
+
         print(f'max generations: {self.max_generations}')
+
         for problem in self.problems:
             print(problem)
             for xover_method in self.crossover_methods:
                 xover = self.crossover_methods[xover_method].code_name
+
                 if "None" in xover:
-                    selection_list = ["elite"]  # Ensure "none" crossover only uses "elite"
+                    selection_list = ["paretoelite"]  # Ensure "none" crossover only uses "paretoelite"
                 else:
                     selection_list = list(self.selection_methods.keys())
-                for selection in selection_list:
-                    table_list = self._load_trial_data(problem, xover, selection, restart=False, mutation=mutation)
-                    best_fitness = np.array([table[-1, 0] for table in table_list])
-                    best_test_fitness = np.array([table[-1, 5] for table in table_list])
-                    best_sizes = np.array([table[-1, 10] for table in table_list])
-                    for m, metric in enumerate(self.metrics):
-                        try:
-                            metric_idx = metric_list[m]
-                            valid_tables = [table for table in table_list if table.shape[0] >= self.max_generations]
-                            data = np.array([table[0:self.max_generations, metric_idx] for table in valid_tables])
 
-                            quartiles = np.quantile(data, [0, 0.25, 0.5, 0.75, 1], axis=0)
-                            q_table = pd.DataFrame(quartiles.T,
-                                                   columns=['Minimum', 'First Quartile', 'Median', 'Third Quartile',
-                                                            'Maximum'])
-                            if '/full' in xover:
-                                xover = xover.replace('/full', '_full')
-                            print(f'{problem}_{xover}_{selection}_{self.metrics[metric].code_name}.csv')
-                            q_table.to_csv(
-                                output_dir / f'{problem}_{xover}_{selection}_{self.metrics[metric].code_name}.csv',
-                                index=False)
-                        except ValueError as e:
-                            print(f'analysis_helper.py::AnalysisToolkit::compile_averages ValueError {e}')
-                            print(f'{problem} {xover_method} {selection} {metric}\n#########')
-                            print(f'{problem} {xover_method} {selection} {metric.full_name}\n#########')
-                        except IndexError as e:
-                            continue
-                    np.savetxt(output_dir / f'{problem}_{xover}_{selection}_min_fitnesses.csv', best_fitness)
-                    np.savetxt(output_dir / f'{problem}_{xover}_{selection}_min_test_fitnesses.csv', best_test_fitness)
-                    np.savetxt(output_dir / f'{problem}_{xover}_{selection}_best_sizes.csv', best_sizes)
+                for selection in selection_list:
+                    dir_locations = f"{self.base_path}/{problem}/{xover}/{mutation}/{selection}/"
+                    configs = [
+                        d for d in os.listdir(dir_locations)
+                        if os.path.isdir(os.path.join(dir_locations, d))
+                    ]
+
+                    for config in configs:
+                        # -------------------------
+                        # Load statistics.csv data
+                        # -------------------------
+                        table_list = self._load_trial_data(
+                            problem, xover, selection, config,
+                            restart=False, mutation=mutation
+                        )
+
+                        best_fitness = np.array([table[-1, 0] for table in table_list])
+                        best_test_fitness = np.array([table[-1, 5] for table in table_list])
+                        best_sizes = np.array([table[-1, 10] for table in table_list])
+
+                        for m, metric in enumerate(self.metrics):
+                            try:
+                                metric_idx = metric_list[m]
+                                valid_tables = [table for table in table_list if table.shape[0] >= self.max_generations]
+                                data = np.array([table[0:self.max_generations, metric_idx] for table in valid_tables])
+                                data[data == 0.0] = 1.0
+                                quartiles = np.quantile(data, [0, 0.25, 0.5, 0.75, 1], axis=0)
+                                q_table = pd.DataFrame(
+                                    quartiles.T,
+                                    columns=['Minimum', 'First Quartile', 'Median', 'Third Quartile', 'Maximum']
+                                )
+
+                                xover_out = xover.replace('/full', '_full') if '/full' in xover else xover
+
+                                q_table.to_csv(
+                                    output_dir / f'{problem}_{xover_out}_{selection}_{config}_{self.metrics[metric].code_name}.csv',
+                                    index=False
+                                )
+
+                            except ValueError as e:
+                                print(f'analysis_helper.py::AnalysisToolkit::compile_averages ValueError {e}')
+                                print(f'{problem} {xover_method} {selection} {metric} {config}\n#########')
+                                print(f'{problem} {xover_method} {selection} {metric.full_name}\n#########')
+                            except IndexError:
+                                continue
+
+                        xover_out = xover.replace('/full', '_full') if '/full' in xover else xover
+
+                        np.savetxt(output_dir / f'{problem}_{xover_out}_{selection}_{config}_min_fitnesses.csv',
+                                   best_fitness)
+                        np.savetxt(output_dir / f'{problem}_{xover_out}_{selection}_{config}_min_test_fitnesses.csv',
+                                   best_test_fitness)
+                        np.savetxt(output_dir / f'{problem}_{xover_out}_{selection}_{config}_best_sizes.csv',
+                                   best_sizes)
+
+                        # -------------------------
+                        # Load and rank STNs
+                        # -------------------------
+                        stn_list = self._load_trial_stn(
+                            problem, xover, selection, config,
+                            restart=False, mutation=mutation
+                        )
+
+                        ranked_stns = []
+
+                        for entry in stn_list:
+                            trial_idx = entry["trial"]
+                            stn = entry["stn"]
+
+                            items = list(stn.values())
+                            if len(items) == 0:
+                                continue
+
+                            final_fitness = items[-1]["fitness"]
+
+                            ranked_stns.append({
+                                "original_trial": trial_idx,
+                                "final_fitness": final_fitness,
+                                "stn": stn
+                            })
+
+                        ranked_stns.sort(key=lambda x: x["final_fitness"])
+
+                        with open(output_dir / f'{problem}_{xover_out}_{selection}_{config}_ranked_stn.json', "w") as f:
+                            json.dump(ranked_stns, f, indent=4)
 
     def make_path(self, problem: str, xover: str, selection: str, metric: str):
         return Path(f'../output/intermediate_results/{problem}_{xover}_{selection}_{metric}.csv')
@@ -174,8 +294,9 @@ class AnalysisToolkit:
             for xover_method in self.crossover_methods:
                 xover = self.crossover_methods[xover_method].code_name
                 sel_key = 'elite' if 'None' in xover else selection_method
-                if xover == 'None/full':
-                    xover = 'None_full'
+                if '/full' in xover:
+                    xover = xover.replace('/full', '_full')
+
                 file_name = self.make_path(problem, xover, sel_key, metric.code_name)
                 if file_name.exists():
                     data = pd.read_csv(file_name)
@@ -233,7 +354,8 @@ class AnalysisToolkit:
 
         print(metric)
         n_problems = len(self.problems)
-        fig, axs = plt.subplots(int(np.round(n_problems / 2)), 2, figsize=(8, 10))
+        fig, axs = plt.subplots(int(np.round(n_problems / 2)), 2, figsize=(8, 10), sharex=True)
+        # fig.subplots_adjust(hspace=0.1)
         axs = axs.flatten() if n_problems > 1 else [axs]
 
         for i, (problem_key, problem_name) in enumerate(self.problems.items()):
@@ -245,8 +367,9 @@ class AnalysisToolkit:
             for xover_key, xover_obj in self.crossover_methods.items():
                 xover = xover_obj.code_name
                 sel_key = 'elite' if 'None' in xover else selection_method
-                if xover == 'None/full':
-                    xover = 'None_full'
+                if '/full' in xover:
+                    xover = xover.replace('/full', '_full')
+
                 try:
                     file_name = self.make_path(problem_key, xover, sel_key, metric.code_name)
                     final_values = np.loadtxt(file_name)
@@ -329,8 +452,9 @@ class AnalysisToolkit:
             for xover_key, xover_obj in self.crossover_methods.items():
                 xover = xover_obj.code_name
                 sel_key = 'elite' if 'None' in xover else selection_method
-                if xover == 'None/full':
-                    xover = 'None_full'
+                if '/full' in xover:
+                    xover = xover.replace('/full', '_full')
+
                 try:
                     file_name = self.make_path(problem_key, xover, sel_key, metric)
                     final_values = np.loadtxt(file_name)
@@ -586,3 +710,6 @@ class AnalysisToolkit:
         plt.savefig(f"../output/graphs/{graph_filename}{self.output_format}")
         print(f'{graph_filename} saved')
         plt.close(fig)
+
+
+
