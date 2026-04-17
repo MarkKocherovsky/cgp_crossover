@@ -4,6 +4,7 @@ import numpy as np
 import numpy.random as random
 import pickle
 import os
+import json
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
@@ -13,6 +14,7 @@ from .cgp_model import CGP
 from .fitness_functions import correlation, corr_comp_fitness
 from .helper import _get_quartiles, pairwise_minkowski_distance, get_score, get_ssd, get_weights, \
     clean_values, _get_semantic_alignment
+from .search_trajectory import STN
 from Bio.Align import PairwiseAligner, Seq
 from matplotlib import pyplot as plt
 
@@ -155,6 +157,8 @@ class CartesianGP:
         self.metrics = np.zeros((self.max_g + 1, 32), dtype=np.float64)
         self.xover_index = {cat: np.zeros((self.max_g, self.max_p)) for cat in ['deleterious', 'neutral', 'beneficial']}
         self.mut_index = np.zeros((self.max_g, self.max_p))
+
+        self.stn = STN()
 
     @staticmethod
     def hash_model(m):
@@ -858,21 +862,46 @@ class CartesianGP:
         def random_node_number(n_i, I=None, n_f=None, m=None):
             """Selects a random node number with constraints."""
             n_r = []  # List of valid random choices
-
+            """
             if n_f is not None:
                 if m is not None:
                     n_m = n_f[n_f <= m]
                     if len(n_m) == 0:
                         n_r.append(np.random.randint(0, n_i))
                     else:
-                        n_r.append(np.random.choice(n_m))
+                        n_r.append(np.random.choice(n_m-1))
                 else:
-                    n_r.append(np.random.choice(n_f))
+                    n_r.append(np.random.choice(n_f-1))
 
             if I is not None:
                 n_r.append(np.random.choice(I))
+            """
+            if n_f is not None:
+                if m is not None:
+                    n_m = n_f[n_f <= m]
+                    if len(n_m) == 0:
+                        n_r.append(np.random.randint(0, n_i))
+                    else:
+                        try:
+                            n_r.append(n_m[np.random.randint(0, len(n_m))])
+                        except ValueError as e:
+                            print(e)
+                            print(n_m)
+                            exit()
+                else:
+                    n_r.append(n_f[np.random.randint(0, len(n_f))])
 
-            return np.random.choice(n_r)
+            if I is not None:
+                n_r.append(np.random.randint(0, len(I)-1))
+            """
+            print("%%%")
+            print(f'I: {I}')
+            print(f'n_f: {n_f}')
+            print(f'm: {m}')
+            print(f'n_r: {n_r}')
+            print("%%")
+            """
+            return n_r[np.random.randint(0,len(n_r)-1)]
 
         def determine_crossover_point(m1, m2):
             """Determines a crossover point for two models."""
@@ -1239,6 +1268,13 @@ class CartesianGP:
         for cat in ['deleterious', 'neutral', 'beneficial']:
             np.savetxt(f'{path}/xover_density_{cat}.csv', self.xover_index[cat].astype(np.int32), delimiter=",")
 
+    def save_stn(self, path=None):
+        path = path if path is not None else '.'
+        print(f'{path}/stn.json')
+        # Save the metrics DataFrame only once
+        with open(f'{path}/stn.json', 'w') as f:
+            json.dump(self.stn.to_dict(), f, indent = 4)
+
     def _report_generation(self, g: int):
         # Efficient logging instead of multiple print calls
         best_ind = self.population[np.argmin(self.fitnesses)]
@@ -1515,6 +1551,7 @@ class CartesianGP:
             best_fitness_train.append(true_elite_train.fitness)
             best_fitness_test.append(self.fitnesses_test[np.argmin(self.fitnesses_test)])
 
+            self.stn.get_semantics(true_elite_train, train_x)
             self._record_metrics(gen)
 
             if step_size and gen % step_size == 0:
@@ -1522,3 +1559,6 @@ class CartesianGP:
                 self.save_checkpoint(filename=self.ckpt_filename, generation=gen)
 
         return self.population[np.argmin(self.fitnesses)], self.population[np.argmin(self.fitnesses_test)]
+
+    def return_stn(self):
+        return self.stn

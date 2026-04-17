@@ -102,7 +102,6 @@ class CGP:
         outputs = np.array([
             self._compute_single_input(datum, model, mutable) for datum in data
         ])
-
         if self.slope is not None and self.intercept is not None:
             outputs = outputs * self.slope + self.intercept
         return outputs
@@ -117,7 +116,6 @@ class CGP:
         if operand in visited:
             raise RuntimeError(f"Cycle detected at node {operand} — already visited")
 
-
         try:
             node = model[int(operand)]
         except IndexError as e:
@@ -129,34 +127,43 @@ class CGP:
 
         node_type = node[self.model_keys['NodeType']]
 
-        if node_type in map(node_to_int, ['Input', 'Constant']):
-            return node[self.model_keys['Value']]
+        # print(node_type)
+        try:
+            if node_type in map(node_to_int, ['Input', 'Constant']):
+                return node[self.model_keys['Value']]
 
-        elif node_type == node_to_int('Function'):
-            self.visited.add(operand)
-            operand_values = np.array([
-                self._get_node_value(model, node[self.model_keys[f'Operand{i}']], mutable, visited.copy())
-                for i in range(self.arity)
-            ])
-            operator = self.function_bank[node[self.model_keys["Operator"]]]
-            result = operator(*operand_values)
-            if not np.isfinite(result):
-                print(f'Warning: result of operation on {operand_values} is infinite or invalid. Returning 0.0')
-                result = 0.0
 
-            if mutable:
-                try:
-                    model[operand, self.model_keys['Value']] = result
-                except OverflowError as e:
-                    print(
-                        f'Cannot cast {result}\noperand: {operand}\noperand values: {operand_values}\noperator: {operator}\nReturning np.inf')
-            model[operand, self.model_keys['Active']] = 1
+            elif node_type == node_to_int('Function'):
+                self.visited.add(operand)
+                operand_values = np.array([
+                    self._get_node_value(model, node[self.model_keys[f'Operand{i}']], mutable, visited.copy())
+                    for i in range(self.arity)
+                ])
+                operator = self.function_bank[node[self.model_keys["Operator"]]]
+                result = operator(*operand_values)
+                if not np.isfinite(result):
+                    print(f'Warning: result of operation on {operand_values} is infinite or invalid. Returning 0.0')
+                    result = 0.0
 
-            return result
+                if mutable:
+                    try:
+                        model[operand, self.model_keys['Value']] = result
+                    except OverflowError as e:
+                        print(
+                            f'Cannot cast {result}\noperand: {operand}\noperand values: {operand_values}\noperator: {operator}\nReturning np.inf')
+                model[operand, self.model_keys['Active']] = 1
 
-        else:
+                return result
+
+            else:
+                print(node)
+                raise ValueError(f"Invalid node type: {node_type}")
+        except RecursionError as e:
+            print(f'Recursion error: {e}')
+            print(model)
+            print(node_type)
             print(node)
-            raise ValueError(f"Invalid node type: {node_type}")
+            exit()
 
     def _run(self, model, mutable):
         """Run the model and compute output values."""

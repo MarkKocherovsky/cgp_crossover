@@ -3,17 +3,20 @@ import os
 from .cgp_evolver import CartesianGP
 from .cgp_operators import add, sub, mul, div
 from .test_problems import Collection
+from .stn_analysis import plot_search_trajectory
+
+
 def set_up_cgp(x, y, seed):
-    trial_number = 0
-    max_generations = 30
-    model_size = 32
-    xover_type = None
-    xover_rate = 0.0
-    max_parents = 1
-    max_children = 4
+    trial_number = 4
+    max_generations = 6000
+    model_size = 64
+    xover_type = "subgraph"
+    xover_rate = 0.5
+    max_parents = 16
+    max_children = 16
     mutation_type = "full"
-    mutation_rate = 1.0
-    selection_type = "paretoelite"
+
+    selection_type = "paretotournament"
     fitness_function = "correlation"
     test_problem_key = "poet"
     n_points = 1
@@ -26,9 +29,9 @@ def set_up_cgp(x, y, seed):
     model_parameters = {
         'max_size': model_size,
         'inputs': x.shape[-1],
-        'outputs': y.shape[-1],
+        'outputs': 1 if y.ndim == 1 else y.shape[-1],
         'arity': 2,
-        'constants': np.array([])
+        'constants': np.array([1])
     }
     function_bank = {'add': add, 'sub': sub, 'mul': mul, 'div': div}
 
@@ -62,16 +65,29 @@ def set_up_cgp(x, y, seed):
     return evolution_module
 
 problems = Collection()
-test_function = problems("EnergyEfficiency")
+test_function = problems("Koza3")
 train_x, test_x, train_y, test_y = test_function.return_points()
 print(train_x.shape)
 print(test_x.shape)
 print(train_y.shape)
 print(test_y.shape)
 
-evolution_module = set_up_cgp(train_x, train_y, 0)
-best_model, _ = evolution_module.fit(train_x, test_x, train_y, test_y)
+print("---")
+print(test_x)
+print(test_y)
+print(train_x)
+print(train_y)
+print("---")
+evolution_module = set_up_cgp(train_x, train_y, 4)
 
-print(best_model([0, 0, 0, 0, 0, 1.2, 1, 2]))
-print(best_model.slope)
-print(best_model.intercept)
+mutation_rate = 0.5
+xover_rate = 0.5
+
+best_model, _ = evolution_module.fit(train_x, test_x, train_y, test_y, xover_rate=xover_rate, mutation_rate = mutation_rate)
+
+stn = evolution_module.return_stn()
+target = stn.get_target(train_y)
+evolution_module.save_stn("/mnt/c/Users/mk245/PycharmProjects/cgp_crossover/output/Koza3_1d/None/full/paretoelite/trial_22")
+
+plot_search_trajectory("/mnt/c/Users/mk245/PycharmProjects/cgp_crossover/output/Koza3_1d/None/full/paretoelite/trial_22/stn.json",
+                       )
