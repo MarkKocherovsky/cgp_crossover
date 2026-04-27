@@ -71,9 +71,10 @@ class BooleanFunction():
         self.y = y
 
     def return_points(self, split=0.334):
-        train_x, test_x, train_y, test_y = train_test_split(self.x, self.y,test_size=split)
+        train_x, test_x, train_y, test_y = train_test_split(self.x, self.y, test_size=split)
         print(test_x)
-        return np.array(train_x,dtype=bool), np.array(test_x,dtype=bool), np.array(train_y,dtype=bool), np.array(test_y,dtype=bool)
+        return np.array(train_x, dtype=bool), np.array(test_x, dtype=bool), np.array(train_y, dtype=bool), np.array(
+            test_y, dtype=bool)
 
 
 class OneDimensionalFunction(Function):  # functions that will always be 1-dimensional
@@ -755,7 +756,8 @@ def michaelewiz(n_dim):
 
 from sklearn.datasets import load_diabetes
 
-def diabetes(split = 1.0/3.0):
+
+def diabetes(split=1.0 / 3.0):
     x, y = load_diabetes(return_X_y=True)
     # name: str, x_data: list | np.ndarray, y_data: list | np.ndarray, test_train_split:float = 0.3
     diabetes_function = RealWorldProblem(
@@ -825,6 +827,7 @@ def energy_efficiency(split):
     )
     return energy_function
 
+
 # https://archive.ics.uci.edu/dataset/165/concrete+compressive+strength
 def concrete_compressive_strength(split):
     concrete_compressive_strength = fetch_ucirepo(id=165)
@@ -836,6 +839,53 @@ def concrete_compressive_strength(split):
     )
     return concrete_function
 
+
+# https://archive.ics.uci.edu/dataset/29/computer+hardware
+def computer_hardware(split):
+    computer_hardware = fetch_ucirepo(id=29)
+    x = computer_hardware.data.features
+    y = x['ERP']
+
+    x = pd.get_dummies(x, columns=['VendorName', 'ModelName'])
+    x = x.drop(columns=['ERP', 'VendorName', 'ModelName'])
+
+    x = x.to_numpy()
+    y = y.to_numpy()
+    computer_function = RealWorldProblem(
+        'Computer Hardware', x, y, test_train_split=split
+    )
+    return computer_function
+
+
+def heart_disease(split):
+    heart_disease = fetch_ucirepo(id=45)
+    x = heart_disease.data.features
+    y = heart_disease.data.targets
+
+    x = pd.get_dummies(x, columns=['sex', 'cp', 'fbs', 'restecg', 'exang', 'slope', 'thal'], dummy_na=True)
+    # x = x.drop(columns=['sex', 'cp', 'fbs', 'restecg', 'exang', 'slope', 'thal'])
+    x = x.to_numpy(na_value=-1)
+    y = y.to_numpy()
+    heart_function = RealWorldProblem(
+        'Heart Disease', x, y, test_train_split=split
+    )
+    return heart_function
+
+
+def credit_approval(split):
+    credit_approval = fetch_ucirepo(id=27)
+    x = credit_approval.data.features
+    y = credit_approval.data.targets
+    y = pd.get_dummies(y, columns=['A16'], dummy_na=True)
+
+    x = pd.get_dummies(x, columns=['A1', 'A4', 'A5', 'A6', 'A7', 'A9', 'A10', 'A12', 'A13', 'A14'], dummy_na=True)
+
+    x = x.to_numpy(na_value=-1)
+    y = y.to_numpy(na_value=-1)
+    credit_function = RealWorldProblem(
+        'CreditApproval', x, y, test_train_split=split
+    )
+    return credit_function
 
 
 class Collection:
@@ -896,10 +946,14 @@ class Collection:
             'Abalone': abalone,
             'Airfoil': airfoil,
             'EnergyEfficiency': energy_efficiency,
-            'ConcreteStrength': concrete_compressive_strength
+            'ConcreteStrength': concrete_compressive_strength,
+            'ComputerHardware': computer_hardware,
+            'HeartDisease': heart_disease,
+            'CreditApproval': credit_approval
         }
         self.fixed_dimensional_functions = ['Koza1', 'Koza2', 'Koza3', 'Koza4', 'Nguyen5', 'Nguyen6', 'Nguyen7']
-        self.real_world_functions = ['Diabetes', 'California', 'AnnArbor', 'Abalone', 'Airfoil', 'EnergyEfficiency']
+        self.real_world_functions = ['Diabetes', 'California', 'AnnArbor', 'Abalone', 'Airfoil', 'EnergyEfficiency',
+                                     'ConcreteStrength', 'HeartDisease', 'Computer Hardware', 'CreditApproval']
         self.boolean_functions = ['ThreeBitParity', 'Multiply', 'Decode', 'Encode']
 
     def __call__(self, function_name, n_dims=1, train_test_fraction=(1 / 3)):
@@ -907,7 +961,7 @@ class Collection:
         try:
             f = self.function_list[function_name]
             if function_name in self.real_world_functions or function_name in self.boolean_functions:
-                return f(split = train_test_fraction)
+                return f(split=train_test_fraction)
             elif function_name in self.fixed_dimensional_functions:
                 return f
             else:

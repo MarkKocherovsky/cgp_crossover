@@ -194,6 +194,7 @@ class CGP:
             print("model.py::_compute_single_input")
             print(e)
             print(f'model[input_indices]: {model[input_indices]}')
+            exit()
         return self._run(model, mutable)
 
     def fit(self, data, ground_truth, mutable=True):

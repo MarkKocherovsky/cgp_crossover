@@ -65,9 +65,9 @@ def set_up_cgp(x, y, seed):
     return evolution_module
 
 problems = Collection()
-test_function = problems("Decode")
+test_function = problems("CreditApproval")
 train_x, test_x, train_y, test_y = test_function.return_points()
-print(train_x.shape)
+"""print(train_x.shape)
 print(test_x.shape)
 print(train_y.shape)
 print(test_y.shape)
@@ -77,7 +77,7 @@ print(test_x)
 print(test_y)
 print(train_x)
 print(train_y)
-print("---")
+print("---")"""
 evolution_module = set_up_cgp(train_x, train_y, 4)
 
 mutation_rate = 0.5
@@ -87,7 +87,7 @@ best_model, _ = evolution_module.fit(train_x, test_x, train_y, test_y, xover_rat
 
 stn = evolution_module.return_stn()
 target = stn.get_target(train_y)
-evolution_module.save_stn("/mnt/c/Users/Anna/PycharmProjects/cgp_crossover/output/Koza3_1d/None/full/paretoelite/trial_22")
+evolution_module.save_stn("../../output/Koza3_1d/None/full/paretoelite/trial_22")
 
-plot_search_trajectory("/mnt/c/Users/Anna/PycharmProjects/cgp_crossover/output/Koza3_1d/None/full/paretoelite/trial_22/stn.json",
+plot_search_trajectory("../../output/Koza3_1d/None/full/paretoelite/trial_22/stn.json",
                        )
