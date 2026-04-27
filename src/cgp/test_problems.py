@@ -64,14 +64,16 @@ class Function:
 
 
 class BooleanFunction():
-    def __init__(self, name: str, x: list | np.ndarray, y: list | np.ndarray, bits: int, ):
+    def __init__(self, name: str, x: list | np.ndarray, y: list | np.ndarray, bits: int):
         self.name = name
         self.bits = bits
         self.x = x
         self.y = y
 
-    def return_points(self):
-        return self.x, self.y,
+    def return_points(self, split=0.334):
+        train_x, test_x, train_y, test_y = train_test_split(self.x, self.y,test_size=split)
+        print(test_x)
+        return np.array(train_x,dtype=bool), np.array(test_x,dtype=bool), np.array(train_y,dtype=bool), np.array(test_y,dtype=bool)
 
 
 class OneDimensionalFunction(Function):  # functions that will always be 1-dimensional
@@ -839,6 +841,10 @@ def concrete_compressive_strength(split):
 class Collection:
     def __init__(self):
         self.function_list = {
+            'ThreeBitParity': three_bit_parity,
+            'Multiply': multiply,
+            'Encode': encode,
+            'Decode': decode,
             'Ackley': ackley,
             'Beale': beale,
             'Bohachevsky1': bohachevsky1,
@@ -894,12 +900,13 @@ class Collection:
         }
         self.fixed_dimensional_functions = ['Koza1', 'Koza2', 'Koza3', 'Koza4', 'Nguyen5', 'Nguyen6', 'Nguyen7']
         self.real_world_functions = ['Diabetes', 'California', 'AnnArbor', 'Abalone', 'Airfoil', 'EnergyEfficiency']
+        self.boolean_functions = ['ThreeBitParity', 'Multiply', 'Decode', 'Encode']
 
     def __call__(self, function_name, n_dims=1, train_test_fraction=(1 / 3)):
         assert function_name in self.function_list, f'{function_name} not a valid function.'
         try:
             f = self.function_list[function_name]
-            if function_name in self.real_world_functions:
+            if function_name in self.real_world_functions or function_name in self.boolean_functions:
                 return f(split = train_test_fraction)
             elif function_name in self.fixed_dimensional_functions:
                 return f

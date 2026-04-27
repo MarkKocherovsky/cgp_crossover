@@ -1,14 +1,14 @@
 import numpy as np
 import os
 from .cgp_evolver import CartesianGP
-from .cgp_operators import add, sub, mul, div
+from .cgp_operators import add, sub, mul, div, op_or, op_and, op_not
 from .test_problems import Collection
 from .stn_analysis import plot_search_trajectory
 
 
 def set_up_cgp(x, y, seed):
     trial_number = 4
-    max_generations = 6000
+    max_generations = 100
     model_size = 64
     xover_type = "subgraph"
     xover_rate = 0.5
@@ -34,7 +34,7 @@ def set_up_cgp(x, y, seed):
         'constants': np.array([1])
     }
     function_bank = {'add': add, 'sub': sub, 'mul': mul, 'div': div}
-
+    function_bool = {'op_and': op_and, 'op_or': op_or, 'op_not': op_not}
     if asex or max_parents < max_children:
         mutation_breeding = True
     else:
@@ -55,7 +55,7 @@ def set_up_cgp(x, y, seed):
             n_points=n_points,
             n_elites=n_elites,
             tournament_size=tournament_size,
-            function_bank=function_bank,
+            function_bank=function_bool,
             mutation_breeding=mutation_breeding,
             checkpoint_filename=CHECKPOINT_FILE,
             one_dimensional_xover=False,
@@ -65,7 +65,7 @@ def set_up_cgp(x, y, seed):
     return evolution_module
 
 problems = Collection()
-test_function = problems("Koza3")
+test_function = problems("Decode")
 train_x, test_x, train_y, test_y = test_function.return_points()
 print(train_x.shape)
 print(test_x.shape)
@@ -87,7 +87,7 @@ best_model, _ = evolution_module.fit(train_x, test_x, train_y, test_y, xover_rat
 
 stn = evolution_module.return_stn()
 target = stn.get_target(train_y)
-evolution_module.save_stn("/mnt/c/Users/mk245/PycharmProjects/cgp_crossover/output/Koza3_1d/None/full/paretoelite/trial_22")
+evolution_module.save_stn("/mnt/c/Users/Anna/PycharmProjects/cgp_crossover/output/Koza3_1d/None/full/paretoelite/trial_22")
 
-plot_search_trajectory("/mnt/c/Users/mk245/PycharmProjects/cgp_crossover/output/Koza3_1d/None/full/paretoelite/trial_22/stn.json",
+plot_search_trajectory("/mnt/c/Users/Anna/PycharmProjects/cgp_crossover/output/Koza3_1d/None/full/paretoelite/trial_22/stn.json",
                        )
