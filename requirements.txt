@@ -1,5 +1,5 @@
 biopython==1.85
--e git+https://github.com/MarkKocherovsky/cgp_crossover.git@bcc48a812730145f4942719207fe9e83bf0d6a08#egg=cgp_crossover
+-e .
 click==8.3.3
 cloudpickle==3.1.2
 colorama==0.4.6

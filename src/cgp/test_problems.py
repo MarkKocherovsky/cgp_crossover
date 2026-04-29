@@ -64,9 +64,9 @@ class Function:
 
 
 class BooleanFunction():
-    def __init__(self, name: str, x: list | np.ndarray, y: list | np.ndarray, bits: int):
+    def __init__(self, name: str, x: list | np.ndarray, y: list | np.ndarray, bits: int = None):
         self.name = name
-        self.bits = bits
+        self.bits = bits if bits is not None else np.array(x).shape[-1]
         self.x = x
         self.y = y
 
@@ -101,6 +101,112 @@ class RealWorldProblem():
         return self.train_x, self.test_x, self.train_y, self.test_y
 
 
+add3 = BooleanFunction(
+    name="add3",
+    x=np.loadtxt('bool_benchmarks/csv_in/add3.csv', delimiter=','),
+    y=np.loadtxt('bool_benchmarks/csv_out/add3.csv', delimiter=','),
+)
+
+add4 = BooleanFunction("add4", np.loadtxt("bool_benchmarks/csv_in/add4.csv", delimiter=","),
+                       np.loadtxt("bool_benchmarks/csv_out/add4.csv", delimiter=","))
+add5 = BooleanFunction("add5", np.loadtxt("bool_benchmarks/csv_in/add5.csv", delimiter=","),
+                       np.loadtxt("bool_benchmarks/csv_out/add5.csv", delimiter=","))
+add6 = BooleanFunction("add6", np.loadtxt("bool_benchmarks/csv_in/add6.csv", delimiter=","),
+                       np.loadtxt("bool_benchmarks/csv_out/add6.csv", delimiter=","))
+add7 = BooleanFunction("add7", np.loadtxt("bool_benchmarks/csv_in/add7.csv", delimiter=","),
+                       np.loadtxt("bool_benchmarks/csv_out/add7.csv", delimiter=","))
+add8 = BooleanFunction("add8", np.loadtxt("bool_benchmarks/csv_in/add8.csv", delimiter=","),
+                       np.loadtxt("bool_benchmarks/csv_out/add8.csv", delimiter=","))
+
+add_sub3 = BooleanFunction("add_sub3", np.loadtxt("bool_benchmarks/csv_in/add_sub3.csv", delimiter=","),
+                           np.loadtxt("bool_benchmarks/csv_out/add_sub3.csv", delimiter=","))
+add_sub4 = BooleanFunction("add_sub4", np.loadtxt("bool_benchmarks/csv_in/add_sub4.csv", delimiter=","),
+                           np.loadtxt("bool_benchmarks/csv_out/add_sub4.csv", delimiter=","))
+
+alu3 = BooleanFunction("alu3", np.loadtxt("bool_benchmarks/csv_in/alu3.csv", delimiter=","),
+                       np.loadtxt("bool_benchmarks/csv_out/alu3.csv", delimiter=","))
+alu4 = BooleanFunction("alu4", np.loadtxt("bool_benchmarks/csv_in/alu4.csv", delimiter=","),
+                       np.loadtxt("bool_benchmarks/csv_out/alu4.csv", delimiter=","))
+alu5 = BooleanFunction("alu5", np.loadtxt("bool_benchmarks/csv_in/alu5.csv", delimiter=","),
+                       np.loadtxt("bool_benchmarks/csv_out/alu5.csv", delimiter=","))
+alu6 = BooleanFunction("alu6", np.loadtxt("bool_benchmarks/csv_in/alu6.csv", delimiter=","),
+                       np.loadtxt("bool_benchmarks/csv_out/alu6.csv", delimiter=","))
+alu7 = BooleanFunction("alu7", np.loadtxt("bool_benchmarks/csv_in/alu7.csv", delimiter=","),
+                       np.loadtxt("bool_benchmarks/csv_out/alu7.csv", delimiter=","))
+alu8 = BooleanFunction("alu8", np.loadtxt("bool_benchmarks/csv_in/alu8.csv", delimiter=","),
+                       np.loadtxt("bool_benchmarks/csv_out/alu8.csv", delimiter=","))
+
+demux8 = BooleanFunction("demux8", np.loadtxt("bool_benchmarks/csv_in/demux8.csv", delimiter=","),
+                         np.loadtxt("bool_benchmarks/csv_out/demux8.csv", delimiter=","))
+demux16 = BooleanFunction("demux16", np.loadtxt("bool_benchmarks/csv_in/demux16.csv", delimiter=","),
+                          np.loadtxt("bool_benchmarks/csv_out/demux16.csv", delimiter=","))
+demux32 = BooleanFunction("demux32", np.loadtxt("bool_benchmarks/csv_in/demux32.csv", delimiter=","),
+                          np.loadtxt("bool_benchmarks/csv_out/demux32.csv", delimiter=","))
+demux64 = BooleanFunction("demux64", np.loadtxt("bool_benchmarks/csv_in/demux64.csv", delimiter=","),
+                          np.loadtxt("bool_benchmarks/csv_out/demux64.csv", delimiter=","))
+
+epar8 = BooleanFunction("epar8", np.loadtxt("bool_benchmarks/csv_in/epar8.csv", delimiter=","),
+                        np.loadtxt("bool_benchmarks/csv_out/epar8.csv", delimiter=","))
+epar9 = BooleanFunction("epar9", np.loadtxt("bool_benchmarks/csv_in/epar9.csv", delimiter=","),
+                        np.loadtxt("bool_benchmarks/csv_out/epar9.csv", delimiter=","))
+epar10 = BooleanFunction("epar10", np.loadtxt("bool_benchmarks/csv_in/epar10.csv", delimiter=","),
+                         np.loadtxt("bool_benchmarks/csv_out/epar10.csv", delimiter=","))
+epar11 = BooleanFunction("epar11", np.loadtxt("bool_benchmarks/csv_in/epar11.csv", delimiter=","),
+                         np.loadtxt("bool_benchmarks/csv_out/epar11.csv", delimiter=","))
+
+icomp3 = BooleanFunction("icomp3", np.loadtxt("bool_benchmarks/csv_in/icomp3.csv", delimiter=","),
+                         np.loadtxt("bool_benchmarks/csv_out/icomp3.csv", delimiter=","))
+icomp4 = BooleanFunction("icomp4", np.loadtxt("bool_benchmarks/csv_in/icomp4.csv", delimiter=","),
+                         np.loadtxt("bool_benchmarks/csv_out/icomp4.csv", delimiter=","))
+icomp5 = BooleanFunction("icomp5", np.loadtxt("bool_benchmarks/csv_in/icomp5.csv", delimiter=","),
+                         np.loadtxt("bool_benchmarks/csv_out/icomp5.csv", delimiter=","))
+icomp6 = BooleanFunction("icomp6", np.loadtxt("bool_benchmarks/csv_in/icomp6.csv", delimiter=","),
+                         np.loadtxt("bool_benchmarks/csv_out/icomp6.csv", delimiter=","))
+icomp7 = BooleanFunction("icomp7", np.loadtxt("bool_benchmarks/csv_in/icomp7.csv", delimiter=","),
+                         np.loadtxt("bool_benchmarks/csv_out/icomp7.csv", delimiter=","))
+icomp8 = BooleanFunction("icomp8", np.loadtxt("bool_benchmarks/csv_in/icomp8.csv", delimiter=","),
+                         np.loadtxt("bool_benchmarks/csv_out/icomp8.csv", delimiter=","))
+icomp9 = BooleanFunction("icomp9", np.loadtxt("bool_benchmarks/csv_in/icomp9.csv", delimiter=","),
+                         np.loadtxt("bool_benchmarks/csv_out/icomp9.csv", delimiter=","))
+
+mcomp3 = BooleanFunction("mcomp3", np.loadtxt("bool_benchmarks/csv_in/mcomp3.csv", delimiter=","),
+                         np.loadtxt("bool_benchmarks/csv_out/mcomp3.csv", delimiter=","))
+mcomp4 = BooleanFunction("mcomp4", np.loadtxt("bool_benchmarks/csv_in/mcomp4.csv", delimiter=","),
+                         np.loadtxt("bool_benchmarks/csv_out/mcomp4.csv", delimiter=","))
+mcomp5 = BooleanFunction("mcomp5", np.loadtxt("bool_benchmarks/csv_in/mcomp5.csv", delimiter=","),
+                         np.loadtxt("bool_benchmarks/csv_out/mcomp5.csv", delimiter=","))
+mcomp6 = BooleanFunction("mcomp6", np.loadtxt("bool_benchmarks/csv_in/mcomp6.csv", delimiter=","),
+                         np.loadtxt("bool_benchmarks/csv_out/mcomp6.csv", delimiter=","))
+
+mul3 = BooleanFunction("mul3", np.loadtxt("bool_benchmarks/csv_in/mul3.csv", delimiter=","),
+                       np.loadtxt("bool_benchmarks/csv_out/mul3.csv", delimiter=","))
+mul4 = BooleanFunction("mul4", np.loadtxt("bool_benchmarks/csv_in/mul4.csv", delimiter=","),
+                       np.loadtxt("bool_benchmarks/csv_out/mul4.csv", delimiter=","))
+mul5 = BooleanFunction("mul5", np.loadtxt("bool_benchmarks/csv_in/mul5.csv", delimiter=","),
+                       np.loadtxt("bool_benchmarks/csv_out/mul5.csv", delimiter=","))
+
+onehot_dec4 = BooleanFunction("onehot_dec4", np.loadtxt("bool_benchmarks/csv_in/onehot_dec4.csv", delimiter=","),
+                              np.loadtxt("bool_benchmarks/csv_out/onehot_dec4.csv", delimiter=","))
+onehot_dec8 = BooleanFunction("onehot_dec8", np.loadtxt("bool_benchmarks/csv_in/onehot_dec8.csv", delimiter=","),
+                              np.loadtxt("bool_benchmarks/csv_out/onehot_dec8.csv", delimiter=","))
+onehot_dec16 = BooleanFunction("onehot_dec16", np.loadtxt("bool_benchmarks/csv_in/onehot_dec16.csv", delimiter=","),
+                               np.loadtxt("bool_benchmarks/csv_out/onehot_dec16.csv", delimiter=","))
+
+onehot_enc8 = BooleanFunction("onehot_enc8", np.loadtxt("bool_benchmarks/csv_in/onehot_enc8.csv", delimiter=","),
+                              np.loadtxt("bool_benchmarks/csv_out/onehot_enc8.csv", delimiter=","))
+onehot_enc16 = BooleanFunction("onehot_enc16", np.loadtxt("bool_benchmarks/csv_in/onehot_enc16.csv", delimiter=","),
+                               np.loadtxt("bool_benchmarks/csv_out/onehot_enc16.csv", delimiter=","))
+onehot_enc32 = BooleanFunction("onehot_enc32", np.loadtxt("bool_benchmarks/csv_in/onehot_enc32.csv", delimiter=","),
+                               np.loadtxt("bool_benchmarks/csv_out/onehot_enc32.csv", delimiter=","))
+
+onescount4 = BooleanFunction("onescount4", np.loadtxt("bool_benchmarks/csv_in/onescount4.csv", delimiter=","),
+                             np.loadtxt("bool_benchmarks/csv_out/onescount4.csv", delimiter=","))
+onescount6 = BooleanFunction("onescount6", np.loadtxt("bool_benchmarks/csv_in/onescount6.csv", delimiter=","),
+                             np.loadtxt("bool_benchmarks/csv_out/onescount6.csv", delimiter=","))
+onescount8 = BooleanFunction("onescount8", np.loadtxt("bool_benchmarks/csv_in/onescount8.csv", delimiter=","),
+                             np.loadtxt("bool_benchmarks/csv_out/onescount8.csv", delimiter=","))
+onescount10 = BooleanFunction("onescount10", np.loadtxt("bool_benchmarks/csv_in/onescount10.csv", delimiter=","),
+                              np.loadtxt("bool_benchmarks/csv_out/onescount10.csv", delimiter=","))
 three_bit_parity = BooleanFunction(
     name="ThreeBitParity",
     x=[
@@ -949,12 +1055,82 @@ class Collection:
             'ConcreteStrength': concrete_compressive_strength,
             'ComputerHardware': computer_hardware,
             'HeartDisease': heart_disease,
-            'CreditApproval': credit_approval
+            'CreditApproval': credit_approval,
+            'add3': add3,
+            'add4': add4,
+            'add5': add5,
+            'add6': add6,
+            'add7': add7,
+            'add8': add8,
+
+            'add_sub3': add_sub3,
+            'add_sub4': add_sub4,
+
+            'alu3': alu3,
+            'alu4': alu4,
+            'alu5': alu5,
+            'alu6': alu6,
+            'alu7': alu7,
+            'alu8': alu8,
+
+            'demux8': demux8,
+            'demux16': demux16,
+            'demux32': demux32,
+            'demux64': demux64,
+
+            'epar8': epar8,
+            'epar9': epar9,
+            'epar10': epar10,
+            'epar11': epar11,
+
+            'icomp3': icomp3,
+            'icomp4': icomp4,
+            'icomp5': icomp5,
+            'icomp6': icomp6,
+            'icomp7': icomp7,
+            'icomp8': icomp8,
+            'icomp9': icomp9,
+
+            'mcomp3': mcomp3,
+            'mcomp4': mcomp4,
+            'mcomp5': mcomp5,
+            'mcomp6': mcomp6,
+
+            'mul3': mul3,
+            'mul4': mul4,
+            'mul5': mul5,
+
+            'onehot_dec4': onehot_dec4,
+            'onehot_dec8': onehot_dec8,
+            'onehot_dec16': onehot_dec16,
+
+            'onehot_enc8': onehot_enc8,
+            'onehot_enc16': onehot_enc16,
+            'onehot_enc32': onehot_enc32,
+
+            'onescount4': onescount4,
+            'onescount6': onescount6,
+            'onescount8': onescount8,
+            'onescount10': onescount10,
         }
         self.fixed_dimensional_functions = ['Koza1', 'Koza2', 'Koza3', 'Koza4', 'Nguyen5', 'Nguyen6', 'Nguyen7']
         self.real_world_functions = ['Diabetes', 'California', 'AnnArbor', 'Abalone', 'Airfoil', 'EnergyEfficiency',
                                      'ConcreteStrength', 'HeartDisease', 'Computer Hardware', 'CreditApproval']
-        self.boolean_functions = ['ThreeBitParity', 'Multiply', 'Decode', 'Encode']
+        self.boolean_functions = [
+            'ThreeBitParity', 'Multiply', 'Decode', 'Encode',
+            'add3', 'add4', 'add5', 'add6', 'add7', 'add8',
+            'add_sub3', 'add_sub4',
+            'alu3', 'alu4', 'alu5', 'alu6', 'alu7', 'alu8',
+            'demux8', 'demux16', 'demux32', 'demux64',
+            'epar8', 'epar9', 'epar10', 'epar11',
+            'icomp3', 'icomp4', 'icomp5', 'icomp6',
+            'icomp7', 'icomp8', 'icomp9',
+            'mcomp3', 'mcomp4', 'mcomp5', 'mcomp6',
+            'mul3', 'mul4', 'mul5',
+            'onehot_dec4', 'onehot_dec8', 'onehot_dec16',
+            'onehot_enc8', 'onehot_enc16', 'onehot_enc32',
+            'onescount4', 'onescount6', 'onescount8', 'onescount10',
+        ]
 
     def __call__(self, function_name, n_dims=1, train_test_fraction=(1 / 3)):
         assert function_name in self.function_list, f'{function_name} not a valid function.'

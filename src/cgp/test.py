@@ -65,7 +65,7 @@ def set_up_cgp(x, y, seed):
     return evolution_module
 
 problems = Collection()
-test_function = problems("CreditApproval")
+test_function = problems("mcomp3")
 train_x, test_x, train_y, test_y = test_function.return_points()
 """print(train_x.shape)
 print(test_x.shape)
@@ -85,6 +85,8 @@ xover_rate = 0.5
 
 best_model, _ = evolution_module.fit(train_x, test_x, train_y, test_y, xover_rate=xover_rate, mutation_rate = mutation_rate)
 
+print(best_model.model)
+print(best_model.fitness)
 stn = evolution_module.return_stn()
 target = stn.get_target(train_y)
 evolution_module.save_stn("../../output/Koza3_1d/None/full/paretoelite/trial_22")
