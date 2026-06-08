@@ -952,8 +952,8 @@ def computer_hardware(split):
     x = computer_hardware.data.features
     y = x['ERP']
 
-    x = pd.get_dummies(x, columns=['VendorName', 'ModelName'])
-    x = x.drop(columns=['ERP', 'VendorName', 'ModelName'])
+    x = x.drop(columns=['ERP', 'ModelName'])
+    x = pd.get_dummies(x, columns=['VendorName'])
 
     x = x.to_numpy()
     y = y.to_numpy()

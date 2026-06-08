@@ -48,9 +48,9 @@ def configspace(seed=0) -> ConfigurationSpace:
     m_rate = Categorical("m_rate", [0.05, 0.1, 0.2, 0.5, 0.75, 0.9, 1.0], default=0.2)
     # t_size = Categorical("t_size", [4, 6, 8, 10], default=4)
 
-    # (mu+lambda)
-    #cs.add([max_size, n_children])
     # (1+lambda)
+    #cs.add([max_size, n_children])
+    # (mu+lambda)
     cs.add([max_size, n_children, n_parents, x_rate, m_rate])
 
     return cs
@@ -203,6 +203,7 @@ if tuning:
         # n_workers = 8
     )
     d_path = Path(f'/mnt/home/kocherov/Documents/cgp/output/{test_problem_key}_{problem_dimensions}d/{xover_type}/SMAC')
+    print(d_path)
     d_path.mkdir(parents=True, exist_ok=True)
     #with open(f'../output/{test_problem_key}_{problem_dimensions}d/{xover_type}/SMAC/seeds.txt', "w+") as f:
     #    f.write('')
@@ -331,6 +332,8 @@ else:
     best_model.print_model()
     print('---')
     best_test_model.print_model()
+    #stn = evolution_module.return_stn()
+    #evolution_module.save_stn(f'{run_path}')
     df = pd.DataFrame(best_test_model.model)
     df.to_csv(f'{run_path}/best_model.csv', index=True)
     print(f'Complexity: {best_test_model.count_active_nodes()}')

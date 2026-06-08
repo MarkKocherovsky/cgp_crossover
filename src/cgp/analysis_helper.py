@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import pickle
+import json
 import datetime
 import os
 import subprocess
@@ -109,7 +110,6 @@ class AnalysisToolkit:
         return trial_data
 
     import json
-    import datetime
     import subprocess
     from pathlib import Path
 
@@ -175,8 +175,9 @@ class AnalysisToolkit:
         metric_list: positions of metrics we want
         """
         mutation = '' if mutation is None else mutation
-        output_dir = Path('../output/intermediate_results') / mutation
+        output_dir = Path('../../output/intermediate_results') / mutation
         output_dir.mkdir(parents=True, exist_ok=True)
+        print(output_dir)
 
         print(f'max generations: {self.max_generations}')
 
@@ -184,6 +185,7 @@ class AnalysisToolkit:
             print(problem)
             for xover_method in self.crossover_methods:
                 xover = self.crossover_methods[xover_method].code_name
+                print(f'\t{xover}')
 
                 if "None" in xover:
                     selection_list = ["paretoelite"]  # Ensure "none" crossover only uses "paretoelite"
@@ -245,6 +247,7 @@ class AnalysisToolkit:
                         np.savetxt(output_dir / f'{problem}_{xover_out}_{selection}_{config}_best_sizes.csv',
                                    best_sizes)
 
+                        """
                         # -------------------------
                         # Load and rank STNs
                         # -------------------------
@@ -275,9 +278,10 @@ class AnalysisToolkit:
 
                         with open(output_dir / f'{problem}_{xover_out}_{selection}_{config}_ranked_stn.json', "w") as f:
                             json.dump(ranked_stns, f, indent=4)
+                        """
 
     def make_path(self, problem: str, xover: str, selection: str, metric: str):
-        return Path(f'../output/intermediate_results/{problem}_{xover}_{selection}_{metric}.csv')
+        return Path(f'../../output/intermediate_results/{problem}_{xover}_{selection}_{metric}.csv')
 
     def plot_line_graph(self, selection_method: str, metric: str, graph_filename: str, title: str, x_label: str,
                         y_label: str, log: bool = False):
@@ -293,7 +297,7 @@ class AnalysisToolkit:
         for i, problem in enumerate(self.problems):
             for xover_method in self.crossover_methods:
                 xover = self.crossover_methods[xover_method].code_name
-                sel_key = 'elite' if 'None' in xover else selection_method
+                sel_key = 'paretoelite' if 'None' in xover else selection_method
                 if '/full' in xover:
                     xover = xover.replace('/full', '_full')
 

@@ -56,9 +56,7 @@ def get_job_id():
         raise EnvironmentError("SLURM_JOB_ID not found. Are you running inside a SLURM job?")
     return job_id
 
-import json
 
-import json
 
 def get_parameters(cfg_src: str):
     """Load parameters from a JSON config file with default values."""
@@ -120,27 +118,30 @@ functions = Collection()
 #function_list = ['Rastrigin', 'Levy']
 #function_list = ['Nguyen6, Nguyen7']
 #, 'Koza3', 'Nguyen4', 'Nguyen5', 'Nguyen6', 'Nguyen7']
-#function_list = ['Griewank']
-#function_list = ['Koza3, Levy']
 #function_list = ['Nguyen7']
-#function_list = ['Ackley']
+#function_list = ['Koza3']
+#function_list = ['Koza3', 'Nguyen5', 'Nguyen7']
+# function_list = ['Levy']
 #function_list = ['Koza3']
 #function_list = ['Koza3', 'Nguyen5', 'Nguyen7', 'Ackley', 'Levy', 'Rastrigin']
 #function_list = ['Rastrigin']
-function_list = ['Diabetes']
-#xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
-#          'homologous_semantic_uniform']
+function_list = ['EnergyEfficiency']
+#function_list = ['HeartDisease']
+#function_list = ['CreditApproval']
+#function_list = ['ConcreteStrength']
+#xovers = ['None', 'n_point', 'subgraph', 'homologous_semantic_n_point', 'aligned_homologous_semantic_n_point']
 #xovers = ['dnc_n_point', 'dnc_uniform', 'dnc_semantic_uniform', 'dnc_semantic_n_point']
 #xovers = ['aligned_homologous_semantic_n_point']
 #xovers = ['semantic_uniform', 'homologous_semantic_uniform', 'semantic_n_point', 'homologous_semantic_n_point']
-#xovers = ['homologous_semantic_n_point', 'homologous_semantic_uniform']
+#xovers = ['homologous_semantic_n_point']
 #xovers = ['subgraph']
 #xovers = ['None', 'n_point', 'subgraph']
 #xovers = ['homologous_semantic_n_point'] #, 'semantic_uniform']
-xovers = ['homlogous_semantic_n_point', 'aligned_homologous_semantic_n_point'] #, 'semantic_uniform']
-#xovers = ['None']
+# xovers = ['homlogous_semantic_n_point', 'aligned_homologous_semantic_n_point'] #, 'semantic_uniform']
+xovers = ['None']
 #xovers = ['uniform']
-#xovers = ['n_point', 'uniform', 'subgraph']
+#xovers = ['n_point']
+#xovers = ['homologous_semantic_n_point', 'None', 'aligned_homologous_semantic_n_point']
 #          'semantic_n_point', 'aligned_homologous_semantic_n_point', 'aligned_semantic_uniform',
 #          'aligned_homologous_semantic_uniform', 'homologous_semantic_uniform']
 #xovers = ['n_point', 'uniform']
@@ -258,8 +259,8 @@ for function in function_list:
             job_count = 0
 
             Path(f'/mnt/home/kocherov/Documents/cgp/output/{f_no_space}/{xover}/{config}/').mkdir(parents=True, exist_ok=True)
-            for i in range(50):  # Create 50 jobs per function/xover combination
-                job_name = f"kocherov_{f_no_space}_{xover}_cfg{index}_t{i}"
+            for i in range(0, 50):  # Create 50 jobs per function/xover combination
+                job_name = f"kocherov_{f_no_space}_{xover}_cfg{index+1}_t{i}"
 
                 # Skip already completed jobs
                 # Before submitting a job, check if it was previously checkpointed

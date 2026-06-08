@@ -158,7 +158,7 @@ class CartesianGP:
         self.xover_index = {cat: np.zeros((self.max_g, self.max_p)) for cat in ['deleterious', 'neutral', 'beneficial']}
         self.mut_index = np.zeros((self.max_g, self.max_p))
 
-        self.stn = STN()
+        # self.stn = STN()
 
     @staticmethod
     def hash_model(m):
@@ -1551,7 +1551,7 @@ class CartesianGP:
             best_fitness_train.append(true_elite_train.fitness)
             best_fitness_test.append(self.fitnesses_test[np.argmin(self.fitnesses_test)])
 
-            self.stn.get_semantics(true_elite_train, train_x)
+            #self.stn.get_semantics(true_elite_train, train_x)
             self._record_metrics(gen)
 
             if step_size and gen % step_size == 0:

@@ -17,13 +17,13 @@ def str2bool(v):
 
 
 base_path = "/mnt/gs21/scratch/kocherov/Documents/cgp/output/"
-graph_path = "../output/"
+graph_path = "../../output/"
 crossover_methods = {
-    #'Canonical': Method('None', 'Canonical', 'Canonical', 'blue', 'solid'),
-    # 'N-Point': Method('n_point', 'One-Point', 'One-Point', 'green', 'solid'),
-    #'Subgraph': Method('subgraph', 'Subgraph', 'Subgraph', 'orange', 'solid'),
+    'Canonical': Method('None', 'Canonical', 'Canonical', 'blue', 'solid'),
+     'N-Point': Method('n_point', 'One-Point', 'One-Point', 'green', 'solid'),
+    'Subgraph': Method('subgraph', 'Subgraph', 'Subgraph', 'orange', 'solid'),
     'Semantic N-Point': Method('homologous_semantic_n_point', 'Semantic One-Point', 'Semantic One-Point', 'darkred', 'solid'),
-    #'Aligned Semantic N-Point': Method('aligned_homologous_semantic_n_point', 'Aligned Semantic One-Point', 'Aligned Semantic One-Point', 'brown', 'solid'),
+    'Aligned Semantic N-Point': Method('aligned_homologous_semantic_n_point', 'Aligned Semantic One-Point', 'Aligned Semantic One-Point', 'brown', 'solid'),
 
 }
 
@@ -51,12 +51,18 @@ mutation_methods = {
 }
 # key->name
 problems = {
-    'Koza3_1d': 'Koza 3',
-    'Nguyen5_1d': 'Nguyen 5',
-    'Nguyen7_1d': 'Nguyen 7',
-    'Ackley_1d': 'Ackley',
-    'Levy_1d': 'Levy',
-    'Rastrigin_1d': 'Rastrigin',
+    #'Koza3_1d': 'Koza 3',
+    #'Nguyen5_1d': 'Nguyen 5',
+    #'Nguyen7_1d': 'Nguyen 7',
+    #'Ackley_1d': 'Ackley',
+    #'Levy_1d': 'Levy',
+    #'Rastrigin_1d': 'Rastrigin',
+    #'Diabetes_1d': 'Diabetes',
+    #'HeartDisease_1d': 'Heart Disease',
+    #'ConcreteStrength_1d': 'Concrete Strength',
+    #'ComputerHardware_1d': 'Computer Hardware',
+    #'CreditApproval_1d': 'Credit Approval',
+    'EnergyEfficiency_1d': 'Energy Efficiency'
 }
 """
 problems = {
@@ -102,35 +108,4 @@ for selection in (selection_methods.keys()):
     for metric in list(metrics.values()):
         analyzer.plot_line_graph(selection, metric, f'{metric.full_name.lower().replace(" ", "_")}_{selection}_graph',
                              f'{metric.full_name} Over Generations', 'Generations', rf'${metric.short_name}$', log=metric.log)
-"""
-old_problem_names = {
-    #'Koza1_1d': 'Koza 1',
-    #'Koza2_1d': 'Koza 2',
-    'Koza3_1d': 'Koza 3',
-    #'Nguyen4_1d': 'Nguyen 4',
-    'Nguyen5_1d': 'Nguyen 5',
-    #'Nguyen6_1d': 'Nguyen 6',
-    'Nguyen7_1d': 'Nguyen 7',
-    #'Ackley_1d': 'Ackley_1D',
-    #'Levy_1d': 'Levy_1D',
-    'Rastrigin_1d': 'Rastrigin_1D',
-    #'Griewank_1d': 'Griewank_1D'
-}
 
-old_method_names = {
-    'None': 'cgp_base',
-    'None': Method('cgp_base', 'CGP(1+4) Old', 'CGP(1+4) Old', 'lightsteelblue', 'solid'),
-    'n_point': 'cgp_1x',
-    'uniform': 'cgp_unx',
-    'dnc_semantic_n_point': 'cgp_dnc_1x',
-    'dnc_semantic_uniform': 'cgp_dnc',
-    'subgraph': 'cgp_sgx',
-}
-
-#analyzer.plot_box_plots_compare_old_new(old_method_names, old_problem_names,'elite_tournament', best_fitnesses, f'minimum_fitness_box_graph_compare',
-#                             'Fitness of Best Models\nOld vs New', 'Crossover Methods', 'Best Fitness', log=True, jitter=True)
-
-#analyzer.plot_box_plots_compare_old_new(old_method_names, old_problem_names,'elite_tournament', best_sizes, f'best_sizes_box_graph_compare',
-#                             'Size of Best Models\nOld vs New', 'Crossover Methods', 'Size of Best Models', log=False, jitter=True)
-
-"""
