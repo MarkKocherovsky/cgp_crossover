@@ -6,14 +6,20 @@ import pickle
 import os
 import json
 import hashlib
+import re
+from typing import Tuple
+
+import ollama
+import pandas as pd
+from pandas.testing import assert_frame_equal
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 
-# from dnc.multiparent_wrapper import NeuralCrossoverWrapper
 from .cgp_model import CGP
 from .fitness_functions import correlation, corr_comp_fitness
 from .helper import _get_quartiles, pairwise_minkowski_distance, get_score, get_ssd, get_weights, \
     clean_values, _get_semantic_alignment
+from .llm_helper import choose_crossover_point_with_ollama, summarize_population_for_llm
 from .search_trajectory import STN
 from Bio.Align import PairwiseAligner, Seq
 from matplotlib import pyplot as plt
@@ -33,7 +39,7 @@ class CartesianGP:
     def __init__(self, parents=1, children=4, max_generations=100, mutation='Point', selection='Elite',
                  xover=None, fixed_length=True, fitness_function='correlation_complexity', model_parameters=None,
                  function_bank=None, solution_threshold=0.005, checkpoint_filename='checkpoint.pkl', seed=42,
-                 dnc_hp: dict = None, **kwargs):
+                 **kwargs):
         # hyperparameter tuning
         # Basic attributes
         self.model_keys = None
@@ -82,6 +88,12 @@ class CartesianGP:
         self.n_points = int(kwargs.get('n_points', 1))
         self.tournament_diversity = kwargs.get('tournament_diversity', True)
         self.one_d = kwargs.get('one_dimensional_xover', False)
+        if self.one_d:
+            raise RuntimeError(f'One-Dimensional Crossover has been deprecated since 11 June 2026.')
+        self.llm_model = kwargs.get('llm_model', None)
+        if self.llm_model is not None:
+            self.llm_model = f'crossover-{self.llm_model}'
+            self.llm_window=int(kwargs.get('llm_window', 5))
 
         # Mutation fallback
         self.mutation_can_make_children = self.max_p < 2 or kwargs.get('asexual_reproduction', False)
@@ -112,40 +124,33 @@ class CartesianGP:
             'n_point': self._n_point_xover,
             'uniform': self._uniform_xover,
             'semantic_uniform': self._uniform_xover,
-            # 'dnc_semantic_uniform': self._uniform_xover,
-            # 'dnc_uniform': self._uniform_xover,
             'aligned_semantic_uniform': self._uniform_xover,
             'aligned_homologous_semantic_uniform': self._uniform_xover,
             'homologous_semantic_uniform': self._uniform_xover,
             'semantic_n_point': self._n_point_xover,
-            # 'dnc_semantic_n_point': self._n_point_xover,
-            # 'dnc_n_point': self._n_point_xover,
             'homologous_semantic_n_point': self._n_point_xover,
             'aligned_homologous_semantic_n_point': self._n_point_xover,
             'aligned_semantic_n_point': self._n_point_xover,
-            'subgraph': self._subgraph_xover
+            'subgraph': self._subgraph_xover,
+            'llm_n_point': self._n_point_xover,
         }
         if self.xover_type:
             if self.xover_type not in self.xover_methods:
                 raise ValueError(f"Invalid crossover type: {self.xover_type}")
-            #if 'dnc' in self.xover_type:
-            #    self.dnc_hyperparams = dnc_hp
-            #    if 'uniform' in self.xover_type:
-            #        dnc_xover = 'uniform'
-            #    elif 'n_point' in self.xover_type:
-            #        dnc_xover = 'n_point'
-            #    else:
-            #        raise KeyError(f"{self.xover_type} is not valid for use with Deep Neural Crossover.")
-            #    self.dnc = NeuralCrossoverWrapper(**self.dnc_hyperparams, crossover_type=dnc_xover,
-            #                                      n_points=self.n_points)
+            elif 'dnc' in self.xover_type:
+                raise ValueError(f"Deep Neural Crossover has been deprecated since 11 June 2026.")
             self.xover = self.xover_methods[self.xover_type]
         else:
             self.xover = None
 
-        # one dimensional xover is incompatible with semantic and subgraph methods:
-        print(f'1d crossover: {self.one_d}')
-        if self.one_d and ('semantic' in self.xover_type or 'subgraph' in self.xover_type):
+        # one dimensional xover is incompatible with semantic, subgraph, and llm methods:
+        if self.one_d and ('semantic' in self.xover_type or 'subgraph' in self.xover_type or 'llm' in self.xover_type):
             raise ValueError(f'{self.xover_type} crossover is incompatible with one-dimensional crossover.')
+
+        # llm crossover requires a specified model
+        if self.llm_model is None and self.xover_type == 'llm_n_point':
+            raise ValueError(f'LLM Crossover selected, but no model specified. Accepted inputs are:\n'
+                             f'\tgemma')
 
         # Validate crossover points
         if self.xover_type and 'n_point' in self.xover_type:
@@ -216,7 +221,8 @@ class CartesianGP:
             'homologous_semantic_n_point': obj._n_point_xover,
             'aligned_homologous_semantic_n_point': obj._n_point_xover,
             'aligned_semantic_n_point': obj._n_point_xover,
-            'subgraph': obj._subgraph_xover
+            'subgraph': obj._subgraph_xover,
+            'llm_n_point': obj._n_point_xover,
         }
 
         obj.selection = obj.selection_methods.get(obj.selection_type)
@@ -552,20 +558,6 @@ class CartesianGP:
                     if self.xover_type == 'subgraph':
                         c1 = self.xover(p1, p2, gen)
                         c2 = self.xover(p2, p1, gen)
-                    #elif 'dnc' in self.xover_type:
-                    #    parent_pairs = [(parents[i], parents[i + 1]) for i in range(0, len(parents), 2)]
-                    #    semantic_pairs = [(clean_values(p[0], self.x, include_output=True),
-                    #                       clean_values(p[1], self.x, include_output=True)) for p in
-                    #                      parent_pairs] if self.semantic else None
-                    #    offspring_pairs, _ = self.dnc.cross_pairs(parent_pairs, self.x, self.y,
-                    #                                              semantic_pairs)  # returns children, updates training
-
-                    #    # Flatten pairs into a single list of individuals
-                    #    new_children = [CGP(model=c, model_keys=self.model_keys, fixed_length=self.fixed_length,
-                    #                        fitness_function=self.ff_string,
-                    #                        mutation_type=self.mutation_type) for pair in offspring_pairs[:2] for c in
-                    #                    pair]
-                    #    c1, c2 = new_children[:2]
                     else:
                         c1, c2 = self.xover(p1, p2, gen)
                 else:
@@ -650,77 +642,42 @@ class CartesianGP:
                 return np.sort(np.random.choice(indices, size=self.n_points, replace=False, p=weights))
             return np.sort(np.random.choice(indices, size=self.n_points, replace=False))
 
-        if self.one_d:
-            flat_p1, types_p1 = self.flatten_parent(p1)
-            flat_p2, types_p2 = self.flatten_parent(p2)
-            xover_length = len(flat_p1)
-
-            len1 = len(types_p1)
-
-            xover_points_p1 = get_crossover_points(len1)
-
-            # Optional: track stats here
-            for x in xover_points_p1:
-                p1.xover_index[x] += 1
-            for x in xover_points_p1:
-                p2.xover_index[x] += 1
-
-            # Split and recombine
-            stride = 1 + p1.arity
-            xover_points_p1 = xover_points_p1[xover_points_p1 < len(types_p1)]
-
-            parts1 = np.split(flat_p1, xover_points_p1)
-            parts2 = np.split(flat_p2, xover_points_p1)
-            types_parts1 = np.split(types_p1, xover_points_p1)
-            types_parts2 = np.split(types_p2, xover_points_p1)
-
-            child1_flat = np.concatenate(parts1[::2] + parts2[1::2])
-            child2_flat = np.concatenate(parts2[::2] + parts1[1::2])
-            child1_types = np.concatenate(types_parts1[::2] + types_parts2[1::2])
-            child2_types = np.concatenate(types_parts2[::2] + types_parts1[1::2])
-
-            # ✅ Make sure unflatten won't crash
-            assert len(child1_flat) == len(
-                child1_types) * stride, f"child1_flat={len(child1_flat)} vs types={len(child1_types)}"
-            assert len(child2_flat) == len(
-                child2_types) * stride, f"child2_flat={len(child2_flat)} vs types={len(child2_types)}"
-
-            # Reconstruct models
-            child1_model = self.unflatten_model(child1_flat, child1_types, arity=p1.arity)
-            child2_model = self.unflatten_model(child2_flat, child2_types, arity=p2.arity)
-            o1_nodes = [node for node in p1.model if node[self.model_keys['NodeType']] == node_to_int('Output')]
-            o2_nodes = [node for node in p2.model if node[self.model_keys['NodeType']] == node_to_int('Output')]
-
-            # Add back Input and Constant nodes
-            def insert_io_nodes(original, body, o_nodes):
-                i_nodes = [node for node in original.model if
-                           node[self.model_keys['NodeType']] in map(node_to_int, ['Input', 'Constant'])]
-                return np.array(i_nodes + list(body) + o_nodes, dtype=original.model.dtype)
-
-            full_model_1 = insert_io_nodes(p1, child1_model, o2_nodes)
-            full_model_2 = insert_io_nodes(p2, child2_model, o1_nodes)
-
-            c1 = CGP(model=full_model_1, model_keys=self.model_keys, fixed_length=self.fixed_length,
-                     fitness_function=self.ff_string,
-                     mutation_type=self.mutation_type, xover_length=xover_length)
-            c2 = CGP(model=full_model_2, model_keys=self.model_keys, fixed_length=self.fixed_length,
-                     fitness_function=self.ff_string,
-                     mutation_type=self.mutation_type, xover_length=xover_length)
-            return c1, c2
-
-        # Else: fixed-length 2D crossover
         fb_node = min(p1.first_body_node, p2.first_body_node)
         weights = None
-        if self.semantic:
-            if self.aligned:
-                weights = _get_semantic_alignment(p1, p2, self.x)
-            else:
-                vmat_1, vmat_2 = clean_values(p1, self.x), clean_values(p2, self.x)
-                weights = get_weights(get_ssd(vmat_1, vmat_2))
-            if self.homologous and not np.all(weights == weights[0]):
-                weights = (weights.max() - weights) / (weights.max() - weights.min() + 1e-8)
-                weights /= weights.sum()
-        xover_points_p1 = get_crossover_points(len(p1.model), p1.first_body_node, weights)
+        # Use Ollama to recommend xover point
+        if 'llm' in self.xover_type:
+            p1_m = p1.model
+            p2_m = p2.model
+            p1_f = p1.fitness
+            p2_f = p2.fitness
+            p1_c = p1.complexity
+            p2_c = p2.complexity
+
+            population_context = summarize_population_for_llm(self.population)
+
+            xover_point = choose_crossover_point_with_ollama(
+                p1_m,
+                p2_m,
+                p1_f,
+                p2_f,
+                p1_c,
+                p2_c,
+                self.llm_model,
+                population_context
+            )
+
+            xover_points_p1 = np.array([xover_point], dtype=int)
+        else:
+            if self.semantic:
+                if self.aligned:
+                    weights = _get_semantic_alignment(p1, p2, self.x)
+                else:
+                    vmat_1, vmat_2 = clean_values(p1, self.x), clean_values(p2, self.x)
+                    weights = get_weights(get_ssd(vmat_1, vmat_2))
+                if self.homologous and not np.all(weights == weights[0]):
+                    weights = (weights.max() - weights) / (weights.max() - weights.min() + 1e-8)
+                    weights /= weights.sum()
+            xover_points_p1 = get_crossover_points(len(p1.model), p1.first_body_node, weights)
 
         p1.xover_index[xover_points_p1 - fb_node] += 1
         p2.xover_index[xover_points_p1 - fb_node] += 1
@@ -740,68 +697,6 @@ class CartesianGP:
 
     def _uniform_xover(self, p1, p2, gen, weights: np.ndarray | list = None, **kwargs):
         """Performs uniform crossover, supporting semantic and homologous crossover."""
-
-        if self.one_d:
-            flat1, types1 = self.flatten_parent(p1)
-            flat2, types2 = self.flatten_parent(p2)
-
-            xover_length = len(flat1)
-
-            assert len(flat1) == len(flat2), "Flattened parents must have the same length for uniform crossover."
-
-            # Create swap mask
-            swap_mask = np.random.rand(len(flat1)) < 0.5
-            child1_flat = flat1.copy()
-            child2_flat = flat2.copy()
-            child1_flat[swap_mask] = flat2[swap_mask]
-            child2_flat[swap_mask] = flat1[swap_mask]
-            o1_nodes = [node for node in p1.model if node[self.model_keys['NodeType']] == node_to_int('Output')]
-            o2_nodes = [node for node in p2.model if node[self.model_keys['NodeType']] == node_to_int('Output')]
-
-            o_nodes = []
-            o_nodes_complement = []
-
-            o_count = -1
-            for n1, n2 in zip(o1_nodes, o2_nodes):
-                if np.random.rand() > 0.5:
-                    o_nodes.append(n1)
-                    p1.xover_index[o_count - p1.arity + 1] += 1
-                    o_nodes_complement.append(n2)
-                else:
-                    o_nodes.append(n2)
-                    p2.xover_index[o_count - p2.arity + 1] += 1
-                    o_nodes_complement.append(n1)
-                o_count -= 1
-
-                # Track swapped indices
-            for idx in np.where(swap_mask)[0]:
-                assert np.max(np.where(swap_mask)) < len(p1.xover_index), "swap index out of bounds!"
-
-                p1.xover_index[idx] += 1
-                p2.xover_index[idx] += 1
-
-            # Reconstruct models
-            child1_body = self.unflatten_model(child1_flat, types1, arity=p1.arity)
-            child2_body = self.unflatten_model(child2_flat, types2, arity=p2.arity)
-
-            # Add back input + constant nodes
-            def insert_io_nodes(original, body, o_nodes):
-                i_nodes = [node for node in original.model if
-                           node[self.model_keys['NodeType']] in map(node_to_int, ['Input', 'Constant'])]
-                return np.array(i_nodes + list(body) + o_nodes, dtype=original.model.dtype)
-
-            full_model_1 = insert_io_nodes(p1, child1_body, o_nodes_complement)
-            full_model_2 = insert_io_nodes(p2, child2_body, o_nodes)
-
-            c1 = CGP(model=full_model_1, model_keys=self.model_keys, fixed_length=self.fixed_length,
-                     fitness_function=self.ff_string,
-                     mutation_type=self.mutation_type, xover_length=xover_length)
-
-            c2 = CGP(model=full_model_2, model_keys=self.model_keys, fixed_length=self.fixed_length,
-                     fitness_function=self.ff_string,
-                     mutation_type=self.mutation_type, xover_length=xover_length)
-
-            return c1, c2
 
         # Standard 2D structured uniform crossover
         n_outputs = 0
@@ -862,20 +757,6 @@ class CartesianGP:
         def random_node_number(n_i, I=None, n_f=None, m=None):
             """Selects a random node number with constraints."""
             n_r = []  # List of valid random choices
-            """
-            if n_f is not None:
-                if m is not None:
-                    n_m = n_f[n_f <= m]
-                    if len(n_m) == 0:
-                        n_r.append(np.random.randint(0, n_i))
-                    else:
-                        n_r.append(np.random.choice(n_m-1))
-                else:
-                    n_r.append(np.random.choice(n_f-1))
-
-            if I is not None:
-                n_r.append(np.random.choice(I))
-            """
             if n_f is not None:
                 if m is not None:
                     n_m = n_f[n_f <= m]

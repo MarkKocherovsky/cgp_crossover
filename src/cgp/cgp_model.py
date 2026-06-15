@@ -1,10 +1,12 @@
 import numpy as np
+import pandas as pd
 import uuid
 import hashlib
 from .cgp_generator import generate_model, node_to_int
 from .cgp_operators import add, sub, mul, div
 from .fitness_functions import correlation, align, corr_comp_fitness
 from copy import deepcopy
+
 
 class CGP:
 
@@ -203,8 +205,9 @@ class CGP:
         n_active_nodes = self.count_active_nodes()
 
         # Compute fitness using raw predictions
-        self.correlation, self.complexity, self.fitness = self.fitness_function(predictions, ground_truth, n_active_nodes, float(self.max_size))
-        
+        self.correlation, self.complexity, self.fitness = self.fitness_function(predictions, ground_truth,
+                                                                                n_active_nodes, float(self.max_size))
+
         # Now align (only for prediction)
         if self.fitness_function == correlation:
             self.slope, self.intercept = align(predictions, ground_truth)
@@ -338,6 +341,41 @@ class CGP:
 
     def set_child_key(self, key):
         self.child_keys = key
+
+    def model_for_llm(self, with_inputs=False):
+        """
+        Return a NumPy-array view of the model for LLM prompting.
+
+        Columns are:
+
+            idx,node_type,value,operator,operand0,operand1,active
+
+        This keeps the LLM-facing model as a NumPy array rather than converting
+        it to a pandas DataFrame.
+        """
+        model_array = deepcopy(self.model)
+
+        idx_col = np.arange(len(model_array), dtype=model_array.dtype).reshape(-1, 1)
+
+        model_copy = np.concatenate(
+            [
+                idx_col,
+                model_array,
+            ],
+            axis=1,
+        )
+
+        if with_inputs:
+            return model_copy
+
+        node_type_col = self.model_keys["NodeType"]
+
+        mask = (
+                (self.model[:, node_type_col] == node_to_int("Function"))
+                | (self.model[:, node_type_col] == node_to_int("Output"))
+        )
+
+        return model_copy[mask].copy()
 
     @staticmethod
     def _hash_model(model: np.ndarray) -> str:

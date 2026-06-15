@@ -81,11 +81,13 @@ parser.add_argument("--problem_dimensions", type=int, default=1, help="Controls 
 parser.add_argument("--step_size", type=int, default=100, help="Prints out generation data every N generations.")
 parser.add_argument("--asexual_reproduction", type=str2bool, default=False,
                     help="Controls whether or not asexual reproduction can occur.")
-parser.add_argument("--one_dimensional_xover", type=str2bool, default=False,
-                    help="If True, parents will be flattened before crossover. Not compatible with subgraph or semantic methods.")
 parser.add_argument("--tuning", type=str2bool, default=False,
                     help="If True, hyperparameters will be tuned. Try to give a smaller generation size for testing.")
 parser.add_argument("--cfg_name", type=str, help="Name of Configuration")
+parser.add_argument("--llm", type=str, default=None,
+                    help="Required if you want to run llm-based crossovers. Valid models are:\n"
+                         "\tgemma")
+parser.add_argument("--llm_gen_context_window", type=int, default=5, help="Amount of Generations to use as a rolling average for the LLM Context.")
 args = parser.parse_args()
 
 # Access arguments
@@ -107,9 +109,10 @@ tournament_size = args.tournament_size
 n_elites = args.n_elites
 step_size = args.step_size
 asex = args.asexual_reproduction
-one_d = args.one_dimensional_xover
 tuning = args.tuning
 cfg_name = args.cfg_name
+llm_model = args.llm
+llm_window = args.llm_gen_context_window
 np.random.seed(trial_number)
 
 print(f"Trial Number: {trial_number}")
@@ -142,12 +145,8 @@ else:
     mut_type = ''
 # establish output path
 CHECKPOINT_PATH = os.path.join(os.environ.get("SCRATCH", "/tmp"), "ckpt")
-if not one_d:
-    run_path = f'/mnt/gs21/scratch/kocherov/Documents/cgp/output/{test_problem_key}_{problem_dimensions}d/{xover_type}/{mut_type}/{selection_type}/{cfg_name}/trial_{trial_number}'
-    CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}{mut_type}_{selection_type}_{cfg_name}_trial_{trial_number}_ckpt.pkl"
-else:
-    run_path = f'/mnt/gs21/scratch/kocherov/Documents/cgp/output/{test_problem_key}_{problem_dimensions}d/{xover_type}_1d/{mut_type}/{selection_type}/{cfg_name}/trial_{trial_number}'
-    CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}{mut_type}_1d_{selection_type}_trial_{trial_number}_ckpt.pkl"
+run_path = f'/mnt/d/scratch/kocherov/Documents/cgp/output/{test_problem_key}_{problem_dimensions}d/{xover_type}/{mut_type}/{selection_type}/{cfg_name}/trial_{trial_number}'
+CHECKPOINT_FILE = f"{CHECKPOINT_PATH}/{test_problem_key}_{problem_dimensions}d_{xover_type}{mut_type}_{selection_type}_{cfg_name}_trial_{trial_number}_ckpt.pkl"
 Path(run_path).mkdir(parents=True, exist_ok=True)
 print(run_path)
 
@@ -174,19 +173,6 @@ else:
 sequence_length = model_size if 'semantic' not in xover_type else train_x.shape[0]
 # a gene is NodeType, Value, Operator, *Operands, Active
 input_dim = (1 + 1 + model_parameters['arity'] + 1 + 1) if 'semantic' not in xover_type else train_x.shape[0]
-dnc_hyperparameters = {
-    'embedding_dim': 64,
-    'sequence_length': sequence_length,
-    'input_dim': input_dim,
-    'get_fitness_function': correlation,
-    'batch_size': 820,
-    'epsilon_greedy': 0.2,
-    'learning_rate': 0.0001,
-    'running_mean_decay': 0.0001,
-    'adam_decay': 0.0001
-}
-if 'dnc' in xover_type:
-    print(dnc_hyperparameters)
 # CHECKPOINT_PATH = '../output/ckpt'
 print(CHECKPOINT_PATH)
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
@@ -241,10 +227,10 @@ if tuning:
             function_bank=function_bank,
             mutation_breeding=mutation_breeding,
             checkpoint_filename=CHECKPOINT_FILE,
-            one_dimensional_xover=one_d,
             seed=seconds,
-            dnc_hp=dnc_hyperparameters,
-            tuning=tuning
+            tuning=tuning,
+            llm_model=llm_model,
+            llm_window=llm_window, # not yet implemented
         )
 
         _, best_test_model = tuning_evolution_module.fit(train_x, test_x, train_y, test_y, step_size=step_size,
@@ -311,8 +297,8 @@ else:
             checkpoint_filename=CHECKPOINT_FILE,
             one_dimensional_xover=one_d,
             seed=trial_number,
-            dnc_hp=dnc_hyperparameters,
-            tuning=tuning
+            tuning=tuning,
+            llm_model=llm_model
         )
 
     start = datetime.now()
