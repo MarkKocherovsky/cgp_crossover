@@ -292,59 +292,78 @@ Return only JSON. No explanation. No markdown. No code fences.
     return parse_crossover_point(raw_text, min_point, max_point)
 
 
-def summarize_population_for_llm(population, max_elites=3):
-    fitnesses = np.array([ind.fitness for ind in population if ind is not None], dtype=float)
-    complexities = np.array([ind.complexity for ind in population if ind is not None], dtype=float)
+def summarize_population_for_llm(population_window, max_elites=3):
+    populations = [
+        [ind for ind in population if ind is not None]
+        for population in population_window
+    ]
 
-    sorted_pop = sorted(
-        [ind for ind in population if ind is not None],
-        key=lambda ind: (ind.fitness, ind.complexity)
-    )
+    fitnesses = [
+        np.array([ind.fitness for ind in population], dtype=float)
+        for population in populations
+    ]
+
+    complexities = [
+        np.array([ind.complexity for ind in population], dtype=float)
+        for population in populations
+    ]
+
+    sorted_pops = [
+        sorted(
+            population,
+            key=lambda ind: (ind.fitness, ind.complexity)
+        )
+        for population in populations
+    ]
 
     lines = []
-    lines.append("Population context:")
-    lines.append(f"- population_size: {len(sorted_pop)}")
-    lines.append(f"- fitness_min: {np.min(fitnesses)}")
-    lines.append(f"- fitness_median: {np.median(fitnesses)}")
-    lines.append(f"- fitness_max: {np.max(fitnesses)}")
-    lines.append(f"- complexity_min: {np.min(complexities)}")
-    lines.append(f"- complexity_median: {np.median(complexities)}")
-    lines.append(f"- complexity_max: {np.max(complexities)}")
+    lines.append("Population context over recent generations:")
+    lines.append(f"- generations_stored: {len(population_window)}")
+    lines.append(f"- latest_population_size: {len(populations[-1])}")
 
     lines.append("")
-    lines.append("Elite structural summaries:")
+    lines.append("Per-generation fitness summary:")
 
-    for rank, ind in enumerate(sorted_pop[:max_elites]):
-        model = ind.model
-        keys = ind.model_keys
+    for gen_idx, fit_arr in enumerate(fitnesses):
+        if len(fit_arr) == 0:
+            lines.append(f"- generation_window_index {gen_idx}: empty")
+            continue
 
-        node_type_col = keys["NodeType"]
-        op_col = keys["Operator"]
-        operand0_col = keys["Operand0"]
-        operand1_col = keys["Operand1"]
-        active_col = keys["Active"]
+        lines.append(
+            f"- generation_window_index {gen_idx}: "
+            f"min={np.min(fit_arr):.6g}, "
+            f"median={np.median(fit_arr):.6g}, "
+            f"max={np.max(fit_arr):.6g}"
+        )
 
-        active_idxs = np.where(model[:, active_col] == 1)[0]
-        active_function_idxs = [
-            int(i) for i in active_idxs
-            if int(model[i, node_type_col]) == 2
-        ]
+    lines.append("")
+    lines.append("Per-generation complexity summary:")
 
-        active_ops = [
-            int(model[i, op_col]) for i in active_function_idxs
-        ]
+    for gen_idx, comp_arr in enumerate(complexities):
+        if len(comp_arr) == 0:
+            lines.append(f"- generation_window_index {gen_idx}: empty")
+            continue
 
-        output_idxs = np.where(model[:, node_type_col] == 3)[0]
-        output_refs = [
-            int(model[i, operand0_col]) for i in output_idxs
-        ]
+        lines.append(
+            f"- generation_window_index {gen_idx}: "
+            f"min={np.min(comp_arr):.6g}, "
+            f"median={np.median(comp_arr):.6g}, "
+            f"max={np.max(comp_arr):.6g}"
+        )
 
-        lines.append(f"- elite_rank: {rank}")
-        lines.append(f"  fitness: {ind.fitness}")
-        lines.append(f"  complexity: {ind.complexity}")
-        lines.append(f"  active_node_count: {len(active_idxs)}")
-        lines.append(f"  active_function_idxs: {active_function_idxs}")
-        lines.append(f"  active_operators: {active_ops}")
-        lines.append(f"  output_refs: {output_refs}")
+    lines.append("")
+    lines.append("Elite summaries by generation:")
 
+    for gen_idx, sorted_pop in enumerate(sorted_pops):
+        lines.append(f"- generation_window_index {gen_idx}:")
+
+        for rank, ind in enumerate(sorted_pop[:max_elites]):
+            active_nodes = np.array(list(ind.get_active_nodes()))
+            lines.append(
+                f"  - elite_rank={rank}, "
+                f"fitness={ind.fitness:.6g}, "
+                f"complexity={ind.complexity:.6g} "
+                f"Active Nodes Range: {np.min(active_nodes)} - {np.max(active_nodes)} "
+            )
+    #print(lines)
     return "\n".join(lines)

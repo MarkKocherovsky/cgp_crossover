@@ -22,6 +22,7 @@ from .helper import _get_quartiles, pairwise_minkowski_distance, get_score, get_
 from .llm_helper import choose_crossover_point_with_ollama, summarize_population_for_llm
 from .search_trajectory import STN
 from Bio.Align import PairwiseAligner, Seq
+from collections import deque
 from matplotlib import pyplot as plt
 
 from .cgp_generator import node_to_int
@@ -93,7 +94,10 @@ class CartesianGP:
         self.llm_model = kwargs.get('llm_model', None)
         if self.llm_model is not None:
             self.llm_model = f'crossover-{self.llm_model}'
-            self.llm_window=int(kwargs.get('llm_window', 5))
+            self.llm_window_size=int(kwargs.get('llm_window', 5))
+            self.llm_window = deque(maxlen=self.llm_window_size)
+        else:
+            self.llm_window = None
 
         # Mutation fallback
         self.mutation_can_make_children = self.max_p < 2 or kwargs.get('asexual_reproduction', False)
@@ -653,7 +657,9 @@ class CartesianGP:
             p1_c = p1.complexity
             p2_c = p2.complexity
 
-            population_context = summarize_population_for_llm(self.population)
+            self.llm_window.appendleft(self.population)
+
+            population_context = summarize_population_for_llm(self.llm_window)
 
             xover_point = choose_crossover_point_with_ollama(
                 p1_m,

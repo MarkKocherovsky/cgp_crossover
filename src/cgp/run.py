@@ -129,7 +129,6 @@ print(f"Test Problem: {test_problem_key}")
 print(f"Number of Points: {n_points}")
 print(f"Tournament Size: {tournament_size}")
 print(f"Number of Elites: {n_elites}")
-print(f"One Dimensional Crossover: {one_d}")
 print(f"Configuration Name: {cfg_name}")
 # data sanitizing is done in the CartesianGP class, see cgp_evolver.py
 
@@ -295,7 +294,6 @@ else:
             function_bank=function_bank,
             mutation_breeding=mutation_breeding,
             checkpoint_filename=CHECKPOINT_FILE,
-            one_dimensional_xover=one_d,
             seed=trial_number,
             tuning=tuning,
             llm_model=llm_model
