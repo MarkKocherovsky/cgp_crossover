@@ -359,11 +359,23 @@ def summarize_population_for_llm(population_window, max_elites=3):
 
         for rank, ind in enumerate(sorted_pop[:max_elites]):
             active_nodes = np.array(list(ind.get_active_nodes()))
-            lines.append(
-                f"  - elite_rank={rank}, "
-                f"fitness={ind.fitness:.6g}, "
-                f"complexity={ind.complexity:.6g} "
-                f"Active Nodes Range: {np.min(active_nodes)} - {np.max(active_nodes)} "
-            )
+            try:
+                active_min = np.min(active_nodes)
+                active_max = np.max(active_nodes)
+            except ValueError as e:
+                active_min = np.nan
+                active_max = np.nan
+            try:
+                lines.append(
+                    f"  - elite_rank={rank}, "
+                    f"fitness={ind.fitness:.6g}, "
+                    f"complexity={ind.complexity:.6g} "
+                    f"Active Nodes Range: {active_min} - {active_max} "
+                )
+            except ValueError as e:
+                print(f'llm_helper.py::summarize_population_for_llm: {e}')
+                print(f'active_nodes: {active_nodes}')
+                exit()
+
     #print(lines)
     return "\n".join(lines)

@@ -6,6 +6,7 @@ import pickle
 import os
 import json
 import hashlib
+import time
 import re
 from typing import Tuple
 
@@ -79,6 +80,13 @@ class CartesianGP:
         self.semantic = 'semantic' in self.xover_type if xover else False
         self.aligned = 'aligned' in self.xover_type if xover else False
         self.homologous = 'homologous' in self.xover_type if xover else False
+
+        self.elapsed = 0
+
+        self.search_evaluations = 0 #Fitness evaluations that actually participate in evolution.
+        self.diagnostic_evaluations = 0 #Extra evaluations used to inspect crossover/mutation effects
+        self.test_evaluations = 0 #Test-set evaluations used only for reporting/generalization.
+        self.total_fitness_calls = 0
 
         self.pareto_layers = []
         self.pareto_elite = []
@@ -163,7 +171,7 @@ class CartesianGP:
                 raise ValueError(f"Invalid n_points: {self.n_points}")
 
         # Metrics and tracking
-        self.metrics = np.zeros((self.max_g + 1, 32), dtype=np.float64)
+        self.metrics = np.zeros((self.max_g + 1, 37), dtype=np.float64)
         self.xover_index = {cat: np.zeros((self.max_g, self.max_p)) for cat in ['deleterious', 'neutral', 'beneficial']}
         self.mut_index = np.zeros((self.max_g, self.max_p))
 
@@ -921,63 +929,18 @@ class CartesianGP:
 
             return models
 
-    """
-    def _get_fitnesses(self, mode='train', pop_list=None, mutable=True):
-
-        if mode == 'train':
-            x = self.x
-            y = self.y
-            f_list = self.fitnesses
-            corr_list = self.corrs
-        elif mode == 'test':
-            x = self.x_test
-            y = self.y_test
-            f_list = self.fitnesses_test
-            corr_list = self.corr_test
-        if pop_list is not None:
-            f_list = deepcopy(self.fitnesses)
-        if pop_list is None:
-            pop_list = self.population
-        for i in range(len(pop_list)):
-            if pop_list[i] is not None:
-                try:
-                    corr_list[i], _, f_list[i], = pop_list[i].fit(x, y, mutable=mutable)
-                except IndexError as e:
-                    print(f'IndexError: {e}')
-                    print(f'len(pop_list)\t{len(pop_list)}')
-                    print(f'len(corr_list)\t{len(corr_list)}')
-                    print(f'len(f_list)\t{len(f_list)}')
-                    print(f'i\t{i}')
-                    exit(1)
-                    
-                    
-        return np.array(f_list), np.array(corr_list)
-
-    def _group_parents_and_children(self):
-        individuals_with_parents = [
-            model for model in self.population
-            if model is not None and hasattr(model, 'parent_keys') and model.parent_keys is not None
-        ]
-
-        parent_child_map = {}
-
-        for child in individuals_with_parents:
-            parent_pair = tuple(child.parent_keys)
-            parent_child_map.setdefault(parent_pair, []).append(child)
-
-        parent_child_groups = {
-            parent_pair: (
-                [self.model_key_map[p_key] for p_key in parent_pair if p_key in self.model_key_map],
-                children
-            )
-            for parent_pair, children in parent_child_map.items()
-        }
-
-        return parent_child_groups
-    """
-    def _get_fitnesses(self, mode='train', pop_list=None, mutable=True):
+    def _get_fitnesses(self, mode='train', pop_list=None, eval_purpose="search", mutable=True, count_only_unchached=True):
         # Compute fitnesses for all models
+        self.total_fitness_calls += 1
 
+        if eval_purpose == "search":
+            self.search_evaluations += 1
+        elif eval_purpose == "diagnostic":
+            self.diagnostic_evaluations += 1
+        elif eval_purpose == "test":
+            self.test_evaluations += 1
+        else:
+            raise ValueError('cgp_evolver.py::_get_fitnesses: eval_purpose must be "search" or "diagnostic" or "test"')
         if mode == 'train':
             x, y = self.x, self.y
         elif mode == 'test':
@@ -1088,7 +1051,7 @@ class CartesianGP:
 
         return similarity_scores
 
-    def _record_metrics(self, gen: int):
+    def _record_metrics(self, gen: int, elapsed:float = 0):
         """
         Records key performance metrics for each generation, including fitness statistics
         and similarity measurements.
@@ -1142,7 +1105,12 @@ class CartesianGP:
             *fit_test_statistics,
             self.best_model.count_active_nodes(),
             *active_nodes_statistics,
-            semantic_diversity  # Semantic diversity
+            semantic_diversity,
+            self.search_evaluations,
+            self.diagnostic_evaluations,
+            self.test_evaluations,
+            self.total_fitness_calls,
+            elapsed
         )
 
     def save_metrics(self, path=None):
@@ -1167,7 +1135,7 @@ class CartesianGP:
         best_ind = self.population[np.argmin(self.fitnesses)]
         print(f'Generation {g}')
         print(
-            f'Best Fitness: {np.min(self.fitnesses)}:\tCorrelation: {best_ind.correlation}\tComplexity: {best_ind.complexity}')
+            f'Best Fitness: {np.min(self.fitnesses)}:\tCorrelation: {best_ind.correlation}\tComplexity: {best_ind.complexity}\tElapsed Time: {self.elapsed}')
         print('################')
 
     def _compare_child_parents(self):
@@ -1308,16 +1276,16 @@ class CartesianGP:
             self.initialize_xover_index()
             self.model_key_map = {}  # Add this at the beginning of fit()
 
-            self._get_fitnesses(mode='train')
-            self._get_fitnesses(mode='test')
+            self._get_fitnesses(mode='train', eval_purpose="search")
+            self._get_fitnesses(mode='test', eval_purpose="test")
 
             # Metrics and tracking
-            self.metrics = np.zeros((self.max_g + 1, 32), dtype=np.float64)
+            self.metrics = np.zeros((self.max_g + 1, 37), dtype=np.float64)
             self.xover_index = {cat: np.zeros((self.max_g, self.max_p)) for cat in
                                 ['deleterious', 'neutral', 'beneficial']}
             self.mut_index = np.zeros((self.max_g, self.max_p))
 
-            self._record_metrics(0)
+            self._record_metrics(0, self.elapsed)
             self._report_generation(0)
 
             # Setup mutation and crossover tracking
@@ -1330,16 +1298,31 @@ class CartesianGP:
 
         else:
             self.expand_generations_if_needed(self.max_g)
+            print(
+                f"Resuming generation {self.current_generation}, "
+                f"elapsed={self.elapsed:.2f} seconds"
+            )
 
-        self._get_fitnesses(mode='test', mutable=False)
-        self._get_fitnesses(mode='train', mutable=True)
+        self._get_fitnesses(mode='test', mutable=False, eval_purpose="test")
+        self._get_fitnesses(mode='train', mutable=True, eval_purpose="search")
 
         n_elites = self.n_elites if hasattr(self, 'n_elites') else 1  # or pass as parameter
         # Generation 0: Just record metrics, no elite reinsertion
-        self.current_generation += 1 if self.current_generation else self.current_generation
-        self._record_metrics(self.current_generation)
-        self._report_generation(self.current_generation)
+        # self.current_generation += 1 if self.current_generation else self.current_generation
+        #self._record_metrics(self.current_generation, self.elapsed)
+        #self._report_generation(self.current_generation)
         elite_prev = self.elite_selection(n_elites=n_elites)
+
+        elapsed_before_segment = float(getattr(self, "elapsed", 0.0))
+        segment_start = time.perf_counter()
+
+        def update_elapsed() -> float:
+            self.elapsed = (
+                    elapsed_before_segment
+                    + time.perf_counter()
+                    - segment_start
+            )
+            return self.elapsed
 
         for gen in range(self.current_generation + 1, self.max_g + 1):
             self.current_generation = gen
@@ -1352,7 +1335,8 @@ class CartesianGP:
             # **Crossover to Generate Children**
             if self.xover:
                 children = self.crossover(selected_parents, xover_rate, gen)
-                child_fitnesses = self._get_fitnesses(pop_list=children, mutable=False, mode='train')
+                child_fitnesses = self._get_fitnesses(pop_list=children, mutable=False, mode='train',
+                                                      eval_purpose="diagnostic")
                 # broken
                 # self._compare_child_parents()
 
@@ -1410,25 +1394,9 @@ class CartesianGP:
             assert len(self.population) == len(self.fitnesses_test)
             assert len(self.population) == len(self.corr_test)
 
-            self._get_fitnesses(mutable=False, mode='test')
-            self._get_fitnesses(mutable=True, mode='train')
-            """
-            # ✅ Step 2: Save elite for next generation
-            if elite_prev and 'elite' in self.selection_type:
-                fitnesses = [m.fitness for m in self.population if m is not None]
-                worst_indices = np.argsort(fitnesses)[-n_elites:]
-                for i, idx in enumerate(worst_indices):
-                    print(i)
-                    print(elite_prev)
-                    self.population[idx] = deepcopy(elite_prev[i])
+            self._get_fitnesses(mutable=False, mode='test', eval_purpose="test")
+            self._get_fitnesses(mutable=True, mode='train', eval_purpose="search")
 
-                # print(f"[Gen {gen}] Reinserted {n_elites} elite(s) with fitnesses:",
-                #       [f"{e.fitness:.4e}" for e in elite_prev])
-
-            elite_prev = self.elite_selection(n_elites=n_elites)
-            # for e in elite_prev:
-            #    print(f"Elite fitness: {e.fitness}")
-            """
 
             assert all(isinstance(e, CGP) for e in elite_prev), "Elite_selection returned non-CGPs"
             assert all(hasattr(e, "fitness") and e.fitness is not None for e in elite_prev), "Elite has no fitness"
@@ -1439,7 +1407,8 @@ class CartesianGP:
             best_fitness_test.append(self.fitnesses_test[np.argmin(self.fitnesses_test)])
 
             #self.stn.get_semantics(true_elite_train, train_x)
-            self._record_metrics(gen)
+            self.elapsed = update_elapsed()
+            self._record_metrics(gen, self.elapsed)
 
             if step_size and gen % step_size == 0:
                 self._report_generation(gen)

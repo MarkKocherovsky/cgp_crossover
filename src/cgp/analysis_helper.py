@@ -283,71 +283,167 @@ class AnalysisToolkit:
     def make_path(self, problem: str, xover: str, selection: str, metric: str):
         return Path(f'../../output/intermediate_results/{problem}_{xover}_{selection}_{metric}.csv')
 
-    def plot_line_graph(self, selection_method: str, metric: str, graph_filename: str, title: str, x_label: str,
-                        y_label: str, log: bool = False):
+    def get_selected_cfg_info(self, problem_key: str, xover: str) -> dict:
+        if not hasattr(self, "selected_configs") or self.selected_configs is None:
+            raise ValueError("self.selected_configs has not been set.")
+
+        key = (problem_key, xover)
+
+        if key not in self.selected_configs:
+            available = "\n".join(map(str, sorted(self.selected_configs.keys())))
+            raise KeyError(
+                f"No selected config found for {key}.\n"
+                f"Available keys are:\n{available}"
+            )
+
+        return self.selected_configs[key]
+
+    def make_selected_path(
+            self,
+            problem_key: str,
+            xover: str,
+            fallback_selection: str,
+            metric: str,
+    ):
+        cfg_info = self.get_selected_cfg_info(problem_key, xover)
+
+        cfg = cfg_info["cfg"]
+        selection = cfg_info.get("selection") or fallback_selection
+
+        return Path(
+            f"../../output/intermediate_results/"
+            f"{problem_key}_{xover}_{selection}_cfg{cfg}_{metric}.csv"
+        )
+
+    def plot_line_graph(self, selection_method: str, metric: str, graph_filename: str,
+                        title: str, x_label: str, y_label: str, log: bool = False):
+
         if isinstance(metric, str):
-            metric = next((m for m in self.metrics if m.code_name == metric), None)
-            if metric is None:
+            metric_obj = next((m for m in self.metrics if m.code_name == metric), None)
+            if metric_obj is None:
                 raise ValueError(f"Metric '{metric}' not found in self.metrics")
+            metric = metric_obj
 
         n_problems = len(self.problems)
-        fig, axs = plt.subplots(int(np.round(n_problems / 2)), 2, figsize=(8, 10))
-        axs = axs.flatten()
-        legend_dict = {}
-        for i, problem in enumerate(self.problems):
-            for xover_method in self.crossover_methods:
-                xover = self.crossover_methods[xover_method].code_name
-                sel_key = 'paretoelite' if 'None' in xover else selection_method
-                if '/full' in xover:
-                    xover = xover.replace('/full', '_full')
+        n_rows = int(np.ceil(n_problems / 2))
 
-                file_name = self.make_path(problem, xover, sel_key, metric.code_name)
-                if file_name.exists():
-                    data = pd.read_csv(file_name)
-                    median = data['Median']
-                    quartile_1 = data['First Quartile']
-                    quartile_3 = data['Third Quartile']
-                else:
-                    raise FileNotFoundError(f"File {file_name} not found.")
-                if log:
-                    axs[i].set_yscale('log')
+        fig, axs = plt.subplots(n_rows, 2, figsize=(8, 10))
+        axs = axs.flatten()
+
+        legend_dict = {}
+
+        for i, problem_key in enumerate(self.problems):
+            ax = axs[i]
+
+            for xover_method in self.crossover_methods:
+                method = self.crossover_methods[xover_method]
+
+                xover = method.code_name
+                sel_key = "paretoelite" if xover == "None" else selection_method
+
+                if "/full" in xover:
+                    xover = xover.replace("/full", "_full")
+
                 try:
-                    line = axs[i].plot(
-                        range(self.max_generations),
+                    file_name = self.make_selected_path(
+                        problem_key=problem_key,
+                        xover=xover,
+                        fallback_selection=sel_key,
+                        metric=metric.code_name,
+                    )
+
+                    if not file_name.exists():
+                        raise FileNotFoundError(f"File {file_name} not found.")
+
+                    data = pd.read_csv(file_name)
+
+                    median = data["Median"]
+                    quartile_1 = data["First Quartile"]
+                    quartile_3 = data["Third Quartile"]
+
+                except Exception as e:
+                    import traceback
+                    print(f"Error loading data for {problem_key} {xover}: {e}")
+                    traceback.print_exc()
+                    continue
+
+                if log:
+                    ax.set_yscale("log")
+
+                x_vals = range(len(median))
+
+                try:
+                    line = ax.plot(
+                        x_vals,
                         median,
-                        label=self.crossover_methods[xover_method].short_name,
-                        c=self.crossover_methods[xover_method].color,
-                        linestyle=self.crossover_methods[xover_method].linestyle
+                        label=method.short_name,
+                        c=method.color,
+                        linestyle=method.linestyle
                     )[0]
+
+                    ax.fill_between(
+                        x_vals,
+                        quartile_1,
+                        quartile_3,
+                        alpha=0.1,
+                        color=method.color
+                    )
+
                 except ValueError as e:
                     print(e)
-                    print(f'{sel_key} {xover} {problem}')
-                    exit()
-                # axs[i//2, i%2].plot(range(self.max_generations), median, label=self.crossover_methods[xover_method].short_name, c=self.crossover_methods[xover_method].color, linestyle=self.crossover_methods[xover_method].linestyle)
-                axs[i].fill_between(range(self.max_generations), quartile_1, quartile_3, alpha=0.1)
-                axs[i].set_title(self.problems[problem], fontsize=11)
-                axs[i].set_xlabel('', fontsize=8)
+                    print(f"{sel_key} {xover} {problem_key}")
+                    print(f"median length: {len(median)}")
+                    print(f"q1 length: {len(quartile_1)}")
+                    print(f"q3 length: {len(quartile_3)}")
+                    continue
+
+                ax.set_title(self.problems[problem_key], fontsize=11)
+                ax.set_xlabel("", fontsize=8)
+
                 if i % 2 == 0:
-                    axs[i].set_ylabel(y_label, fontsize=8)
+                    ax.set_ylabel(y_label, fontsize=8)
                 else:
-                    axs[i].set_ylabel('')
-                # axs[i//2, i%2].legend()
-                label = self.crossover_methods[xover_method].short_name
-                legend_dict[label] = line  # overwrites duplicates automatically
+                    ax.set_ylabel("")
+
+                legend_dict[method.short_name] = line
+
+        # Hide unused axes
+        for j in range(n_problems, len(axs)):
+            axs[j].set_visible(False)
+
+        # Put x-axis label only on bottom visible row
         for ax in axs[-2:]:
-            ax.set_xlabel(x_label, fontsize=8)
-        fig.tight_layout(rect=[0, 0, 1, 0.88])  # Before legend + title
-        fig.legend(list(legend_dict.values()), list(legend_dict.keys()), loc='upper center', ncol=3,
-                   bbox_to_anchor=(0.5, 0.96), fontsize=10)
-        # fig.suptitle(f'{title}\n{self.selection_methods[selection_method]}\n{metric.full_name}', fontsize=14)
-        fig.suptitle(f'{title}', fontsize=14)
-        file_path = f"../output/graphs_raw/{graph_filename}.pkl"  # Path to save the binary file
-        with open(file_path, "wb") as file:
-            pickle.dump(plt.gcf(), file)
+            if ax.get_visible():
+                ax.set_xlabel(x_label, fontsize=8)
+
+        fig.tight_layout(rect=[0, 0, 1, 0.88])
+
+        fig.legend(
+            list(legend_dict.values()),
+            list(legend_dict.keys()),
+            loc="upper center",
+            ncol=3,
+            bbox_to_anchor=(0.5, 0.96),
+            fontsize=10
+        )
+
+        fig.suptitle(title, fontsize=14)
+
+        raw_output_dir = "../output/graphs_raw/"
         output_dir = "../output/graphs/"
+
+        os.makedirs(raw_output_dir, exist_ok=True)
         os.makedirs(output_dir, exist_ok=True)
-        plt.savefig(f"../output/graphs/{graph_filename}{self.output_format}")
-        print(f'{graph_filename} saved')
+
+        file_path = f"{raw_output_dir}/{graph_filename}.pkl"
+
+        with open(file_path, "wb") as file:
+            pickle.dump(fig, file)
+
+        plt.savefig(f"{output_dir}/{graph_filename}{self.output_format}")
+        plt.close(fig)
+
+        print(f"{graph_filename} saved")
 
     def plot_box_plots(self, selection_method: str, metric: Metric, graph_filename: str, title: str,
                        x_label: str, y_label: str, log: bool = False, violin: bool = False, jitter: bool = False):

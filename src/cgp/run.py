@@ -313,6 +313,7 @@ else:
     #    print(f'Best Model Testing Fitness: {test_fitness}')
 
     evolution_module.save_metrics(run_path)
+    print(run_path)
     best_model.print_model()
     print('---')
     best_test_model.print_model()
