@@ -301,7 +301,8 @@ else:
 
     start = datetime.now()
 
-    best_model, best_test_model = evolution_module.fit(train_x, test_x, train_y, test_y, step_size=step_size)
+    best_model, best_test_model = evolution_module.fit(train_x, test_x, train_y, test_y, step_size=step_size,
+                                                       budget_hrs = 0.017)
     end = datetime.now()
 
     duration = end - start

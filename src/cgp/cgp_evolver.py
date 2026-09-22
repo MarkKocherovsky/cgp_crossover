@@ -1,37 +1,43 @@
 from pathlib import Path
-
-import numpy as np
-import numpy.random as random
-import pickle
-import os
-import json
-import hashlib
-import time
-import re
-from typing import Tuple
-
-import ollama
-import pandas as pd
-from pandas.testing import assert_frame_equal
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+import hashlib
+import json
+import os
+import pickle
+import time
+import uuid
+
+import numpy as np
+from Bio.Align import PairwiseAligner, Seq
 
 from .cgp_model import CGP
 from .fitness_functions import correlation, corr_comp_fitness
-from .helper import _get_quartiles, pairwise_minkowski_distance, get_score, get_ssd, get_weights, \
-    clean_values, _get_semantic_alignment
-from .llm_helper import choose_crossover_point_with_ollama, summarize_population_for_llm
-from .search_trajectory import STN
-from Bio.Align import PairwiseAligner, Seq
-from collections import deque
-from matplotlib import pyplot as plt
-
+from .helper import (
+    _get_quartiles,
+    pairwise_minkowski_distance,
+    get_score,
+    get_ssd,
+    get_weights,
+    clean_values,
+    _get_semantic_alignment,
+)
+from .llm_helper import (
+    choose_crossover_point_with_ollama,
+    summarize_population_for_llm,
+)
 from .cgp_generator import node_to_int
 
-from ConfigSpace import Categorical, Configuration, ConfigurationSpace, Float, Integer
-from ConfigSpace.conditions import InCondition
 
-from smac import HyperparameterOptimizationFacade, Scenario
+# OPTIMIZATION: node types and category names are invariant.  Resolving them
+# once avoids repeated list construction/string lookup in hot crossover paths.
+INPUT_NODE = node_to_int("Input")
+CONSTANT_NODE = node_to_int("Constant")
+FUNCTION_NODE = node_to_int("Function")
+OUTPUT_NODE = node_to_int("Output")
+XOVER_CATEGORIES = ("deleterious", "neutral", "beneficial")
+
 
 class CartesianGP:
 
@@ -172,765 +178,1038 @@ class CartesianGP:
 
         # Metrics and tracking
         self.metrics = np.zeros((self.max_g + 1, 37), dtype=np.float64)
-        self.xover_index = {cat: np.zeros((self.max_g, self.max_p)) for cat in ['deleterious', 'neutral', 'beneficial']}
+        self.xover_index = {
+            category: np.zeros((self.max_g, self.max_p))
+            for category in XOVER_CATEGORIES
+        }
         self.mut_index = np.zeros((self.max_g, self.max_p))
 
         # self.stn = STN()
 
     @staticmethod
     def hash_model(m):
-        return hashlib.md5(m.tobytes()).hexdigest()
+        """Return the MD5 digest without allocating an intermediate ``bytes`` copy."""
+        # OPTIMIZATION: hashlib can consume a contiguous buffer directly.  Only
+        # non-contiguous views require a compact temporary array.
+        contiguous = np.ascontiguousarray(m)
+        return hashlib.md5(memoryview(contiguous).cast("B")).hexdigest()
 
     def save_checkpoint(self, filename="cgp_checkpoint.pkl", generation=None):
-        temp_file = filename[0:-4] + ".tmp"
-        with open(temp_file, "wb") as f:
-            pickle.dump(self.__dict__, f)
-        os.replace(temp_file, filename)  # atomic rename to avoid partial writes
-        print(f"Checkpoint saved at generation {generation or self.current_generation} in {filename}")
+        """Atomically save the evolver state."""
+        checkpoint = Path(filename)
+        temp_file = checkpoint.with_suffix(".tmp")
+
+        # OPTIMIZATION: bound method tables and the optional alignment cache are
+        # reconstructed on load, so excluding them reduces checkpoint size and
+        # avoids serializing redundant references.
+        state = self.__dict__.copy()
+        for transient_key in (
+            "selection_methods",
+            "xover_methods",
+            "selection",
+            "xover",
+            "_similarity_aligner",
+        ):
+            state.pop(transient_key, None)
+
+        # HIGHEST_PROTOCOL is faster and more compact for NumPy-heavy state.
+        with temp_file.open("wb") as file:
+            pickle.dump(state, file, protocol=pickle.HIGHEST_PROTOCOL)
+
+        os.replace(temp_file, checkpoint)
+        print(
+            f"Checkpoint saved at generation "
+            f"{generation or self.current_generation} in {filename}"
+        )
 
     @classmethod
     def load_checkpoint(cls, filename="cgp_checkpoint.pkl"):
-        def _try_load(path):
-            with open(path, "rb") as f:
-                return pickle.load(f)
+        """Load a checkpoint, falling back to its atomic temporary file."""
 
+        def try_load(path):
+            with Path(path).open("rb") as file:
+                return pickle.load(file)
+
+        checkpoint = Path(filename)
         try:
-            data = _try_load(filename)
+            data = try_load(checkpoint)
         except EOFError:
-            print(f"⚠️ Warning: Failed to load checkpoint '{filename}' (EOFError). Trying backup...")
-            tmp_file = filename[0:-4] + ".tmp"
-            if os.path.exists(tmp_file):
-                try:
-                    data = _try_load(tmp_file)
-                    print("✅ Loaded from backup:", tmp_file)
-                except Exception as e:
-                    raise RuntimeError(f"Failed to load from both '{filename}' and backup: {e}")
-            else:
-                raise RuntimeError(f"Checkpoint corrupted and no backup found: {filename}")
+            print(
+                f"⚠️ Warning: Failed to load checkpoint '{filename}' "
+                "(EOFError). Trying backup..."
+            )
+            temp_file = checkpoint.with_suffix(".tmp")
+            if not temp_file.exists():
+                raise RuntimeError(
+                    f"Checkpoint corrupted and no backup found: {filename}"
+                )
 
-        obj = cls.__new__(cls)  # Don't call __init__!
+            try:
+                data = try_load(temp_file)
+                print("✅ Loaded from backup:", temp_file)
+            except Exception as error:
+                raise RuntimeError(
+                    f"Failed to load from both '{filename}' and backup: {error}"
+                ) from error
+
+        obj = cls.__new__(cls)
         obj.__dict__.update(data)
 
-        # Restore method bindings after unpickling
+        # Restore bound callables, which should never be trusted from an old pickle.
         obj.selection_methods = {
-            'elite': obj.elite_selection,
-            'paretoelite': obj.pareto_elite_selection,
-            'tournament': obj.tournament_selection,
-            'paretotournament': obj.pareto_tournament_selection,
-            'elite_tournament': obj.elite_tournament_selection,
-            'competent_tournament': obj.competent_tournament_selection
+            "elite": obj.elite_selection,
+            "paretoelite": obj.pareto_elite_selection,
+            "tournament": obj.tournament_selection,
+            "paretotournament": obj.pareto_tournament_selection,
+            "elite_tournament": obj.elite_tournament_selection,
+            "competent_tournament": obj.competent_tournament_selection,
         }
-
         obj.xover_methods = {
-            'none': None,
-            'n_point': obj._n_point_xover,
-            'uniform': obj._uniform_xover,
-            'semantic_uniform': obj._uniform_xover,
-            'aligned_semantic_uniform': obj._uniform_xover,
-            'aligned_homologous_semantic_uniform': obj._uniform_xover,
-            'homologous_semantic_uniform': obj._uniform_xover,
-            'semantic_n_point': obj._n_point_xover,
-            'homologous_semantic_n_point': obj._n_point_xover,
-            'aligned_homologous_semantic_n_point': obj._n_point_xover,
-            'aligned_semantic_n_point': obj._n_point_xover,
-            'subgraph': obj._subgraph_xover,
-            'llm_n_point': obj._n_point_xover,
+            "none": None,
+            "n_point": obj._n_point_xover,
+            "uniform": obj._uniform_xover,
+            "semantic_uniform": obj._uniform_xover,
+            "aligned_semantic_uniform": obj._uniform_xover,
+            "aligned_homologous_semantic_uniform": obj._uniform_xover,
+            "homologous_semantic_uniform": obj._uniform_xover,
+            "semantic_n_point": obj._n_point_xover,
+            "homologous_semantic_n_point": obj._n_point_xover,
+            "aligned_homologous_semantic_n_point": obj._n_point_xover,
+            "aligned_semantic_n_point": obj._n_point_xover,
+            "subgraph": obj._subgraph_xover,
+            "llm_n_point": obj._n_point_xover,
         }
-
         obj.selection = obj.selection_methods.get(obj.selection_type)
         obj.xover = obj.xover_methods.get(obj.xover_type)
-
         obj.first_submission = False
+
+        # Older checkpoints predate this lazy cache.
+        obj.__dict__.pop("_similarity_aligner", None)
 
         print(f"Checkpoint loaded at generation {obj.current_generation}")
         return obj
 
     def initialize_population(self):
-        """Initialize population in parallel."""
-        with ThreadPoolExecutor() as executor:
-            future_models = {
-                i: executor.submit(CGP, fixed_length=self.fixed_length, fitness_function=self.ff_string,
-                                   mutation_type=self.mutation_type, function_bank=self.function_bank,
-                                   **self.model_kwargs)
-                for i in range(self.max_p)
-            }
+        """Initialize the parent population."""
+        creation_kwargs = {
+            "fixed_length": self.fixed_length,
+            "fitness_function": self.ff_string,
+            "mutation_type": self.mutation_type,
+            **self.model_kwargs,
+        }
+        # CORRECTNESS: passing function_bank=None suppresses CGP's default bank.
+        if self.function_bank is not None:
+            creation_kwargs["function_bank"] = self.function_bank
 
-        for i, future in future_models.items():
-            ind = future.result()
+        # OPTIMIZATION: the common (1 + λ) configuration avoids constructing a
+        # thread pool whose startup costs exceed a single model generation.
+        if self.max_p == 1:
+            individuals = [CGP(**creation_kwargs)]
+        else:
+            with ThreadPoolExecutor() as executor:
+                futures = [
+                    executor.submit(CGP, **creation_kwargs)
+                    for _ in range(self.max_p)
+                ]
+                individuals = [future.result() for future in futures]
 
-            # ✅ Force re-initialize xover_index for consistency in 1D
+        for index, individual in enumerate(individuals):
             if self.one_d:
-                n_zeros = (ind.arity + 1) * ind.max_size + ind.outputs
-                ind.xover_index = np.zeros(n_zeros)
-                print(f"📦 Initialized xover_index for individual {i}: {ind.xover_index.shape}")
+                n_zeros = (
+                    (individual.arity + 1) * individual.max_size
+                    + individual.outputs
+                )
+                individual.xover_index = np.zeros(n_zeros)
+                print(
+                    f"📦 Initialized xover_index for individual {index}: "
+                    f"{individual.xover_index.shape}"
+                )
             else:
-                ind.xover_index = np.zeros(ind.max_size + ind.outputs)
+                individual.xover_index = np.zeros(
+                    individual.max_size + individual.outputs
+                )
+            self.population[index] = individual
 
-            self.population[i] = ind
-        self.model_keys = deepcopy(self.population[0].model_keys)
+        # model_keys is a flat str->int dictionary; a shallow copy gives the
+        # same independence as deepcopy without recursively walking scalars.
+        self.model_keys = self.population[0].model_keys.copy()
 
     def elite_selection(self, models=None, n_elites=None, indices=False):
-        """Select top-n elite individuals based on their fitness attribute."""
+        """Select top-n elite individuals based on fitness."""
         n_elites = n_elites or self.max_p
-        # print(self.population)
-        if models is None:
-            models = self.population
-        # Combine models and their indices
-        valid_pairs = [(i, m) for i, m in enumerate(self.population) if m is not None]
+        source = self.population if models is None else models
+
+        # OPTIMIZATION: sort the shuffled list in place instead of creating a
+        # second sorted list plus two full tuples.
+        valid_pairs = [(i, model) for i, model in enumerate(source) if model is not None]
         np.random.shuffle(valid_pairs)
+        valid_pairs.sort(key=lambda pair: pair[1].fitness)
 
-        # Sort pairs by model fitness
-        sorted_pairs = sorted(valid_pairs, key=lambda x: x[1].fitness)
-        # Unpack sorted indices and models
-        sorted_indices, sorted_models = zip(*sorted_pairs) if sorted_pairs else ([], [])
-        # print("Fitnesses:", self.fitnesses)
-        # print("Elite indices:", elite_indices)
+        selected = valid_pairs[:n_elites]
+        selected_models = [deepcopy(model) for _, model in selected]
+
         if indices:
-            return [deepcopy(m) for m in sorted_models[:n_elites]], sorted_indices[:n_elites]
-        else:
-            return [deepcopy(m) for m in sorted_models[:n_elites]]
-
-    """
-    def get_pareto_front(self, points):
-        is_efficient = np.arange(points.shape[0])
-        n_points = points.shape[0]
-        next_point_index = 0
-        while next_point_index < len(points):
-            nondominated_point_mask = np.any(points < points[next_point_index], axis=1)
-            nondominated_point_mask[next_point_index] = True
-            is_efficient = is_efficient[nondominated_point_mask]
-            points = points[nondominated_point_mask]
-            next_point_index = np.sum(nondominated_point_mask[:next_point_index]) + 1
-        return is_efficient
-    """
+            # Preserve the original tuple return type for selected indices.
+            return selected_models, tuple(index for index, _ in selected)
+        return selected_models
 
     def get_pareto_front(self, points: np.ndarray) -> np.ndarray:
         """
-        points: shape (n, 2) with columns [correlation, complexity]
-        returns: array of indices of Pareto-optimal points (minimization)
+        Return indices of Pareto-optimal points for two minimized objectives.
         """
         if points.size == 0:
-            return np.array([], dtype=int)
+            return np.empty(0, dtype=np.intp)
 
-        # sort by first objective (correlation)
         order = np.argsort(points[:, 0])
         best_complexity = np.inf
-        front_indices = []
 
-        for idx in order:
-            comp = points[idx, 1]
-            if comp < best_complexity:
-                best_complexity = comp
-                front_indices.append(idx)
+        # OPTIMIZATION: preallocate the largest possible result instead of growing
+        # a Python list and converting it after the scan.
+        front = np.empty(order.size, dtype=np.intp)
+        count = 0
+        for index in order:
+            complexity = points[index, 1]
+            if complexity < best_complexity:
+                best_complexity = complexity
+                front[count] = index
+                count += 1
 
-        return np.array(front_indices, dtype=int)
+        return front[:count].copy()
 
     def pareto_elite_selection(self, models=None, n_elites=None, return_indices=False):
         """
-            Select elites based on 2D objectives (correlation, complexity).
+        Select elites using correlation and complexity.
 
-            - correlation dominates (primary objective, minimize)
-            - complexity is secondary (tie-break / small pressure)
-            - always returns exactly n_elites models (or indices if return_indices=True)
-            """
-        if models is None:
-            models = self.population
+        Correlation is primary; complexity is used within a small correlation
+        bucket.  The method always returns up to ``n_elites`` valid individuals.
+        """
+        source = self.population if models is None else models
 
+        # OPTIMIZATION: build the original-index vector directly and avoid
+        # constructing/unpacking a list of (index, model) tuples.
+        original_indices = np.fromiter(
+            (i for i, model in enumerate(source) if model is not None),
+            dtype=np.intp,
+        )
+        if original_indices.size == 0:
+            return np.empty(0, dtype=np.intp) if return_indices else []
 
-        # remove Nones but remember their indices
-        valid_pairs = [(i, m) for i, m in enumerate(models) if m is not None]
-        if not valid_pairs:
-            return [] if not return_indices else np.array([], dtype=int)
-
-        orig_indices, models_valid = zip(*valid_pairs)
-        orig_indices = np.array(orig_indices)
-        models_valid = list(models_valid)
-
+        models_valid = [source[i] for i in original_indices]
         n_elites = n_elites or self.n_elites
+        n_elites = min(n_elites, len(models_valid))
 
-        # build points array: [corr, complexity]
-        points = np.array([[m.correlation, m.complexity] for m in models_valid], dtype=float)
+        # Build the dense objective matrix with one allocation.
+        points = np.empty((len(models_valid), 2), dtype=np.float64)
+        for i, model in enumerate(models_valid):
+            points[i, 0] = model.correlation
+            points[i, 1] = model.complexity
 
-        # 1) find Pareto front indices (relative to models_valid)
-        front_idx = self.get_pareto_front(points)
+        front_indices = self.get_pareto_front(points)
+        front_points = points[front_indices]
 
-        # 2) rank points on the front lexicographically: corr first, then complexity
-        front_points = points[front_idx]
+        correlation = front_points[:, 0]
+        complexity = front_points[:, 1]
+        best_correlation = np.min(correlation)
+        correlation_bucket = np.floor(
+            (correlation - best_correlation) / 1e-3
+        )
 
-        corr = front_points[:, 0]
-        comp = front_points[:, 1]
+        front_order = np.lexsort((complexity, correlation_bucket))
+        chosen = front_indices[front_order[:n_elites]].tolist()
 
-        eps_corr = 1e-3  # ← tune this
-
-        best_corr = np.min(corr)
-        corr_bucket = np.floor((corr - best_corr) / eps_corr)
-
-        order_front = np.lexsort((comp, corr_bucket))
-        front_sorted_idx = front_idx[order_front]
-
-        # 3) pick as many elites as possible from the front
-        chosen_idx = list(front_sorted_idx[:n_elites])
-
-        # 4) if still need more elites, fill from remaining models by lexicographic order
-        if len(chosen_idx) < n_elites:
+        if len(chosen) < n_elites:
             remaining_mask = np.ones(len(models_valid), dtype=bool)
-            remaining_mask[chosen_idx] = False
-            remaining_points = points[remaining_mask]
+            remaining_mask[chosen] = False
+            remaining_indices = np.flatnonzero(remaining_mask)
+            remaining_points = points[remaining_indices]
+            remaining_order = np.lexsort(
+                (remaining_points[:, 1], remaining_points[:, 0])
+            )
+            needed = n_elites - len(chosen)
+            chosen.extend(remaining_indices[remaining_order[:needed]].tolist())
 
-            order_all = np.lexsort((remaining_points[:, 1], remaining_points[:, 0]))
-            remaining_indices = np.where(remaining_mask)[0][order_all]
-
-            needed = n_elites - len(chosen_idx)
-            chosen_idx.extend(list(remaining_indices[:needed]))
-
-        chosen_idx = np.array(chosen_idx, dtype=int)
-
+        chosen_indices = np.asarray(chosen, dtype=np.intp)
         if return_indices:
-            # map back to original indices of self.population
-            return orig_indices[chosen_idx]
+            return original_indices[chosen_indices]
 
-        # otherwise return deep-copied models
-        elites = [deepcopy(models_valid[i]) for i in chosen_idx]
-        return elites
+        return [deepcopy(models_valid[i]) for i in chosen_indices]
 
     def tournament_selection(self, n_to_select=None):
-        """Performs tournament selection with optional diversity enforcement."""
+        """Perform fitness tournament selection."""
         n_to_select = n_to_select or self.max_p
         new_population = np.empty(n_to_select, dtype=object)
 
-        # Filter out None values from population
-        t_pop = self.population[self.population is not None]
-
-        available_indices = list(range(len(t_pop)))
-        remaining_slots = len(new_population)
-
-        new_population = self.t_select(available_indices, new_population, remaining_slots, pareto=False)
-
-        return new_population
+        # CORRECTNESS + OPTIMIZATION: retain original population indices while
+        # filtering None entries; the old compressed index range could select the
+        # wrong model when gaps were present.
+        available_indices = np.fromiter(
+            (
+                index
+                for index, individual in enumerate(self.population)
+                if individual is not None
+            ),
+            dtype=np.intp,
+        )
+        return self.t_select(
+            available_indices,
+            new_population,
+            len(new_population),
+            pareto=False,
+        )
 
     def pareto_tournament_selection(self, n_to_select=None):
+        """Perform Pareto tournament selection."""
         n_to_select = n_to_select or self.max_p
         new_population = np.empty(n_to_select, dtype=object)
-
-        # Filter out None values from population
-        available_indices = np.array([i for i, m in enumerate(self.population) if m is not None])
-
-        # available_indices = list(range(len(t_pop)))
-        remaining_slots = len(new_population)
-
-        new_population = self.t_select(available_indices, new_population, remaining_slots, pareto=True)
-
-        return new_population
+        available_indices = np.fromiter(
+            (
+                index
+                for index, individual in enumerate(self.population)
+                if individual is not None
+            ),
+            dtype=np.intp,
+        )
+        return self.t_select(
+            available_indices,
+            new_population,
+            len(new_population),
+            pareto=True,
+        )
 
     def elite_tournament_selection(self):
-        """Combines elite selection with tournament selection, ensuring diversity enforcement."""
-
-        # Step 1: Select elite individuals (from self.population)
-        elite_population, elite_indices = self.elite_selection(n_elites=self.n_elites, indices=True)
-        # Step 2: Prepare for tournament selection
+        """Combine elite selection with tournament selection."""
+        elite_population, elite_indices = self.elite_selection(
+            n_elites=self.n_elites,
+            indices=True,
+        )
         remaining_slots = self.max_p - len(elite_population)
-        # Create available index pool from self.population
-        available_indices = [i for i, ind in enumerate(self.population)
-                             if i not in elite_indices and ind is not None]
-        # Step 3: Perform tournament selection
-        new_population = np.empty(remaining_slots, dtype=object)
-        available_indices, new_population = self.t_select(available_indices, new_population,
-                                                          remaining_slots)
 
-        # Step 4: Combine elite and tournament-selected individuals
-        final_population = np.concatenate((elite_population, new_population))
-        return final_population
+        # OPTIMIZATION: set membership is O(1), unlike repeatedly scanning the
+        # tuple of elite indices for every population member.
+        elite_index_set = set(elite_indices)
+        available_indices = np.fromiter(
+            (
+                i
+                for i, individual in enumerate(self.population)
+                if individual is not None and i not in elite_index_set
+            ),
+            dtype=np.intp,
+        )
+
+        tournament_population = np.empty(remaining_slots, dtype=object)
+        tournament_population = self.t_select(
+            available_indices,
+            tournament_population,
+            remaining_slots,
+            pareto=False,
+        )
+        return np.concatenate((elite_population, tournament_population))
 
     def t_select(self, available_indices, new_population, remaining_slots, pareto=False):
-        for i in range(remaining_slots):
-            if self.tournament_diversity and len(available_indices) < self.tournament_size:
-                contestants_indices = available_indices
-            else:
-                contestants_indices = np.random.choice(available_indices, size=self.tournament_size, replace=False)
+        """Fill ``new_population`` from tournament winners."""
+        # OPTIMIZATION: use a NumPy index pool consistently.  This also avoids the
+        # list-vs-array comparison bug in diversity removal.
+        available_indices = np.asarray(available_indices, dtype=np.intp)
+        population = self.population
+        tournament_size = self.tournament_size
+        enforce_diversity = self.tournament_diversity
 
-            # Select best contestant
+        for output_index in range(remaining_slots):
+            if enforce_diversity and available_indices.size < tournament_size:
+                contestants = available_indices
+            else:
+                contestants = np.random.choice(
+                    available_indices,
+                    size=tournament_size,
+                    replace=False,
+                )
+
             if not pareto:
-                best_index = min(contestants_indices, key=lambda idx: self.population[idx].fitness)
+                best_index = min(
+                    contestants,
+                    key=lambda index: population[index].fitness,
+                )
             else:
-                selected_models = [self.population[i] for i in contestants_indices]
-
-                best_contestant = self.pareto_elite_selection(
+                selected_models = [population[index] for index in contestants]
+                relative_best = self.pareto_elite_selection(
                     models=selected_models,
                     return_indices=True,
-                    n_elites=1
+                    n_elites=1,
                 )
-                best_index = contestants_indices[best_contestant[0]]
-            new_population[i] = deepcopy(self.population[best_index])
+                best_index = contestants[relative_best[0]]
 
-            # Remove selected individual to enforce diversity
-            if self.tournament_diversity:
-                available_indices = available_indices[available_indices != best_index]
+            new_population[output_index] = deepcopy(population[best_index])
+
+            if enforce_diversity:
+                available_indices = available_indices[
+                    available_indices != best_index
+                ]
 
         return new_population
 
     def _compute_semantics(self):
-        """
-        Compute semantics for all individuals in the CGP population at once.
-        Uses vectorized operations for better efficiency.
-
-        Returns:
-            np.ndarray: A matrix where each row is an individual's output.
-        """
-        valid_individuals = [ind for ind in self.population if ind is not None]
-
-        if not valid_individuals:  # Handle empty population case
+        """Compute one flattened semantic row for every valid individual."""
+        valid_individuals = [
+            individual for individual in self.population if individual is not None
+        ]
+        if not valid_individuals:
             return np.empty((0, len(self.x)))
 
-        # Compute outputs for all individuals in one go
-        semantics = np.vstack([ind(self.x).flatten() for ind in valid_individuals])
-
-        return semantics
+        # OPTIMIZATION: np.stack knows the final row count up front and avoids some
+        # of vstack's input normalization overhead.
+        return np.stack(
+            [individual(self.x).ravel() for individual in valid_individuals],
+            axis=0,
+        )
 
     def competent_tournament_selection(self, n_to_select=None):
         """
-        Perform competent tournament selection with semantic distance-based scoring,
-        using optimized vectorized operations.
-
-        Returns:
-            np.ndarray: Array of selected parent CGP models.
+        Perform semantic-distance-based competent tournament selection.
         """
         n_to_select = n_to_select or self.max_p
 
-        # Filter out None individuals and get their indices
-        t_pop = np.array([ind for ind in self.population if ind is not None])
-        parent_indices = np.arange(len(t_pop))
-
-        # Compute all parent semantics at once
+        valid_population_indices = np.fromiter(
+            (i for i, model in enumerate(self.population) if model is not None),
+            dtype=np.intp,
+        )
         parent_semantics = self._compute_semantics()
+        if parent_semantics.size == 0:
+            return np.empty(0, dtype=object)
 
-        # Compute target vector (ground truth)
-        def _normalize(v):
-            return (v - np.mean(v)) / (np.std(v) + 1e-8)
+        # OPTIMIZATION: normalize every semantic row in two vectorized passes,
+        # replacing np.apply_along_axis and its Python callback overhead.
+        row_means = np.mean(parent_semantics, axis=1, keepdims=True)
+        row_stds = np.std(parent_semantics, axis=1, keepdims=True)
+        parent_semantics = (
+            parent_semantics - row_means
+        ) / (row_stds + 1e-8)
 
-        parent_semantics = np.apply_along_axis(_normalize, 1, parent_semantics)
-        target = _normalize(np.ravel(self.y))
-        # Compute distances to target using vectorized Minkowski distance (p=2)
-        target_distances = np.linalg.norm(parent_semantics - target, axis=1)
+        target = np.ravel(self.y)
+        target = (target - np.mean(target)) / (np.std(target) + 1e-8)
+        target_distances = np.linalg.norm(
+            parent_semantics - target,
+            axis=1,
+        )
 
-        # Prepare selected indices and remaining indices
         selected_indices = []
-        remaining = list(parent_indices)
-
-        t_size = min(self.tournament_size, len(remaining))
+        remaining = list(range(len(valid_population_indices)))
+        tournament_size = min(self.tournament_size, len(remaining))
         enforce_diversity = self.tournament_diversity
 
-        while len(selected_indices) < n_to_select and len(remaining) >= t_size:
+        while (
+            len(selected_indices) < n_to_select
+            and len(remaining) >= tournament_size
+        ):
+            contestants = np.random.choice(
+                remaining,
+                size=tournament_size,
+                replace=False,
+            )
 
-            # Ensure we have enough candidates to sample
-            if len(remaining) < t_size:
-                break
+            first_index = contestants[
+                np.argmin(target_distances[contestants])
+            ]
+            first_semantics = parent_semantics[first_index]
+            first_target_distance = target_distances[first_index]
 
-            # Sample contestants
-            contestants = np.random.choice(remaining, size=t_size, replace=False)
-
-            # Select first parent (lowest target distance)
-            first_index = contestants[np.argmin(target_distances[contestants])]
-
-            first_sem = parent_semantics[first_index]
-            first_target_dist = target_distances[first_index]
-
-            # Compute semantic distances between first parent and all contestants
-            sem_distances = np.linalg.norm(parent_semantics[contestants] - first_sem, axis=1)
-
-            # Compute composite scores
-            scores = {
-                idx: get_score(
-                    first_target_dist,
-                    pairwise_minkowski_distance(first_sem, parent_semantics[idx], p=2),
-                    target_distances[idx]
+            # OPTIMIZATION: avoid the unused semantic-distance array and avoid a
+            # temporary dictionary.  The strict '<' preserves first-item tie
+            # behavior from min(dict, key=dict.get).
+            second_index = contestants[0]
+            second_score = get_score(
+                first_target_distance,
+                pairwise_minkowski_distance(
+                    first_semantics,
+                    parent_semantics[second_index],
+                    p=2,
+                ),
+                target_distances[second_index],
+            )
+            for candidate in contestants[1:]:
+                candidate_score = get_score(
+                    first_target_distance,
+                    pairwise_minkowski_distance(
+                        first_semantics,
+                        parent_semantics[candidate],
+                        p=2,
+                    ),
+                    target_distances[candidate],
                 )
-                for idx in contestants
-            }
+                if candidate_score < second_score:
+                    second_score = candidate_score
+                    second_index = candidate
 
-            # Select second parent (minimum composite score)
-            second_index = min(scores, key=scores.get)
+            selected_indices.extend((first_index, second_index))
 
-            # Add both parents to selected list
-            selected_indices.extend([first_index, second_index])
-
-            # Enforce diversity
             if enforce_diversity:
-                remaining = [i for i in remaining if i not in (first_index, second_index)]
+                remaining = [
+                    index
+                    for index in remaining
+                    if index != first_index and index != second_index
+                ]
 
-        return self.population[np.array(selected_indices[:n_to_select])]
+        selected_original_indices = valid_population_indices[
+            np.asarray(selected_indices[:n_to_select], dtype=np.intp)
+        ]
+        # self.population becomes a list inside fit(); gather explicitly so
+        # this path supports both list and object-array populations.
+        return np.asarray(
+            [self.population[index] for index in selected_original_indices],
+            dtype=object,
+        )
 
     def crossover(self, parents, xover_rate, gen):
-        """Perform crossover to generate children."""
+        """Perform crossover until ``max_c`` children have been produced."""
         children = []
-        parent_pairs = [(parents[i], parents[i + 1]) for i in range(0, len(parents), 2)]
+        max_children = self.max_c
+        child_counter = self.child_id_counter
+        model_key_map = getattr(self, "model_key_map", None)
 
-        while len(children) < self.max_c:
-            for i, (p1, p2) in enumerate(parent_pairs):
+        # OPTIMIZATION: iterate parent indices directly instead of materializing a
+        # list of parent-pair tuples on every generation.
+        while len(children) < max_children:
+            for parent_offset in range(0, len(parents), 2):
+                pair_index = parent_offset // 2
+                parent1 = parents[parent_offset]
+                parent2 = parents[parent_offset + 1]
+
                 if np.random.rand() < xover_rate:
-                    if self.xover_type == 'subgraph':
-                        c1 = self.xover(p1, p2, gen)
-                        c2 = self.xover(p2, p1, gen)
+                    if self.xover_type == "subgraph":
+                        child1 = self.xover(parent1, parent2, gen)
+                        child2 = self.xover(parent2, parent1, gen)
                     else:
-                        c1, c2 = self.xover(p1, p2, gen)
+                        child1, child2 = self.xover(parent1, parent2, gen)
                 else:
-                    c1, c2 = deepcopy(p1), deepcopy(p2)
+                    child1, child2 = deepcopy(parent1), deepcopy(parent2)
 
-                # Get parent keys
-                p1_key = getattr(p1, 'child_keys', f'Model_{2 * i:03d}_g{gen - 1}')
-                p2_key = getattr(p2, 'child_keys', f'Model_{2 * i + 1:03d}_g{gen - 1}')
+                parent1_key = getattr(
+                    parent1,
+                    "child_keys",
+                    f"Model_{2 * pair_index:03d}_g{gen - 1}",
+                )
+                parent2_key = getattr(
+                    parent2,
+                    "child_keys",
+                    f"Model_{2 * pair_index + 1:03d}_g{gen - 1}",
+                )
+                parent_keys = [parent1_key, parent2_key]
 
-                # Assign keys to both children
-                for child in [c1, c2]:
-                    child_key = f'Child_{self.child_id_counter:03d}_g{gen}'
-                    child.set_parent_key([p1_key, p2_key])
+                for child in (child1, child2):
+                    child_key = f"Child_{child_counter:03d}_g{gen}"
+                    child.set_parent_key(parent_keys.copy())
                     child.set_child_key(child_key)
 
-                    if hasattr(self, 'model_key_map'):
-                        self.model_key_map[child_key] = child
+                    if model_key_map is not None:
+                        model_key_map[child_key] = child
 
-                    self.child_id_counter += 1
+                    child_counter += 1
                     children.append(child)
-
-                    if len(children) >= self.max_c:
+                    if len(children) >= max_children:
                         break
-                if len(children) >= self.max_c:
+
+                if len(children) >= max_children:
                     break
-        return np.array(children, dtype=object)
+
+        self.child_id_counter = child_counter
+        return np.asarray(children, dtype=object)
 
     def flatten_parent(self, parent):
         """
-        Flattens a CGP individual's function/output nodes into a 1D array.
-
-        Returns:
-            flat: np.ndarray of [Operator, Operand0, ..., Operand{arity-1}, ...]
-            node_types: np.ndarray of corresponding NodeTypes (to distinguish Function vs Output)
+        Flatten function nodes as [operator, operand0, ..., operandN].
         """
-        mask = parent.model[:, self.model_keys['NodeType']] == node_to_int('Function')
-        nodes = parent.model[mask]
-        arity = parent.arity  # number of operands per function/output node
-        flat = []
-        for node in nodes:
-            flat.append(node[self.model_keys['Operator']])
-            for j in range(arity):
-                flat.append(int(node[self.model_keys[f'Operand{j}']]))  # ensure operands are stored as int
-        return np.array(flat, dtype=np.int64), nodes[:, self.model_keys['NodeType']]
+        node_type_column = self.model_keys["NodeType"]
+        function_mask = parent.model[:, node_type_column] == FUNCTION_NODE
+        nodes = parent.model[function_mask]
+
+        # OPTIMIZATION: gather all required columns once and flatten in C order,
+        # replacing the nested Python loops.
+        columns = [self.model_keys["Operator"]]
+        columns.extend(
+            self.model_keys[f"Operand{i}"] for i in range(parent.arity)
+        )
+        flattened = nodes[:, columns].astype(np.int64, copy=False).ravel()
+        return flattened, nodes[:, node_type_column]
 
     def unflatten_model(self, flattened_model, node_types, arity):
         """
-        Reconstructs a structured NumPy model array from a flat vector and node types.
-
-        Args:
-            flattened_model (np.ndarray): flat vector of alternating [Operator, Operand0...n]
-            node_types (np.ndarray): array of NodeType strings ('Function' or 'Output')
-            arity (int): number of operands per node
-
-        Returns:
-            np.ndarray: structured model array of nodes (Function + Output only)
+        Reconstruct model rows from [operator, operand0, ..., operandN] records.
         """
         num_nodes = len(node_types)
-        stride = 1 + arity  # number of fields per node
-        model = np.zeros((num_nodes, len(self.model_keys)), dtype=np.int64)
+        stride = arity + 1
+        records = np.asarray(flattened_model).reshape(num_nodes, stride)
+        model = np.zeros(
+            (num_nodes, len(self.model_keys)),
+            dtype=np.int64,
+        )
 
-        for i in range(num_nodes):
-            offset = i * stride
-            model[i, self.model_keys['NodeType']] = node_types[i]
-            model[i, self.model_keys['Operator']] = int(flattened_model[offset])
-            for j in range(arity):
-                operand_value = flattened_model[offset + j]
-                model[i][self.model_keys[f'Operand{j}']] = int(operand_value)
-
-            model[i, self.model_keys['Value']] = 0.0
-            model[i, self.model_keys['Active']] = 0.0
+        # OPTIMIZATION: assign complete columns at once.  The +1 offset is also a
+        # correctness fix: operand0 follows the operator in the flattened record.
+        model[:, self.model_keys["NodeType"]] = node_types
+        model[:, self.model_keys["Operator"]] = records[:, 0]
+        operand_columns = [
+            self.model_keys[f"Operand{i}"] for i in range(arity)
+        ]
+        model[:, operand_columns] = records[:, 1:]
         return model
 
     def _n_point_xover(self, p1, p2, gen, **kwargs):
-        """Performs n-point crossover, supporting semantic and homologous crossover."""
+        """Perform n-point crossover, including semantic variants."""
 
         def get_crossover_points(length, offset=0, weights=None):
             indices = np.arange(offset, length)
             if weights is not None and weights.sum() > 0:
                 if len(indices) > len(weights):
                     indices = indices[:len(weights)]
-                return np.sort(np.random.choice(indices, size=self.n_points, replace=False, p=weights))
-            return np.sort(np.random.choice(indices, size=self.n_points, replace=False))
-
-        fb_node = min(p1.first_body_node, p2.first_body_node)
-        weights = None
-        # Use Ollama to recommend xover point
-        if 'llm' in self.xover_type:
-            p1_m = p1.model
-            p2_m = p2.model
-            p1_f = p1.fitness
-            p2_f = p2.fitness
-            p1_c = p1.complexity
-            p2_c = p2.complexity
-
-            self.llm_window.appendleft(self.population)
-
-            population_context = summarize_population_for_llm(self.llm_window)
-
-            xover_point = choose_crossover_point_with_ollama(
-                p1_m,
-                p2_m,
-                p1_f,
-                p2_f,
-                p1_c,
-                p2_c,
-                self.llm_model,
-                population_context
+                return np.sort(
+                    np.random.choice(
+                        indices,
+                        size=self.n_points,
+                        replace=False,
+                        p=weights,
+                    )
+                )
+            return np.sort(
+                np.random.choice(
+                    indices,
+                    size=self.n_points,
+                    replace=False,
+                )
             )
 
-            xover_points_p1 = np.array([xover_point], dtype=int)
+        first_body_node = min(p1.first_body_node, p2.first_body_node)
+        weights = None
+
+        if "llm" in self.xover_type:
+            self.llm_window.appendleft(self.population)
+            population_context = summarize_population_for_llm(self.llm_window)
+            crossover_point = choose_crossover_point_with_ollama(
+                p1.model,
+                p2.model,
+                p1.fitness,
+                p2.fitness,
+                p1.complexity,
+                p2.complexity,
+                self.llm_model,
+                population_context,
+            )
+            crossover_points = np.asarray([crossover_point], dtype=np.intp)
         else:
             if self.semantic:
                 if self.aligned:
                     weights = _get_semantic_alignment(p1, p2, self.x)
                 else:
-                    vmat_1, vmat_2 = clean_values(p1, self.x), clean_values(p2, self.x)
-                    weights = get_weights(get_ssd(vmat_1, vmat_2))
+                    values1 = clean_values(p1, self.x)
+                    values2 = clean_values(p2, self.x)
+                    weights = get_weights(get_ssd(values1, values2))
+
                 if self.homologous and not np.all(weights == weights[0]):
-                    weights = (weights.max() - weights) / (weights.max() - weights.min() + 1e-8)
+                    maximum = weights.max()
+                    minimum = weights.min()
+                    weights = (
+                        maximum - weights
+                    ) / (maximum - minimum + 1e-8)
                     weights /= weights.sum()
-            xover_points_p1 = get_crossover_points(len(p1.model), p1.first_body_node, weights)
 
-        p1.xover_index[xover_points_p1 - fb_node] += 1
-        p2.xover_index[xover_points_p1 - fb_node] += 1
+            crossover_points = get_crossover_points(
+                len(p1.model),
+                p1.first_body_node,
+                weights,
+            )
 
-        parts1 = np.split(p1.model, xover_points_p1)
-        parts2 = np.split(p2.model, xover_points_p1)
-        child1 = np.concatenate(parts1[::2] + parts2[1::2])
-        child2 = np.concatenate(parts2[::2] + parts1[1::2])
+        tracking_indices = crossover_points - first_body_node
+        p1.xover_index[tracking_indices] += 1
+        p2.xover_index[tracking_indices] += 1
 
-        c1 = CGP(model=child1, model_keys=self.model_keys, fixed_length=self.fixed_length,
-                 fitness_function=self.ff_string,
-                 mutation_type=self.mutation_type)
-        c2 = CGP(model=child2, model_keys=self.model_keys, fixed_length=self.fixed_length,
-                 fitness_function=self.ff_string,
-                 mutation_type=self.mutation_type)
-        return c1, c2
+        # OPTIMIZATION: copy alternating slices directly into the final arrays.
+        # This avoids np.split's view lists and np.concatenate's additional input
+        # bookkeeping while retaining support for unequal parent lengths.
+        points = crossover_points.tolist()
+        segment_starts = [0, *points]
+        segment_ends = [*points, None]
+
+        child1_length = (
+            len(p1.model)
+            if len(points) % 2 == 0
+            else len(p2.model)
+        )
+        child2_length = (
+            len(p2.model)
+            if len(points) % 2 == 0
+            else len(p1.model)
+        )
+        child1 = np.empty(
+            (child1_length, p1.model.shape[1]),
+            dtype=np.result_type(p1.model.dtype, p2.model.dtype),
+        )
+        child2 = np.empty(
+            (child2_length, p1.model.shape[1]),
+            dtype=np.result_type(p1.model.dtype, p2.model.dtype),
+        )
+
+        child1_position = 0
+        child2_position = 0
+        for segment_index, (start, end) in enumerate(
+            zip(segment_starts, segment_ends)
+        ):
+            if segment_index % 2 == 0:
+                source1, source2 = p1.model, p2.model
+            else:
+                source1, source2 = p2.model, p1.model
+
+            source1_slice = source1[start:end]
+            source2_slice = source2[start:end]
+            next1 = child1_position + len(source1_slice)
+            next2 = child2_position + len(source2_slice)
+            child1[child1_position:next1] = source1_slice
+            child2[child2_position:next2] = source2_slice
+            child1_position = next1
+            child2_position = next2
+
+        child_kwargs = {
+            "model_keys": self.model_keys,
+            "fixed_length": self.fixed_length,
+            "fitness_function": self.ff_string,
+            "mutation_type": self.mutation_type,
+        }
+        if self.function_bank is not None:
+            child_kwargs["function_bank"] = self.function_bank
+        return (
+            CGP(model=child1, **child_kwargs),
+            CGP(model=child2, **child_kwargs),
+        )
 
     def _uniform_xover(self, p1, p2, gen, weights: np.ndarray | list = None, **kwargs):
-        """Performs uniform crossover, supporting semantic and homologous crossover."""
-
-        # Standard 2D structured uniform crossover
+        """Perform uniform crossover, including semantic variants."""
         n_outputs = 0
+
         if self.semantic:
             if self.aligned:
                 weights = _get_semantic_alignment(p1, p2, self.x)
             else:
-                vmat_1, vmat_2 = clean_values(p1, self.x), clean_values(p2, self.x)
-                weights = get_weights(get_ssd(vmat_1, vmat_2), epsilon=0.001)
+                values1 = clean_values(p1, self.x)
+                values2 = clean_values(p2, self.x)
+                weights = get_weights(
+                    get_ssd(values1, values2),
+                    epsilon=0.001,
+                )
 
             if self.homologous and not np.all(weights == weights[0]):
-                max_weight, min_weight = weights.max(), weights.min()
-                weights = (max_weight - weights) / (max_weight - min_weight + 1e-8)
+                maximum = weights.max()
+                minimum = weights.min()
+                weights = (
+                    maximum - weights
+                ) / (maximum - minimum + 1e-8)
                 weights /= weights.sum()
 
             n_outputs = p1.outputs
 
-        fb_node = min(p1.first_body_node, p2.first_body_node)
-        assert len(p1.model) == len(p2.model), "Parents in Uniform Xover must have the same length."
-        possible_indices = np.arange(fb_node, len(p1.model) - n_outputs)
+        first_body_node = min(p1.first_body_node, p2.first_body_node)
+        assert len(p1.model) == len(p2.model), (
+            "Parents in Uniform Xover must have the same length."
+        )
+        possible_indices = np.arange(
+            first_body_node,
+            len(p1.model) - n_outputs,
+        )
 
         if weights is not None:
-            mask = weights > 1e-8
-            filtered_indices = possible_indices[mask]
-            filtered_weights = weights[mask]
-            n_swap = min(len(filtered_indices), len(possible_indices) // 2)
-
-            if n_swap > 0:
+            positive_mask = weights > 1e-8
+            filtered_indices = possible_indices[positive_mask]
+            filtered_weights = weights[positive_mask]
+            n_swap = min(
+                len(filtered_indices),
+                len(possible_indices) // 2,
+            )
+            if n_swap:
                 swapped_indices = np.random.choice(
-                    filtered_indices, size=n_swap, replace=False,
-                    p=filtered_weights / filtered_weights.sum())
+                    filtered_indices,
+                    size=n_swap,
+                    replace=False,
+                    p=filtered_weights / filtered_weights.sum(),
+                )
             else:
-                swapped_indices = np.array([], dtype=int)
+                swapped_indices = np.empty(0, dtype=np.intp)
         else:
-            swapped_indices = np.random.choice(possible_indices, size=len(possible_indices) // 2, replace=False)
+            swapped_indices = np.random.choice(
+                possible_indices,
+                size=len(possible_indices) // 2,
+                replace=False,
+            )
 
-        # Perform crossover
-        c1_model, c2_model = p1.model.copy(), p2.model.copy()
-        c1_model[swapped_indices] = p2.model[swapped_indices]
-        c2_model[swapped_indices] = p1.model[swapped_indices]
+        child1_model = p1.model.copy()
+        child2_model = p2.model.copy()
 
-        # Track crossover stats
-        p1.xover_index[swapped_indices - fb_node] += 1
-        p2.xover_index[swapped_indices - fb_node] += 1
+        # OPTIMIZATION: skip advanced-index temporary assignments when no genes
+        # were selected; this matters for sparse semantic weights.
+        if swapped_indices.size:
+            child1_model[swapped_indices] = p2.model[swapped_indices]
+            child2_model[swapped_indices] = p1.model[swapped_indices]
 
-        # Final CGP children
-        c1 = CGP(model=c1_model, model_keys=self.model_keys, fixed_length=self.fixed_length,
-                 fitness_function=self.ff_string,
-                 mutation_type=self.mutation_type)
-        c2 = CGP(model=c2_model, model_keys=self.model_keys, fixed_length=self.fixed_length,
-                 fitness_function=self.ff_string,
-                 mutation_type=self.mutation_type)
-        return c1, c2
+        tracking_indices = swapped_indices - first_body_node
+        p1.xover_index[tracking_indices] += 1
+        p2.xover_index[tracking_indices] += 1
+
+        child_kwargs = {
+            "model_keys": self.model_keys,
+            "fixed_length": self.fixed_length,
+            "fitness_function": self.ff_string,
+            "mutation_type": self.mutation_type,
+        }
+        if self.function_bank is not None:
+            child_kwargs["function_bank"] = self.function_bank
+        return (
+            CGP(model=child1_model, **child_kwargs),
+            CGP(model=child2_model, **child_kwargs),
+        )
 
     def _subgraph_xover(self, p1: CGP, p2: CGP, gen: int, **kwargs):
-        """Performs subgraph crossover using NumPy arrays."""
+        """Perform subgraph crossover using NumPy model arrays."""
 
-        def random_node_number(n_i, I=None, n_f=None, m=None):
-            """Selects a random node number with constraints."""
-            n_r = []  # List of valid random choices
-            if n_f is not None:
-                if m is not None:
-                    n_m = n_f[n_f <= m]
-                    if len(n_m) == 0:
-                        n_r.append(np.random.randint(0, n_i))
-                    else:
-                        try:
-                            n_r.append(n_m[np.random.randint(0, len(n_m))])
-                        except ValueError as e:
-                            print(e)
-                            print(n_m)
-                            exit()
+        def random_node_number(n_inputs, input_nodes=None, active_nodes=None, maximum=None):
+            """Choose from valid active/input connection candidates."""
+            candidates = []
+
+            if active_nodes is not None:
+                if maximum is None:
+                    candidates.append(
+                        active_nodes[np.random.randint(0, len(active_nodes))]
+                    )
                 else:
-                    n_r.append(n_f[np.random.randint(0, len(n_f))])
+                    eligible = active_nodes[active_nodes <= maximum]
+                    if eligible.size:
+                        candidates.append(
+                            eligible[np.random.randint(0, len(eligible))]
+                        )
+                    else:
+                        candidates.append(np.random.randint(0, n_inputs))
 
-            if I is not None:
-                n_r.append(np.random.randint(0, len(I)-1))
-            """
-            print("%%%")
-            print(f'I: {I}')
-            print(f'n_f: {n_f}')
-            print(f'm: {m}')
-            print(f'n_r: {n_r}')
-            print("%%")
-            """
-            return n_r[np.random.randint(0,len(n_r)-1)]
+            if input_nodes is not None and len(input_nodes):
+                candidates.append(
+                    input_nodes[np.random.randint(0, len(input_nodes))]
+                )
 
-        def determine_crossover_point(m1, m2):
-            """Determines a crossover point for two models."""
-            a, b, c, d = min(m1), max(m1), min(m2), max(m2)
-            if a >= b:
-                b += 1  # Ensure valid range
-            if c >= d:
-                d += 1
-            cp1, cp2 = np.random.randint(a, b), np.random.randint(c, d)
-            return min(cp1, cp2)
+            if not candidates:
+                raise ValueError("No valid node candidates were supplied.")
 
-        def neighborhood_connect(nf, nb, model):
-            """Ensures neighborhood connectivity in the new model."""
-            model[nb, self.model_keys['Operand0']] = nf
-            return model
+            # CORRECTNESS: randint's upper bound is exclusive.  Using len-1 made a
+            # one-element candidate list fail and made the final candidate unreachable.
+            return candidates[np.random.randint(0, len(candidates))]
 
-        def random_active_connect(n_i, n_a, c_p, model):
-            """Reconnects inactive nodes in the new model."""
-            operand_indices = [f'Operand{i}' for i in range(p1.arity)]
-            input_nodes = np.where((model[self.model_keys['NodeType']] == node_to_int('Constant')) | (
-                    model[self.model_keys['NodeType']] == node_to_int('Input')))[0]
+        def determine_crossover_point(active1, active2):
+            minimum1, maximum1 = min(active1), max(active1)
+            minimum2, maximum2 = min(active2), max(active2)
+            if minimum1 >= maximum1:
+                maximum1 += 1
+            if minimum2 >= maximum2:
+                maximum2 += 1
+            point1 = np.random.randint(minimum1, maximum1)
+            point2 = np.random.randint(minimum2, maximum2)
+            return min(point1, point2)
 
-            for n in n_a:
-                if n > c_p:
-                    for operand in [self.model_keys[op] for op in operand_indices]:
-                        if model[n, operand] not in n_a:
-                            model[n, operand] = random_node_number(n_i, I=input_nodes, n_f=n_a, m=c_p)
+        def reconnect_active_nodes(n_inputs, active_nodes, crossover_point, model):
+            """Reconnect operands that no longer target an active node."""
+            node_type_column = self.model_keys["NodeType"]
+            node_types = model[:, node_type_column]
+            input_nodes = np.flatnonzero(
+                (node_types == CONSTANT_NODE) | (node_types == INPUT_NODE)
+            )
+            operand_columns = np.fromiter(
+                (
+                    self.model_keys[f"Operand{i}"]
+                    for i in range(p1.arity)
+                ),
+                dtype=np.intp,
+                count=p1.arity,
+            )
+            active_set = set(np.asarray(active_nodes, dtype=np.intp).tolist())
 
-            output_nodes = np.where(model[self.model_keys['NodeType']] == node_to_int('Output'))[0]
-            for idx in output_nodes:
-                if model[idx, self.model_keys['Operand0']] not in n_a:
-                    model[idx, self.model_keys['Operand0']] = random_node_number(n_i, I=input_nodes, n_f=n_a)
+            for node_index in active_nodes:
+                if node_index <= crossover_point:
+                    continue
+                for operand_column in operand_columns:
+                    if int(model[node_index, operand_column]) not in active_set:
+                        model[node_index, operand_column] = random_node_number(
+                            n_inputs,
+                            input_nodes=input_nodes,
+                            active_nodes=active_nodes,
+                            maximum=crossover_point,
+                        )
 
-            return model
+            output_nodes = np.flatnonzero(node_types == OUTPUT_NODE)
+            operand0_column = self.model_keys["Operand0"]
+            for output_index in output_nodes:
+                if int(model[output_index, operand0_column]) not in active_set:
+                    model[output_index, operand0_column] = random_node_number(
+                        n_inputs,
+                        input_nodes=input_nodes,
+                        active_nodes=active_nodes,
+                    )
 
-        def ensure_active_nodes(parent, n_max_mutations=64):
-            """Ensures a model has active nodes before crossover."""
-            active_nodes = np.array(list(parent.get_active_nodes()))
-            while len(active_nodes) < 1:  # If there are no active nodes, mutate output until one is found
+        def ensure_active_nodes(parent):
+            """Return a model copy and at least one active node."""
+            active_nodes = np.fromiter(
+                parent.get_active_nodes(),
+                dtype=np.intp,
+            )
+            if active_nodes.size:
+                return parent.model.copy(), active_nodes
+
+            # OPTIMIZATION: allocate generic evaluation arrays only on the rare
+            # fallback path, and reuse them across retries.
+            generic_x = np.zeros((1, parent.inputs))
+            generic_y = np.zeros((1, parent.outputs))
+            while active_nodes.size == 0:
                 parent.mutate_output()
-                generic_x = np.zeros((1, parent.inputs))
-                generic_y = np.zeros((1, parent.outputs))
                 parent.fit(generic_x, generic_y)
-                active_nodes = np.array(list(parent.get_active_nodes()))
+                active_nodes = np.fromiter(
+                    parent.get_active_nodes(),
+                    dtype=np.intp,
+                )
             return parent.model.copy(), active_nodes
 
-        # Ensure active nodes for both parents
-        g1, m1 = ensure_active_nodes(p1)
-        g2, m2 = ensure_active_nodes(p2)
+        model1, active1 = ensure_active_nodes(p1)
+        model2, active2 = ensure_active_nodes(p2)
+        crossover_point = determine_crossover_point(active1, active2)
 
-        # Determine crossover point
-        xover_point = determine_crossover_point(m1, m2)
-        if xover_point <= 0:
-            return CGP(model=g1, model_keys=self.model_keys, fixed_length=self.fixed_length,
-                       fitness_function=self.ff_string,
-                       mutation_type=self.mutation_type)
+        child_kwargs = {
+            "model_keys": self.model_keys,
+            "fixed_length": self.fixed_length,
+            "fitness_function": self.ff_string,
+            "mutation_type": self.mutation_type,
+        }
+        if self.function_bank is not None:
+            child_kwargs["function_bank"] = self.function_bank
 
-        # Create new model by swapping sections
-        g0 = np.concatenate((g1[:xover_point], g2[xover_point:]))  # NumPy-based slicing and concatenation
+        if crossover_point <= 0:
+            return CGP(model=model1, **child_kwargs)
 
-        # Determine first function node for reference
-        fb_node = min(p1.first_body_node, p2.first_body_node)
+        # OPTIMIZATION: for equal-length parents, copy parent1 once and overwrite
+        # the tail in place instead of concatenating two temporary slices.
+        if model1.shape == model2.shape:
+            child_model = model1
+            child_model[crossover_point:] = model2[crossover_point:]
+        else:
+            child_model = np.concatenate(
+                (model1[:crossover_point], model2[crossover_point:]),
+                axis=0,
+            )
 
-        # Extract active nodes surrounding the crossover point
-        n_a1 = m1[m1 <= xover_point]
-        n_a2 = m2[m2 > xover_point]
+        first_body_node = min(p1.first_body_node, p2.first_body_node)
+        active_before = active1[active1 <= crossover_point]
+        active_after = active2[active2 > crossover_point]
 
-        if len(n_a1) > 0 and len(n_a2) > 0:  # Ensure both lists contain active function nodes
-            n_f, n_b = n_a1[-1], n_a2[0]  # Identify boundary nodes
-            g0 = neighborhood_connect(n_f, n_b, g0)  # Ensure neighborhood connectivity
+        if active_before.size and active_after.size:
+            child_model[
+                active_after[0],
+                self.model_keys["Operand0"],
+            ] = active_before[-1]
 
-        # Merge active nodes and reconnect
-        n_a = np.concatenate((n_a1, n_a2))
-        if len(n_a) > 0:
-            g0 = random_active_connect((p1.inputs + len(p1.constants)), n_a, xover_point, g0)
+        active_nodes = np.concatenate((active_before, active_after))
+        if active_nodes.size:
+            reconnect_active_nodes(
+                p1.inputs + len(p1.constants),
+                active_nodes,
+                crossover_point,
+                child_model,
+            )
 
-        # Create and return new CGP instance
-        g0 = CGP(model=g0, model_keys=self.model_keys, fixed_length=self.fixed_length, fitness_function=self.ff_string,
-                 mutation_type=self.mutation_type)
-        g0.xover_index[xover_point - fb_node] += 1
-        return g0
+        child = CGP(model=child_model, **child_kwargs)
+        child.xover_index[crossover_point - first_body_node] += 1
+        return child
 
     def _mutate(self, models, gen, mutation_rate, verbose=False):
+        """Mutate models either into exactly ``max_c`` children or in place."""
+        model_key_map = getattr(self, "model_key_map", None)
+        child_counter = self.child_id_counter
+
         if self.mutation_can_make_children:
             children = []
-            for m, model in enumerate(models):
-                for _ in range(self.max_c // len(models)):  # N children per parent
-                    if np.random.rand() < mutation_rate or self.max_p == 1:
+            num_models = len(models)
+            if num_models == 0:
+                return np.empty(0, dtype=object)
+
+            # CORRECTNESS + COMPATIBILITY: distribute children in parent-major
+            # order.  This matches the old ordering when max_c was divisible by
+            # the parent count, while handling remainders and max_c < parents.
+            base_children, remainder = divmod(self.max_c, num_models)
+
+            for model_index, model in enumerate(models):
+                attempts = base_children + (model_index < remainder)
+                for _ in range(attempts):
+                    should_mutate = (
+                        np.random.rand() < mutation_rate
+                        or self.max_p == 1
+                    )
+                    if should_mutate:
                         child = model.mutate(verbose)
+                    else:
+                        # An unmutated reproduction is still a distinct child.
+                        child = deepcopy(model)
+                        child.id = uuid.uuid4()
 
-                        # Sanity checks to catch aliasing bugs
-                        assert child.id != model.id, "Mutated child has same ID as parent"
-                        assert child is not model, "Child is not a distinct instance"
-                        assert id(child.model) != id(model.model), "Structured array not deeply copied"
+                    assert child.id != model.id, (
+                        "Reproduced child has same ID as parent"
+                    )
+                    assert child is not model, (
+                        "Child is not a distinct instance"
+                    )
+                    assert id(child.model) != id(model.model), (
+                        "Structured array not deeply copied"
+                    )
 
-                        child.fit(self.x, self.y, mutable=False)
+                    child.fit(self.x, self.y, mutable=False)
+                    child_key = f"Child_{child_counter:03d}_g{gen}"
+                    parent_key = getattr(
+                        model,
+                        "child_keys",
+                        f"Model_{model_index:03d}_g{gen - 1}",
+                    )
+                    child.set_parent_key([parent_key])
+                    child.set_child_key(child_key)
 
-                        child_key = f'Child_{self.child_id_counter:03d}_g{gen}'
-                        parent_key = getattr(model, 'child_keys', f'Model_{m:03d}_g{gen - 1}')
+                    if model_key_map is not None:
+                        model_key_map[child_key] = child
 
-                        child.set_parent_key([parent_key])
-                        child.set_child_key(child_key)
+                    child_counter += 1
+                    children.append(child)
 
-                        if hasattr(self, 'model_key_map'):
-                            self.model_key_map[child_key] = child
+            self.child_id_counter = child_counter
+            return np.asarray(children, dtype=object)
 
-                        self.child_id_counter += 1
-                        children.append(child)
+        for model_index, model in enumerate(models):
+            if np.random.rand() >= mutation_rate:
+                continue
 
-                    if len(children) >= self.max_c:
-                        break
+            mutated = model.mutate(verbose)
+            mutated.fit(self.x, self.y)
 
-            return np.array(children, dtype=object)
-        else:  # In-place mutation
-            for m, model in enumerate(models):
-                if np.random.rand() < mutation_rate:
-                    mutated = model.mutate(verbose)
-                    mutated.fit(self.x, self.y)
+            child_key = f"Child_{child_counter:03d}_g{gen}"
+            parent_key = getattr(
+                model,
+                "child_keys",
+                f"Model_{model_index:03d}_g{gen - 1}",
+            )
+            mutated.set_parent_key([parent_key])
+            mutated.set_child_key(child_key)
 
-                    child_key = f'Child_{self.child_id_counter:03d}_g{gen}'
-                    parent_key = getattr(model, 'child_keys', f'Model_{m:03d}_g{gen - 1}')
-                    mutated.set_parent_key([parent_key])
-                    mutated.set_child_key(child_key)
+            if model_key_map is not None:
+                model_key_map[child_key] = mutated
 
-                    if hasattr(self, 'model_key_map'):
-                        self.model_key_map[child_key] = mutated
+            child_counter += 1
+            models[model_index] = mutated
 
-                    self.child_id_counter += 1
-                    models[m] = mutated  # Overwrite in-place
+        self.child_id_counter = child_counter
+        return models
 
-            return models
-
-    def _get_fitnesses(self, mode='train', pop_list=None, eval_purpose="search", mutable=True, count_only_unchached=True):
-        # Compute fitnesses for all models
+    def _get_fitnesses(
+        self,
+        mode="train",
+        pop_list=None,
+        eval_purpose="search",
+        mutable=True,
+        count_only_unchached=True,
+    ):
+        """Evaluate a population and optionally store its fitness arrays."""
         self.total_fitness_calls += 1
 
         if eval_purpose == "search":
@@ -940,90 +1219,97 @@ class CartesianGP:
         elif eval_purpose == "test":
             self.test_evaluations += 1
         else:
-            raise ValueError('cgp_evolver.py::_get_fitnesses: eval_purpose must be "search" or "diagnostic" or "test"')
-        if mode == 'train':
+            raise ValueError(
+                "cgp_evolver.py::_get_fitnesses: eval_purpose must be "
+                '"search" or "diagnostic" or "test"'
+            )
+
+        if mode == "train":
             x, y = self.x, self.y
-        elif mode == 'test':
+        elif mode == "test":
             x, y = self.x_test, self.y_test
         else:
             raise ValueError(f"Unknown mode: {mode}")
 
-        if pop_list is None:
-            pop_list = self.population
-            store_results = True
-        else:
-            store_results = False
+        store_results = pop_list is None
+        population = self.population if store_results else pop_list
+        population_size = len(population)
 
-        n = len(pop_list)
-        f_list = np.full(n, np.inf, dtype=np.float64)
-        corr_list = np.full(n, np.inf, dtype=np.float64)
+        fitnesses = np.full(population_size, np.inf, dtype=np.float64)
+        correlations = np.full(population_size, np.inf, dtype=np.float64)
 
-        for i, model in enumerate(pop_list):
-            if model is not None:
-                corr_list[i], _, f_list[i] = model.fit(x, y, mutable=mutable)
+        # OPTIMIZATION: cache the array setters and avoid tuple unpacking into an
+        # unused complexity slot on every iteration.
+        for index, model in enumerate(population):
+            if model is None:
+                continue
+            result = model.fit(x, y, mutable=mutable)
+            correlations[index] = result[0]
+            fitnesses[index] = result[2]
 
         if store_results:
-            if mode == 'train':
-                self.fitnesses = f_list
-                self.corrs = corr_list
+            if mode == "train":
+                self.fitnesses = fitnesses
+                self.corrs = correlations
             else:
-                self.fitnesses_test = f_list
-                self.corr_test = corr_list
+                self.fitnesses_test = fitnesses
+                self.corr_test = correlations
 
-        return f_list, corr_list
+        return fitnesses, correlations
 
     def _get_similarity_score(self, model1_obj, model2_obj):
-        """
-        Computes a similarity score between two models based on structural alignment.
+        """Compute structural similarity using global sequence alignment."""
+        model1 = model1_obj.model
+        model2 = model2_obj.model
 
-        Args:
-            model1_obj: First CGP model object (must have .model as 2D array).
-            model2_obj: Second CGP model object (must have .model as 2D array).
-
-        Returns:
-            float: A similarity score (higher = more similar).
-        """
-        m1 = deepcopy(model1_obj.model)
-        print(m1)
-        m2 = deepcopy(model2_obj.model)
-
-        # Validate dimensionality
-        if not (isinstance(m1, np.ndarray) and m1.ndim == 2):
-            print(f"Model1 not 2D: shape={getattr(m1, 'shape', None)}")
+        if not isinstance(model1, np.ndarray) or model1.ndim != 2:
+            print(f"Model1 not 2D: shape={getattr(model1, 'shape', None)}")
             return 0.0
-        if not (isinstance(m2, np.ndarray) and m2.ndim == 2):
-            print(f"Model2 not 2D: shape={getattr(m2, 'shape', None)}")
+        if not isinstance(model2, np.ndarray) or model2.ndim != 2:
+            print(f"Model2 not 2D: shape={getattr(model2, 'shape', None)}")
             return 0.0
-
-        def _map_functions(mo1, mo2):
-            unique_functions = np.unique(np.concatenate((mo1[:, 1], mo2[:, 1])))
-            function_map = {func: i for i, func in enumerate(unique_functions)}
-            mo1[:, 1] = np.vectorize(function_map.get)(mo1[:, 1])
-            mo2[:, 1] = np.vectorize(function_map.get)(mo2[:, 1])
-            return mo1, mo2
 
         try:
-            m1, m2 = _map_functions(m1, m2)
-            sequence1 = m1[:, 1:].flatten().astype(str)
-            sequence2 = m2[:, 1:].flatten().astype(str)
-        except Exception as e:
-            print("Error during sequence mapping or flattening:", e)
+            # OPTIMIZATION: only columns 1: are consumed below, so copy that slice
+            # instead of deepcopying both complete model matrices.
+            sequence_matrix1 = np.array(model1[:, 1:], copy=True)
+            sequence_matrix2 = np.array(model2[:, 1:], copy=True)
+
+            # OPTIMIZATION: np.unique(return_inverse=True) performs the function
+            # remapping in compiled code and replaces np.vectorize(dict.get).
+            functions = np.concatenate(
+                (sequence_matrix1[:, 0], sequence_matrix2[:, 0])
+            )
+            _, inverse = np.unique(functions, return_inverse=True)
+            split = len(sequence_matrix1)
+            sequence_matrix1[:, 0] = inverse[:split]
+            sequence_matrix2[:, 0] = inverse[split:]
+
+            sequence1 = sequence_matrix1.ravel().astype(str)
+            sequence2 = sequence_matrix2.ravel().astype(str)
+        except Exception as error:
+            print("Error during sequence mapping or flattening:", error)
             return 0.0
 
-        aligner = PairwiseAligner()
-        aligner.mode = 'global'
-        aligner.match_score = 2
-        aligner.mismatch_score = -1
-        aligner.open_gap_score = -2
-        aligner.extend_gap_score = -2
+        # OPTIMIZATION: configure the immutable scoring object once per evolver.
+        aligner = getattr(self, "_similarity_aligner", None)
+        if aligner is None:
+            aligner = PairwiseAligner()
+            aligner.mode = "global"
+            aligner.match_score = 2
+            aligner.mismatch_score = -1
+            aligner.open_gap_score = -2
+            aligner.extend_gap_score = -2
+            self._similarity_aligner = aligner
 
         try:
-            seq1 = Seq("".join(sequence1))
-            seq2 = Seq("".join(sequence2))
-            score = aligner.score(seq1, seq2)
+            score = aligner.score(
+                Seq("".join(sequence1)),
+                Seq("".join(sequence2)),
+            )
             return score if np.isfinite(score) else 0.0
-        except Exception as e:
-            print("Alignment error:", e)
+        except Exception as error:
+            print("Alignment error:", error)
             return 0.0
 
     def _analyze_similarity(self):
@@ -1051,66 +1337,64 @@ class CartesianGP:
 
         return similarity_scores
 
-    def _record_metrics(self, gen: int, elapsed:float = 0):
-        """
-        Records key performance metrics for each generation, including fitness statistics
-        and similarity measurements.
-        """
-        # Extract fitness values & active node counts
-        fit_list = [self.fitnesses[i] for i in range(len(self.population)) if self.population[i] is not None]
-        fit_test_list = [self.fitnesses_test[i] for i in range(len(self.population)) if self.population[i] is not None]
+    def _record_metrics(self, gen: int, elapsed: float = 0):
+        """Record all generation-level statistics."""
+        # OPTIMIZATION: compute the valid population positions once, then reuse the
+        # same compact views for every metric family.
+        valid_indices = np.fromiter(
+            (
+                index
+                for index, individual in enumerate(self.population)
+                if individual is not None
+            ),
+            dtype=np.intp,
+        )
+        valid_population = [self.population[i] for i in valid_indices]
 
-        corr_list = [m.correlation for m in self.population if m is not None]
-        corr_test_list = [self.corr_test[i] for i in range(len(self.population)) if self.population[i] is not None]
-        comp_list = [m.complexity for m in self.population if m is not None]
+        fitness = self.fitnesses[valid_indices]
+        test_fitness = self.fitnesses_test[valid_indices]
+        test_correlation = self.corr_test[valid_indices]
 
-        active_nodes_list = []
-        for p in range(len(self.population)):
-            if self.population[p] is not None:
-                active_nodes_list.append(self.population[p].count_active_nodes())
-        active_nodes_list = np.atleast_1d(active_nodes_list)
+        # CORRECTNESS + OPTIMIZATION: model.correlation is overwritten by the
+        # most recent test evaluation.  The dedicated training array is
+        # authoritative and already contiguous.
+        correlation_values = self.corrs[valid_indices]
+        complexity_values = np.fromiter(
+            (model.complexity for model in valid_population),
+            dtype=np.float64,
+            count=len(valid_population),
+        )
+        active_nodes = np.fromiter(
+            (model.count_active_nodes() for model in valid_population),
+            dtype=np.float64,
+            count=len(valid_population),
+        )
 
-        # Compute similarity scores
-        # similarity_scores = self._analyze_similarity()
-        # similarity_values = np.array([score for _, score in similarity_scores])
+        best_relative_index = int(np.argmin(fitness))
+        self.best_model = valid_population[best_relative_index]
 
-        # Find the best model by fitness (lower is better)
-        best_model_index = np.argmin(fit_list)
-        best_test_model_index = np.argmin(fit_test_list)
-        self.best_model = self.population[best_model_index]
+        correlation_statistics = _get_quartiles(correlation_values)
+        test_correlation_statistics = _get_quartiles(test_correlation)
+        complexity_statistics = _get_quartiles(complexity_values)
+        fitness_statistics = _get_quartiles(fitness)
+        test_fitness_statistics = _get_quartiles(test_fitness)
+        active_node_statistics = _get_quartiles(active_nodes)
+        semantic_diversity = np.nanstd(fitness)
 
-        # Compute quartile statistics efficiently
-        fit_statistics = _get_quartiles(fit_list)
-        fit_test_statistics = _get_quartiles(fit_test_list)
-
-        corr_statistics = _get_quartiles(corr_list)
-        corr_test_statistics = _get_quartiles(corr_test_list)
-        comp_statistics = _get_quartiles((comp_list))
-
-        active_nodes_statistics = _get_quartiles(active_nodes_list)
-        semantic_diversity = np.nanstd(fit_list)
-        """
-        # Compute similarity quartiles (handle empty case)
-        if len(similarity_values) > 0:
-            similarity_quartiles = _get_quartiles(similarity_values)
-        else:
-            similarity_quartiles = [np.nan] * 5  # Default to NaN if no similarity data
-        """
-        # Store metrics in the NumPy structured array
         self.metrics[gen] = (
-            *corr_statistics,
-            *corr_test_statistics,
-            *comp_statistics,
-            *fit_statistics,
-            *fit_test_statistics,
+            *correlation_statistics,
+            *test_correlation_statistics,
+            *complexity_statistics,
+            *fitness_statistics,
+            *test_fitness_statistics,
             self.best_model.count_active_nodes(),
-            *active_nodes_statistics,
+            *active_node_statistics,
             semantic_diversity,
             self.search_evaluations,
             self.diagnostic_evaluations,
             self.test_evaluations,
             self.total_fitness_calls,
-            elapsed
+            elapsed,
         )
 
     def save_metrics(self, path=None):
@@ -1131,12 +1415,17 @@ class CartesianGP:
             json.dump(self.stn.to_dict(), f, indent = 4)
 
     def _report_generation(self, g: int):
-        # Efficient logging instead of multiple print calls
-        best_ind = self.population[np.argmin(self.fitnesses)]
-        print(f'Generation {g}')
+        """Print the best stored training result for a generation."""
+        best_index = int(np.argmin(self.fitnesses))
+        best_individual = self.population[best_index]
+        print(f"Generation {g}")
         print(
-            f'Best Fitness: {np.min(self.fitnesses)}:\tCorrelation: {best_ind.correlation}\tComplexity: {best_ind.complexity}\tElapsed Time: {self.elapsed}')
-        print('################')
+            f"Best Fitness: {self.fitnesses[best_index]}:\t"
+            f"Correlation: {self.corrs[best_index]}\t"
+            f"Complexity: {best_individual.complexity}\t"
+            f"Elapsed Time: {self.elapsed}"
+        )
+        print("################")
 
     def _compare_child_parents(self):
         parent_child_groups = self._group_parents_and_children()
@@ -1158,144 +1447,204 @@ class CartesianGP:
                         child.better_than_parents = 'beneficial'
 
     def _box_distribution(self, gen):
-        """Accumulates crossover distribution statistics by type, enforcing fixed length."""
-        individuals_with_parents = [
-            ind for ind in self.population
-            if ind is not None and ind.parent_keys is not None and ind.better_than_parents is not None
-        ]
-
+        """Accumulate crossover-density statistics and reset individual counters."""
         xover_index = self.xover_index
-        expected_len = xover_index['beneficial'].shape[1]
+        expected_length = xover_index["beneficial"].shape[1]
+        row = gen - 1
 
-        for ind in individuals_with_parents:
-            if ind.xover_index.shape[0] != expected_len:
+        # OPTIMIZATION: process the population in one pass instead of first
+        # allocating an intermediate filtered-individual list.
+        for individual in self.population:
+            if (
+                individual is None
+                or individual.parent_keys is None
+                or individual.better_than_parents is None
+            ):
+                continue
+
+            if individual.xover_index.shape[0] != expected_length:
                 raise ValueError(
                     f"xover_index length mismatch at generation {gen}: "
-                    f"expected {expected_len}, got {ind.xover_index.shape[0]}"
+                    f"expected {expected_length}, "
+                    f"got {individual.xover_index.shape[0]}"
                 )
 
-            if ind.better_than_parents == 'beneficial':
-                xover_index['beneficial'][gen - 1, :] += ind.xover_index
-            elif ind.better_than_parents == 'deleterious':
-                xover_index['deleterious'][gen - 1, :] += ind.xover_index
-            else:
-                xover_index['neutral'][gen - 1, :] += ind.xover_index
-
-            ind.xover_index.fill(0)
+            category = individual.better_than_parents
+            if category not in XOVER_CATEGORIES:
+                category = "neutral"
+            xover_index[category][row] += individual.xover_index
+            individual.xover_index.fill(0)
 
     def set_max_gens(self, gens):
         self.max_g = gens
 
     def expand_generations_if_needed(self, new_max_g: int):
+        """Grow generation-indexed arrays exactly once to ``new_max_g``."""
         if new_max_g <= self.original_max_g:
             return
-        pad = new_max_g - self.original_max_g
-        self.metrics = np.pad(self.metrics, ((0, pad), (0, 0)), mode='constant')
-        self.mut_index = np.pad(self.mut_index, ((0, pad), (0, 0)), mode='constant')
-        for k in self.xover_index:
-            self.xover_index[k] = np.pad(self.xover_index[k], ((0, pad), (0, 0)), mode='constant')
+
+        def grow_rows(array, target_rows):
+            if array.shape[0] >= target_rows:
+                return array
+
+            # OPTIMIZATION: direct allocation/copy avoids np.pad's generalized
+            # argument processing and prevents cumulative over-padding on resume.
+            grown = np.zeros(
+                (target_rows, *array.shape[1:]),
+                dtype=array.dtype,
+            )
+            grown[: array.shape[0]] = array
+            return grown
+
+        self.metrics = grow_rows(self.metrics, new_max_g + 1)
+        self.mut_index = grow_rows(self.mut_index, new_max_g)
+        for category in self.xover_index:
+            self.xover_index[category] = grow_rows(
+                self.xover_index[category],
+                new_max_g,
+            )
+
+        # CORRECTNESS: advance the recorded capacity so a later resume extends
+        # from the current size instead of padding by the total historical delta.
+        self.original_max_g = new_max_g
 
     def initialize_xover_index(self):
-        """Initialize self.xover_index dynamically based on self.one_d mode."""
-        """
-        if self.one_d:
-            flat, _ = self.flatten_parent(self.population[0])
-            xover_len = len(flat)+self.population[0].outputs
-            print(xover_len)
-        else:
-            xover_len = self.population[0].max_size + self.population[0].outputs
-        """
-        xover_len = len(self.population[0].xover_index)
+        """Initialize generation-by-gene crossover-density arrays."""
+        xover_length = len(self.population[0].xover_index)
         self.xover_index = {
-            cat: np.zeros((self.max_g, xover_len))
-            for cat in ['deleterious', 'neutral', 'beneficial']
+            category: np.zeros(
+                (self.max_g, xover_length),
+                dtype=np.float64,
+            )
+            for category in XOVER_CATEGORIES
         }
 
     def _reinsert_elites(self, protected_parents):
-        """Reinsert top n_elites based on fitness, ensuring integrity."""
-        elite_indices = np.argsort([p.fitness for p in protected_parents])[:self.n_elites]
-        elites = [deepcopy(protected_parents[i]) for i in elite_indices]
+        """Reinsert the top elites after verifying their stored fitness."""
+        if self.n_elites <= 0:
+            return
+
+        parent_fitnesses = np.fromiter(
+            (parent.fitness for parent in protected_parents),
+            dtype=np.float64,
+            count=len(protected_parents),
+        )
+        elite_indices = np.argsort(parent_fitnesses)[: self.n_elites]
         corrected_elites = []
 
-        for elite in elites:
+        for elite_index in elite_indices:
+            elite = protected_parents[elite_index]
             original_fitness = elite.fitness
+
+            # OPTIMIZATION: one deepcopy is sufficient; the previous code copied
+            # every selected elite twice before evaluation.
             elite_copy = deepcopy(elite)
-            elite_copy.slope = elite.slope
-            elite_copy.intercept = elite.intercept
+            result = elite_copy.fit(self.x, self.y, mutable=False)
+            recomputed_fitness = result[2]
+            difference = abs(original_fitness - recomputed_fitness)
 
-            recomputed = elite_copy.fit(self.x, self.y, mutable=False)
-            diff = abs(original_fitness - recomputed)
-            if diff > 1e-5:
-                print(f"⚠️ Minor mismatch ({diff:.2e}) — tolerating.")
-            elif diff > 1e-2:
+            # CORRECTNESS: test the larger threshold first; the previous elif was
+            # unreachable for differences above 1e-2.
+            if difference > 1e-2:
                 raise RuntimeError(
-                    f"⚠️ Mismatch in elite fitness — overwriting stored fitness: {original_fitness} → {recomputed}")
+                    "⚠️ Mismatch in elite fitness — overwriting stored fitness: "
+                    f"{original_fitness} → {recomputed_fitness}"
+                )
+            if difference > 1e-5:
+                print(f"⚠️ Minor mismatch ({difference:.2e}) — tolerating.")
 
-            elite_copy.fitness = recomputed
-
-            # print(f"[ELITISM] Re-inserting elite ID: {elite.id} (Fitness: {elite_copy.fitness})")
+            elite_copy.fitness = recomputed_fitness
             corrected_elites.append(elite_copy)
 
-        # Replace the worst individuals with elites
-        worst_indices = np.argsort([ind.fitness for ind in self.population])[-self.n_elites:]
-        for idx, elite in zip(worst_indices, corrected_elites):
-            self.population[idx] = elite
-            self.fitnesses[idx] = elite.fitness
+        population_fitnesses = np.fromiter(
+            (individual.fitness for individual in self.population),
+            dtype=np.float64,
+            count=len(self.population),
+        )
+        worst_indices = np.argsort(population_fitnesses)[-self.n_elites :]
+        for index, elite in zip(worst_indices, corrected_elites):
+            self.population[index] = elite
+            self.fitnesses[index] = elite.fitness
 
-    def fit(self, train_x: np.ndarray, test_x: np.ndarray, train_y: np.ndarray, test_y: np.ndarray,
-            step_size: int = None,
-            xover_rate: float = 0.5, mutation_rate: float = 0.5):
+    def fit(
+        self,
+        train_x: np.ndarray,
+        test_x: np.ndarray,
+        train_y: np.ndarray,
+        test_y: np.ndarray,
+        step_size: int = None,
+        xover_rate: float = 0.5,
+        mutation_rate: float = 0.5,
+        budget_hrs = 1
+    ):
         """
-        Trains the Cartesian Genetic Programming model using evolutionary techniques.
-
-        Args:
-            train_x (np.ndarray): Training input data.
-            train_y (np.ndarray): Training target data.
-            step_size (int, optional): Frequency of reporting progress.
-            xover_rate (float): Probability of performing crossover.
-            mutation_rate (float): Probability of performing mutation.
-
-        Returns:
-            CGP: The best evolved model.
+        Train the Cartesian Genetic Programming population.
         """
-        self.x, self.x_test, self.y, self.y_test = train_x, test_x, train_y, test_y
-        best_fitness_train = []
-        best_fitness_test = []
-        # Sanity checks
+        self.x, self.x_test = train_x, test_x
+        self.y, self.y_test = train_y, test_y
+
         if len(self.x) < 1:
             raise ValueError("Must have at least one input value.")
         if len(self.y) != len(self.x):
-            raise ValueError("Must have a 1:1 mapping for input set to output values.")
+            raise ValueError(
+                "Must have a 1:1 mapping for input set to output values."
+            )
         if step_size is not None and not isinstance(step_size, int):
-            raise TypeError("Step size must be either of type `int` or `None`.")
-        if self.first_submission:  # first time setup
+            raise TypeError(
+                "Step size must be either of type `int` or `None`."
+            )
+
+        if self.first_submission:
             print("First Time Setup")
             print(f"1D Xover {self.one_d}")
             self.initialize_population()
-
             self.initialize_xover_index()
-            self.model_key_map = {}  # Add this at the beginning of fit()
+            self.model_key_map = {}
 
-            self._get_fitnesses(mode='train', eval_purpose="search")
-            self._get_fitnesses(mode='test', eval_purpose="test")
+            self._get_fitnesses(
+                mode="train",
+                eval_purpose="search",
+            )
+            self._get_fitnesses(
+                mode="test",
+                eval_purpose="test",
+            )
 
-            # Metrics and tracking
-            self.metrics = np.zeros((self.max_g + 1, 37), dtype=np.float64)
-            self.xover_index = {cat: np.zeros((self.max_g, self.max_p)) for cat in
-                                ['deleterious', 'neutral', 'beneficial']}
-            self.mut_index = np.zeros((self.max_g, self.max_p))
+            self.metrics = np.zeros(
+                (self.max_g + 1, 37),
+                dtype=np.float64,
+            )
+            # Keep the gene-indexed crossover arrays produced by
+            # initialize_xover_index(); replacing them with max_p columns made
+            # per-gene statistics incompatible with individual counters.
+            self.mut_index = np.zeros(
+                (self.max_g, self.max_p),
+                dtype=np.float64,
+            )
 
             self._record_metrics(0, self.elapsed)
             self._report_generation(0)
+            # CORRECTNESS: subsequent fit() calls on the same instance should
+            # resume rather than silently replacing the evolved population.
+            self.first_submission = False
 
-            # Setup mutation and crossover tracking
-            genes_per_instruction = self.population[0].arity + 1  # for the operator
-            model_size = len(self.xover_index)
+            genes_per_instruction = self.population[0].arity + 1
+            # Preserve the existing mutation-density layout while avoiding repeated
+            # len/dictionary lookups.
+            model_size = len(self.population[0].xover_index)
             if self.one_d:
-                self.mut_index = np.zeros((self.max_g, model_size))
+                self.mut_index = np.zeros(
+                    (self.max_g, model_size),
+                    dtype=np.float64,
+                )
             else:
-                self.mut_index = np.zeros((self.max_g, model_size * genes_per_instruction))
-
+                self.mut_index = np.zeros(
+                    (
+                        self.max_g,
+                        model_size * genes_per_instruction,
+                    ),
+                    dtype=np.float64,
+                )
         else:
             self.expand_generations_if_needed(self.max_g)
             print(
@@ -1303,118 +1652,193 @@ class CartesianGP:
                 f"elapsed={self.elapsed:.2f} seconds"
             )
 
-        self._get_fitnesses(mode='test', mutable=False, eval_purpose="test")
-        self._get_fitnesses(mode='train', mutable=True, eval_purpose="search")
+        # Preserve the original pre-loop evaluations and their accounting effects.
+        self._get_fitnesses(
+            mode="test",
+            mutable=False,
+            eval_purpose="test",
+        )
+        self._get_fitnesses(
+            mode="train",
+            mutable=True,
+            eval_purpose="search",
+        )
 
-        n_elites = self.n_elites if hasattr(self, 'n_elites') else 1  # or pass as parameter
-        # Generation 0: Just record metrics, no elite reinsertion
-        # self.current_generation += 1 if self.current_generation else self.current_generation
-        #self._record_metrics(self.current_generation, self.elapsed)
-        #self._report_generation(self.current_generation)
-        elite_prev = self.elite_selection(n_elites=n_elites)
+        n_elites = getattr(self, "n_elites", 1)
+        elite_previous = self.elite_selection(n_elites=n_elites)
+        assert all(
+            isinstance(elite, CGP) for elite in elite_previous
+        ), "Elite_selection returned non-CGPs"
+        assert all(
+            hasattr(elite, "fitness") and elite.fitness is not None
+            for elite in elite_previous
+        ), "Elite has no fitness"
 
         elapsed_before_segment = float(getattr(self, "elapsed", 0.0))
         segment_start = time.perf_counter()
 
-        def update_elapsed() -> float:
-            self.elapsed = (
-                    elapsed_before_segment
-                    + time.perf_counter()
-                    - segment_start
-            )
-            return self.elapsed
+        # OPTIMIZATION: cache hot bound methods outside the generation loop.
+        get_fitnesses = self._get_fitnesses
+        mutate = self._mutate
+        record_metrics = self._record_metrics
+        report_generation = self._report_generation
+        save_checkpoint = self.save_checkpoint
 
-        for gen in range(self.current_generation + 1, self.max_g + 1):
-            self.current_generation = gen
-            # **Parent Selection**
-            # self._get_fitnesses(mutable=False, mode='test')
-            # self._get_fitnesses(mutable=True, mode='train')
+        for generation in range(
+            self.current_generation + 1,
+            self.max_g + 1,
+        ):
+            self.current_generation = generation
 
-            selected_parents = [deepcopy(p) for p in self.selection()]
+            selected = self.selection()
 
-            # **Crossover to Generate Children**
-            if self.xover:
-                children = self.crossover(selected_parents, xover_rate, gen)
-                child_fitnesses = self._get_fitnesses(pop_list=children, mutable=False, mode='train',
-                                                      eval_purpose="diagnostic")
-                # broken
-                # self._compare_child_parents()
-
+            # OPTIMIZATION: all built-in selection methods except competent
+            # tournament already return independent copies.  Avoid copying those
+            # complete model arrays a second time.
+            if self.selection_type == "competent_tournament":
+                selected_parents = [
+                    deepcopy(parent) for parent in selected
+                ]
             else:
-                children = deepcopy(selected_parents)  # No crossover, pass parents as is
+                selected_parents = list(selected)
 
-            if not isinstance(selected_parents, (list, np.ndarray)):
-                selected_parents = [selected_parents]
+            if self.xover:
+                children = self.crossover(
+                    selected_parents,
+                    xover_rate,
+                    generation,
+                )
+                # Keep this diagnostic evaluation: it updates child fitness and
+                # experiment evaluation counters even though its arrays are unused.
+                get_fitnesses(
+                    pop_list=children,
+                    mutable=False,
+                    mode="train",
+                    eval_purpose="diagnostic",
+                )
+            else:
+                if self.mutation_can_make_children:
+                    # OPTIMIZATION: child-making mutation never modifies these
+                    # sources, so another full-model deepcopy is unnecessary.
+                    children = selected_parents
+                else:
+                    # CORRECTNESS: no-crossover reproduction must still create
+                    # exactly max_c candidates, not one child per parent.
+                    parent_count = len(selected_parents)
+                    children = np.asarray(
+                        [
+                            deepcopy(
+                                selected_parents[index % parent_count]
+                            )
+                            for index in range(self.max_c)
+                        ],
+                        dtype=object,
+                    )
 
-            #    # Clone selected parents
-            cloned_parents = [deepcopy(p) for p in selected_parents]
-            protected_parents = [deepcopy(p) for p in cloned_parents]
+            # OPTIMIZATION: the old cloned_parents intermediate deep-copied every
+            # parent and was immediately deep-copied again.  One protected copy is
+            # sufficient to guarantee model-memory independence.
+            protected_parents = [
+                deepcopy(parent) for parent in selected_parents
+            ]
 
-            for i, (orig, protected) in enumerate(zip(selected_parents, protected_parents)):
-                assert not np.shares_memory(orig.model, protected.model), f"Memory shared at index {i}"
+            for index, (original, protected) in enumerate(
+                zip(selected_parents, protected_parents)
+            ):
+                assert not np.shares_memory(
+                    original.model,
+                    protected.model,
+                ), f"Memory shared at index {index}"
 
-            mutated_children = self._mutate(children, gen, mutation_rate)
+            mutated_children = mutate(
+                children,
+                generation,
+                mutation_rate,
+            )
 
             if self.mutation_can_make_children:
+                # OPTIMIZATION: set membership replaces the previous O(P*C)
+                # all-pairs ID comparison.
+                parent_ids = {parent.id for parent in selected_parents}
                 assert all(
-                    c.id != p.id for c in mutated_children for p in selected_parents), "Mutation may be in-place!"
-
-            # Ensure both are proper lists of CGP instances
-            if isinstance(protected_parents, CGP):
-                protected_parents = [protected_parents]
-            elif isinstance(protected_parents, np.ndarray):
-                protected_parents = list(protected_parents)
+                    child.id not in parent_ids
+                    for child in mutated_children
+                ), "Mutation may be in-place!"
 
             if isinstance(mutated_children, CGP):
                 mutated_children = [mutated_children]
             elif isinstance(mutated_children, np.ndarray):
+                mutated_children = mutated_children.tolist()
+            else:
                 mutated_children = list(mutated_children)
 
-            # Final sanity check
-            assert all(isinstance(p, CGP) for p in protected_parents), "Non-CGP in protected_parents"
-            assert all(isinstance(c, CGP) for c in mutated_children), "Non-CGP in mutated_children"
-            assert all(p is not None for p in protected_parents), "protected_parents contains None"
-            assert all(c is not None for c in mutated_children), "mutated_children contains None"
+            assert all(
+                isinstance(parent, CGP)
+                for parent in protected_parents
+            ), "Non-CGP in protected_parents"
+            assert all(
+                isinstance(child, CGP)
+                for child in mutated_children
+            ), "Non-CGP in mutated_children"
+            assert all(
+                parent is not None for parent in protected_parents
+            ), "protected_parents contains None"
+            assert all(
+                child is not None for child in mutated_children
+            ), "mutated_children contains None"
 
             self.population = protected_parents + mutated_children
 
-            expected = self.max_p + self.max_c
-            actual = len(self.population)
-
-            if actual != expected:
+            expected_population_size = self.max_p + self.max_c
+            actual_population_size = len(self.population)
+            if actual_population_size != expected_population_size:
                 raise RuntimeError(
-                    f"Population size mismatch after reproduction: "
-                    f"expected {expected}, got {actual}. "
+                    "Population size mismatch after reproduction: "
+                    f"expected {expected_population_size}, "
+                    f"got {actual_population_size}. "
                     f"len(protected_parents)={len(protected_parents)}, "
                     f"len(mutated_children)={len(mutated_children)}"
                 )
 
-            assert len(self.population) == len(self.fitnesses)
-            assert len(self.population) == len(self.corrs)
-            assert len(self.population) == len(self.fitnesses_test)
-            assert len(self.population) == len(self.corr_test)
+            assert actual_population_size == len(self.fitnesses)
+            assert actual_population_size == len(self.corrs)
+            assert actual_population_size == len(self.fitnesses_test)
+            assert actual_population_size == len(self.corr_test)
 
-            self._get_fitnesses(mutable=False, mode='test', eval_purpose="test")
-            self._get_fitnesses(mutable=True, mode='train', eval_purpose="search")
+            get_fitnesses(
+                mutable=False,
+                mode="test",
+                eval_purpose="test",
+            )
+            get_fitnesses(
+                mutable=True,
+                mode="train",
+                eval_purpose="search",
+            )
 
+            # The former best_fitness_train/test lists were local, never returned,
+            # and never read.  Omitting them prevents unbounded per-run list growth.
+            self.elapsed = (
+                elapsed_before_segment
+                + time.perf_counter()
+                - segment_start
+            )
+            record_metrics(generation, self.elapsed)
 
-            assert all(isinstance(e, CGP) for e in elite_prev), "Elite_selection returned non-CGPs"
-            assert all(hasattr(e, "fitness") and e.fitness is not None for e in elite_prev), "Elite has no fitness"
+            if step_size and generation % step_size == 0:
+                report_generation(generation)
+                save_checkpoint(
+                    filename=self.ckpt_filename,
+                    generation=generation,
+                )
+            if self.elapsed >= (budget_hrs*3600):
+                print(f'Timed out in generation {generation}. Elapsed Time: {self.elapsed/3600}/{budget_hrs} Hours.')
+                break
 
-            true_elite_train = min(self.population, key=lambda x: x.fitness)
-            # true_elite_test = self.population[np.argmin(self.fitnesses_test)]
-            best_fitness_train.append(true_elite_train.fitness)
-            best_fitness_test.append(self.fitnesses_test[np.argmin(self.fitnesses_test)])
-
-            #self.stn.get_semantics(true_elite_train, train_x)
-            self.elapsed = update_elapsed()
-            self._record_metrics(gen, self.elapsed)
-
-            if step_size and gen % step_size == 0:
-                self._report_generation(gen)
-                self.save_checkpoint(filename=self.ckpt_filename, generation=gen)
-
-        return self.population[np.argmin(self.fitnesses)], self.population[np.argmin(self.fitnesses_test)]
+        return (
+            self.population[np.argmin(self.fitnesses)],
+            self.population[np.argmin(self.fitnesses_test)],
+        )
 
     def return_stn(self):
         return self.stn
