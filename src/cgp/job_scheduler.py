@@ -125,20 +125,23 @@ functions = Collection()
 #function_list = ['Koza3']
 #function_list = ['Koza3', 'Nguyen5', 'Nguyen7', 'Ackley', 'Levy', 'Rastrigin']
 #function_list = ['Rastrigin']
-function_list = ['EnergyEfficiency']
+#function_list = ['EnergyEfficiency']
+#function_list = ['ComputerHardware']
 #function_list = ['HeartDisease']
 #function_list = ['CreditApproval']
 #function_list = ['ConcreteStrength']
+#function_list = ['icomp5']
+#function_list = ['mcomp5']
+function_list = ['demux32']
 #xovers = ['None', 'n_point', 'subgraph', 'homologous_semantic_n_point', 'aligned_homologous_semantic_n_point']
-#xovers = ['dnc_n_point', 'dnc_uniform', 'dnc_semantic_uniform', 'dnc_semantic_n_point']
 #xovers = ['aligned_homologous_semantic_n_point']
 #xovers = ['semantic_uniform', 'homologous_semantic_uniform', 'semantic_n_point', 'homologous_semantic_n_point']
 #xovers = ['homologous_semantic_n_point']
-#xovers = ['subgraph']
+xovers = ['subgraph']
 #xovers = ['None', 'n_point', 'subgraph']
 #xovers = ['homologous_semantic_n_point'] #, 'semantic_uniform']
 # xovers = ['homlogous_semantic_n_point', 'aligned_homologous_semantic_n_point'] #, 'semantic_uniform']
-xovers = ['None']
+#xovers = ['None']
 #xovers = ['uniform']
 #xovers = ['n_point']
 #xovers = ['homologous_semantic_n_point', 'None', 'aligned_homologous_semantic_n_point']
@@ -235,7 +238,7 @@ for function in function_list:
         search_pattern = os.path.join(f"configs/{f_no_space}/{xover}/", "*.json")
         config_files = glob.glob(search_pattern)
         print(config_files)
-        for index, config in enumerate(config_files):
+        for index, config in enumerate(config_files)[0]:
             params = get_parameters(config)
             # Parameters
             mutation = params['mutation']
@@ -259,7 +262,7 @@ for function in function_list:
             job_count = 0
 
             Path(f'/mnt/home/kocherov/Documents/cgp/output/{f_no_space}/{xover}/{config}/').mkdir(parents=True, exist_ok=True)
-            for i in range(0, 50):  # Create 50 jobs per function/xover combination
+            for i in [16, 24]:  # Create 50 jobs per function/xover combination
                 job_name = f"kocherov_{f_no_space}_{xover}_cfg{index+1}_t{i}"
 
                 # Skip already completed jobs

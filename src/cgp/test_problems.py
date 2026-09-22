@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
+import os
 from numpy import sin, cos, log, sqrt, exp, pi
+from pathlib import Path
 from sklearn.model_selection import train_test_split
 
 
@@ -101,112 +103,93 @@ class RealWorldProblem():
         return self.train_x, self.test_x, self.train_y, self.test_y
 
 
-add3 = BooleanFunction(
-    name="add3",
-    x=np.loadtxt('bool_benchmarks/csv_in/add3.csv', delimiter=','),
-    y=np.loadtxt('bool_benchmarks/csv_out/add3.csv', delimiter=','),
-)
+dir_path = os.path.dirname(os.path.realpath(__file__))
+print(dir_path)
 
-add4 = BooleanFunction("add4", np.loadtxt("bool_benchmarks/csv_in/add4.csv", delimiter=","),
-                       np.loadtxt("bool_benchmarks/csv_out/add4.csv", delimiter=","))
-add5 = BooleanFunction("add5", np.loadtxt("bool_benchmarks/csv_in/add5.csv", delimiter=","),
-                       np.loadtxt("bool_benchmarks/csv_out/add5.csv", delimiter=","))
-add6 = BooleanFunction("add6", np.loadtxt("bool_benchmarks/csv_in/add6.csv", delimiter=","),
-                       np.loadtxt("bool_benchmarks/csv_out/add6.csv", delimiter=","))
-add7 = BooleanFunction("add7", np.loadtxt("bool_benchmarks/csv_in/add7.csv", delimiter=","),
-                       np.loadtxt("bool_benchmarks/csv_out/add7.csv", delimiter=","))
-add8 = BooleanFunction("add8", np.loadtxt("bool_benchmarks/csv_in/add8.csv", delimiter=","),
-                       np.loadtxt("bool_benchmarks/csv_out/add8.csv", delimiter=","))
+PACKAGE_DIR = Path(__file__).resolve().parent
+BOOL_BENCHMARK_DIR = PACKAGE_DIR / "bool_benchmarks"
 
-add_sub3 = BooleanFunction("add_sub3", np.loadtxt("bool_benchmarks/csv_in/add_sub3.csv", delimiter=","),
-                           np.loadtxt("bool_benchmarks/csv_out/add_sub3.csv", delimiter=","))
-add_sub4 = BooleanFunction("add_sub4", np.loadtxt("bool_benchmarks/csv_in/add_sub4.csv", delimiter=","),
-                           np.loadtxt("bool_benchmarks/csv_out/add_sub4.csv", delimiter=","))
+def load_bool_csv(filename: str, kind: str):
+    """
+    Load a Boolean benchmark CSV relative to this file, not relative to cwd.
 
-alu3 = BooleanFunction("alu3", np.loadtxt("bool_benchmarks/csv_in/alu3.csv", delimiter=","),
-                       np.loadtxt("bool_benchmarks/csv_out/alu3.csv", delimiter=","))
-alu4 = BooleanFunction("alu4", np.loadtxt("bool_benchmarks/csv_in/alu4.csv", delimiter=","),
-                       np.loadtxt("bool_benchmarks/csv_out/alu4.csv", delimiter=","))
-alu5 = BooleanFunction("alu5", np.loadtxt("bool_benchmarks/csv_in/alu5.csv", delimiter=","),
-                       np.loadtxt("bool_benchmarks/csv_out/alu5.csv", delimiter=","))
-alu6 = BooleanFunction("alu6", np.loadtxt("bool_benchmarks/csv_in/alu6.csv", delimiter=","),
-                       np.loadtxt("bool_benchmarks/csv_out/alu6.csv", delimiter=","))
-alu7 = BooleanFunction("alu7", np.loadtxt("bool_benchmarks/csv_in/alu7.csv", delimiter=","),
-                       np.loadtxt("bool_benchmarks/csv_out/alu7.csv", delimiter=","))
-alu8 = BooleanFunction("alu8", np.loadtxt("bool_benchmarks/csv_in/alu8.csv", delimiter=","),
-                       np.loadtxt("bool_benchmarks/csv_out/alu8.csv", delimiter=","))
+    kind should be either:
+        "csv_in"
+        "csv_out"
+    """
+    path = BOOL_BENCHMARK_DIR / kind / filename
 
-demux8 = BooleanFunction("demux8", np.loadtxt("bool_benchmarks/csv_in/demux8.csv", delimiter=","),
-                         np.loadtxt("bool_benchmarks/csv_out/demux8.csv", delimiter=","))
-demux16 = BooleanFunction("demux16", np.loadtxt("bool_benchmarks/csv_in/demux16.csv", delimiter=","),
-                          np.loadtxt("bool_benchmarks/csv_out/demux16.csv", delimiter=","))
-demux32 = BooleanFunction("demux32", np.loadtxt("bool_benchmarks/csv_in/demux32.csv", delimiter=","),
-                          np.loadtxt("bool_benchmarks/csv_out/demux32.csv", delimiter=","))
-demux64 = BooleanFunction("demux64", np.loadtxt("bool_benchmarks/csv_in/demux64.csv", delimiter=","),
-                          np.loadtxt("bool_benchmarks/csv_out/demux64.csv", delimiter=","))
+    if not path.exists():
+        raise FileNotFoundError(f"Boolean benchmark file not found: {path}")
 
-epar8 = BooleanFunction("epar8", np.loadtxt("bool_benchmarks/csv_in/epar8.csv", delimiter=","),
-                        np.loadtxt("bool_benchmarks/csv_out/epar8.csv", delimiter=","))
-epar9 = BooleanFunction("epar9", np.loadtxt("bool_benchmarks/csv_in/epar9.csv", delimiter=","),
-                        np.loadtxt("bool_benchmarks/csv_out/epar9.csv", delimiter=","))
-epar10 = BooleanFunction("epar10", np.loadtxt("bool_benchmarks/csv_in/epar10.csv", delimiter=","),
-                         np.loadtxt("bool_benchmarks/csv_out/epar10.csv", delimiter=","))
-epar11 = BooleanFunction("epar11", np.loadtxt("bool_benchmarks/csv_in/epar11.csv", delimiter=","),
-                         np.loadtxt("bool_benchmarks/csv_out/epar11.csv", delimiter=","))
+    return np.loadtxt(path, delimiter=",")
 
-icomp3 = BooleanFunction("icomp3", np.loadtxt("bool_benchmarks/csv_in/icomp3.csv", delimiter=","),
-                         np.loadtxt("bool_benchmarks/csv_out/icomp3.csv", delimiter=","))
-icomp4 = BooleanFunction("icomp4", np.loadtxt("bool_benchmarks/csv_in/icomp4.csv", delimiter=","),
-                         np.loadtxt("bool_benchmarks/csv_out/icomp4.csv", delimiter=","))
-icomp5 = BooleanFunction("icomp5", np.loadtxt("bool_benchmarks/csv_in/icomp5.csv", delimiter=","),
-                         np.loadtxt("bool_benchmarks/csv_out/icomp5.csv", delimiter=","))
-icomp6 = BooleanFunction("icomp6", np.loadtxt("bool_benchmarks/csv_in/icomp6.csv", delimiter=","),
-                         np.loadtxt("bool_benchmarks/csv_out/icomp6.csv", delimiter=","))
-icomp7 = BooleanFunction("icomp7", np.loadtxt("bool_benchmarks/csv_in/icomp7.csv", delimiter=","),
-                         np.loadtxt("bool_benchmarks/csv_out/icomp7.csv", delimiter=","))
-icomp8 = BooleanFunction("icomp8", np.loadtxt("bool_benchmarks/csv_in/icomp8.csv", delimiter=","),
-                         np.loadtxt("bool_benchmarks/csv_out/icomp8.csv", delimiter=","))
-icomp9 = BooleanFunction("icomp9", np.loadtxt("bool_benchmarks/csv_in/icomp9.csv", delimiter=","),
-                         np.loadtxt("bool_benchmarks/csv_out/icomp9.csv", delimiter=","))
 
-mcomp3 = BooleanFunction("mcomp3", np.loadtxt("bool_benchmarks/csv_in/mcomp3.csv", delimiter=","),
-                         np.loadtxt("bool_benchmarks/csv_out/mcomp3.csv", delimiter=","))
-mcomp4 = BooleanFunction("mcomp4", np.loadtxt("bool_benchmarks/csv_in/mcomp4.csv", delimiter=","),
-                         np.loadtxt("bool_benchmarks/csv_out/mcomp4.csv", delimiter=","))
-mcomp5 = BooleanFunction("mcomp5", np.loadtxt("bool_benchmarks/csv_in/mcomp5.csv", delimiter=","),
-                         np.loadtxt("bool_benchmarks/csv_out/mcomp5.csv", delimiter=","))
-mcomp6 = BooleanFunction("mcomp6", np.loadtxt("bool_benchmarks/csv_in/mcomp6.csv", delimiter=","),
-                         np.loadtxt("bool_benchmarks/csv_out/mcomp6.csv", delimiter=","))
+def make_bool_function(name: str):
+    return BooleanFunction(
+        name,
+        load_bool_csv(f"{name}.csv", "csv_in"),
+        load_bool_csv(f"{name}.csv", "csv_out"),
+    )
 
-mul3 = BooleanFunction("mul3", np.loadtxt("bool_benchmarks/csv_in/mul3.csv", delimiter=","),
-                       np.loadtxt("bool_benchmarks/csv_out/mul3.csv", delimiter=","))
-mul4 = BooleanFunction("mul4", np.loadtxt("bool_benchmarks/csv_in/mul4.csv", delimiter=","),
-                       np.loadtxt("bool_benchmarks/csv_out/mul4.csv", delimiter=","))
-mul5 = BooleanFunction("mul5", np.loadtxt("bool_benchmarks/csv_in/mul5.csv", delimiter=","),
-                       np.loadtxt("bool_benchmarks/csv_out/mul5.csv", delimiter=","))
 
-onehot_dec4 = BooleanFunction("onehot_dec4", np.loadtxt("bool_benchmarks/csv_in/onehot_dec4.csv", delimiter=","),
-                              np.loadtxt("bool_benchmarks/csv_out/onehot_dec4.csv", delimiter=","))
-onehot_dec8 = BooleanFunction("onehot_dec8", np.loadtxt("bool_benchmarks/csv_in/onehot_dec8.csv", delimiter=","),
-                              np.loadtxt("bool_benchmarks/csv_out/onehot_dec8.csv", delimiter=","))
-onehot_dec16 = BooleanFunction("onehot_dec16", np.loadtxt("bool_benchmarks/csv_in/onehot_dec16.csv", delimiter=","),
-                               np.loadtxt("bool_benchmarks/csv_out/onehot_dec16.csv", delimiter=","))
+add3 = make_bool_function("add3")
+add4 = make_bool_function("add4")
+add5 = make_bool_function("add5")
+add6 = make_bool_function("add6")
+add7 = make_bool_function("add7")
+add8 = make_bool_function("add8")
 
-onehot_enc8 = BooleanFunction("onehot_enc8", np.loadtxt("bool_benchmarks/csv_in/onehot_enc8.csv", delimiter=","),
-                              np.loadtxt("bool_benchmarks/csv_out/onehot_enc8.csv", delimiter=","))
-onehot_enc16 = BooleanFunction("onehot_enc16", np.loadtxt("bool_benchmarks/csv_in/onehot_enc16.csv", delimiter=","),
-                               np.loadtxt("bool_benchmarks/csv_out/onehot_enc16.csv", delimiter=","))
-onehot_enc32 = BooleanFunction("onehot_enc32", np.loadtxt("bool_benchmarks/csv_in/onehot_enc32.csv", delimiter=","),
-                               np.loadtxt("bool_benchmarks/csv_out/onehot_enc32.csv", delimiter=","))
+add_sub3 = make_bool_function("add_sub3")
+add_sub4 = make_bool_function("add_sub4")
 
-onescount4 = BooleanFunction("onescount4", np.loadtxt("bool_benchmarks/csv_in/onescount4.csv", delimiter=","),
-                             np.loadtxt("bool_benchmarks/csv_out/onescount4.csv", delimiter=","))
-onescount6 = BooleanFunction("onescount6", np.loadtxt("bool_benchmarks/csv_in/onescount6.csv", delimiter=","),
-                             np.loadtxt("bool_benchmarks/csv_out/onescount6.csv", delimiter=","))
-onescount8 = BooleanFunction("onescount8", np.loadtxt("bool_benchmarks/csv_in/onescount8.csv", delimiter=","),
-                             np.loadtxt("bool_benchmarks/csv_out/onescount8.csv", delimiter=","))
-onescount10 = BooleanFunction("onescount10", np.loadtxt("bool_benchmarks/csv_in/onescount10.csv", delimiter=","),
-                              np.loadtxt("bool_benchmarks/csv_out/onescount10.csv", delimiter=","))
+alu3 = make_bool_function("alu3")
+alu4 = make_bool_function("alu4")
+alu5 = make_bool_function("alu5")
+alu6 = make_bool_function("alu6")
+alu7 = make_bool_function("alu7")
+alu8 = make_bool_function("alu8")
+
+demux8 = make_bool_function("demux8")
+demux16 = make_bool_function("demux16")
+demux32 = make_bool_function("demux32")
+demux64 = make_bool_function("demux64")
+
+epar8 = make_bool_function("epar8")
+epar9 = make_bool_function("epar9")
+epar10 = make_bool_function("epar10")
+epar11 = make_bool_function("epar11")
+
+icomp3 = make_bool_function("icomp3")
+icomp4 = make_bool_function("icomp4")
+icomp5 = make_bool_function("icomp5")
+icomp6 = make_bool_function("icomp6")
+icomp7 = make_bool_function("icomp7")
+icomp8 = make_bool_function("icomp8")
+icomp9 = make_bool_function("icomp9")
+
+mcomp3 = make_bool_function("mcomp3")
+mcomp4 = make_bool_function("mcomp4")
+mcomp5 = make_bool_function("mcomp5")
+mcomp6 = make_bool_function("mcomp6")
+
+mul3 = make_bool_function("mul3")
+mul4 = make_bool_function("mul4")
+mul5 = make_bool_function("mul5")
+
+onehot_dec4 = make_bool_function("onehot_dec4")
+onehot_dec8 = make_bool_function("onehot_dec8")
+onehot_dec16 = make_bool_function("onehot_dec16")
+
+onehot_enc8 = make_bool_function("onehot_enc8")
+onehot_enc16 = make_bool_function("onehot_enc16")
+onehot_enc32 = make_bool_function("onehot_enc32")
+
+onescount4 = make_bool_function("onescount4")
+onescount6 = make_bool_function("onescount6")
+onescount8 = make_bool_function("onescount8")
+onescount10 = make_bool_function("onescount10")
+
 three_bit_parity = BooleanFunction(
     name="ThreeBitParity",
     x=[
@@ -952,8 +935,7 @@ def computer_hardware(split):
     x = computer_hardware.data.features
     y = x['ERP']
 
-    x = x.drop(columns=['ERP', 'ModelName'])
-    x = pd.get_dummies(x, columns=['VendorName'])
+    x = x.drop(columns=['ERP', 'ModelName', 'VendorName'])
 
     x = x.to_numpy()
     y = y.to_numpy()

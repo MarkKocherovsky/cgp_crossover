@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import uuid
 import hashlib
 from .cgp_generator import generate_model, node_to_int
@@ -338,6 +339,34 @@ class CGP:
 
     def set_child_key(self, key):
         self.child_keys = key
+
+    def model_for_llm(self, with_inputs=False):
+        model_array = deepcopy(self.model)
+        model_copy = pd.DataFrame(
+            model_array,
+            columns=[
+                'node_type',
+                'value',
+                'operator',
+                'operand0',
+                'operand1',
+                'active'
+            ]
+        )
+        
+        model_copy.insert(0, 'idx', np.arange(len(model_copy)))
+
+        if with_inputs:
+            return model_copy
+
+        node_type_col = self.model_keys['NodeType']
+
+        mask = (
+                (self.model[:, node_type_col] == node_to_int('Function')) |
+                (self.model[:, node_type_col] == node_to_int('Output'))
+        )
+
+        return model_copy.loc[mask].reset_index(drop=True)
 
     @staticmethod
     def _hash_model(model: np.ndarray) -> str:

@@ -1,9 +1,12 @@
 import pandas as pd
 import numpy as np
 import pickle
+import traceback
 import json
 import datetime
 import os
+import glob
+import re
 import subprocess
 from pathlib import Path
 import seaborn as sns
@@ -44,6 +47,76 @@ class Metric:
 #                   xover_density_beneficial.csv
 #                   xover_density_deleterious.csv
 #                   xover_density_neutral.csv
+
+
+def read_selected_configs_from_meta(
+    meta_csv: str | Path,
+    problem_suffix: str = "_1d",
+    metric_filter: str | None = None,
+) -> dict[tuple[str, str], dict]:
+    """
+    Read the R `meta` CSV and return selected cfg info keyed by:
+
+        (problem, xover)
+
+    Example key:
+        ("Koza3_1d", "None")
+        ("Koza3_1d", "n_point")
+
+    Expected CSV columns:
+        problem, xover, selection, cfg, metric
+    """
+    meta_csv = Path(meta_csv)
+
+    # Important: prevents string "None" from becoming NaN
+    meta = pd.read_csv(meta_csv, keep_default_na=False)
+
+    required_cols = {"problem", "xover", "selection", "cfg"}
+    missing = required_cols - set(meta.columns)
+
+    if missing:
+        raise ValueError(
+            f"{meta_csv} is missing required column(s): {sorted(missing)}"
+        )
+
+    if metric_filter is not None:
+        if "metric" not in meta.columns:
+            raise ValueError("metric_filter was provided, but CSV has no 'metric' column.")
+
+        meta = meta[meta["metric"] == metric_filter].copy()
+
+    if meta.empty:
+        raise ValueError(f"No selected config rows found in {meta_csv}.")
+
+    meta["cfg"] = meta["cfg"].astype(int)
+
+    # Your Python problem keys are Koza3_1d, Nguyen5_1d, etc.,
+    # while the R meta column is Koza3, Nguyen5, etc.
+    meta["problem_key"] = meta["problem"].astype(str)
+
+    needs_suffix = ~meta["problem_key"].str.endswith(problem_suffix)
+    meta.loc[needs_suffix, "problem_key"] = meta.loc[needs_suffix, "problem_key"] + problem_suffix
+
+    duplicated = meta.duplicated(subset=["problem_key", "xover"], keep=False)
+
+    if duplicated.any():
+        bad = meta.loc[duplicated, ["problem_key", "xover", "selection", "cfg", "metric"]]
+        raise ValueError(
+            "Duplicate problem/xover rows found in meta CSV. "
+            "Use metric_filter or remove duplicates:\n"
+            f"{bad}"
+        )
+
+    selected = {}
+
+    for row in meta.itertuples(index=False):
+        selected[(row.problem_key, row.xover)] = {
+            "cfg": int(row.cfg),
+            "selection": row.selection,
+            "metric": getattr(row, "metric", None),
+        }
+
+    return selected
 
 class AnalysisToolkit:
     def __init__(self, crossover_methods: dict, selection_methods: dict, path: str, problem_list: dict, metrics: list,
@@ -111,7 +184,38 @@ class AnalysisToolkit:
 
     import json
     import subprocess
-    from pathlib import Path
+
+    def get_selected_cfg_info(self, problem_key: str, xover: str) -> dict:
+        if not hasattr(self, "selected_configs") or self.selected_configs is None:
+            raise ValueError("self.selected_configs has not been set.")
+
+        key = (problem_key, xover)
+
+        if key not in self.selected_configs:
+            available = "\n".join(map(str, sorted(self.selected_configs.keys())))
+            raise KeyError(
+                f"No selected config found for {key}.\n"
+                f"Available keys are:\n{available}"
+            )
+
+        return self.selected_configs[key]
+
+    def make_selected_path(
+            self,
+            problem_key: str,
+            xover: str,
+            fallback_selection: str,
+            metric: str,
+    ):
+        cfg_info = self.get_selected_cfg_info(problem_key, xover)
+
+        cfg = cfg_info["cfg"]
+        selection = cfg_info.get("selection") or fallback_selection
+
+        return Path(
+            f"../../output/intermediate_results/full/"
+            f"{problem_key}_{xover}_{selection}_cfg{cfg}_{metric}.csv"
+        )
 
     def _load_trial_stn(self, problem: str, xover: str, selection_key: str, config: str,
                         restart: bool = False, mutation: str = None) -> list:
@@ -194,10 +298,12 @@ class AnalysisToolkit:
 
                 for selection in selection_list:
                     dir_locations = f"{self.base_path}/{problem}/{xover}/{mutation}/{selection}/"
-                    configs = [
-                        d for d in os.listdir(dir_locations)
-                        if os.path.isdir(os.path.join(dir_locations, d))
-                    ]
+                    configs = glob.glob(f'{dir_locations}cfg[0-9]/')
+                    print(configs)
+                    #configs = [
+                    #    d for d in os.listdir(dir_locations)
+                    #    if os.path.isdir(os.path.join(dir_locations, d))
+                    #]
 
                     for config in configs:
                         # -------------------------
@@ -211,7 +317,7 @@ class AnalysisToolkit:
                         best_fitness = np.array([table[-1, 0] for table in table_list])
                         best_test_fitness = np.array([table[-1, 5] for table in table_list])
                         best_sizes = np.array([table[-1, 10] for table in table_list])
-
+                        cfg = re.findall(r'\d+', config)[0]
                         for m, metric in enumerate(self.metrics):
                             try:
                                 metric_idx = metric_list[m]
@@ -227,7 +333,7 @@ class AnalysisToolkit:
                                 xover_out = xover.replace('/full', '_full') if '/full' in xover else xover
 
                                 q_table.to_csv(
-                                    output_dir / f'{problem}_{xover_out}_{selection}_{config}_{self.metrics[metric].code_name}.csv',
+                                    output_dir / f'{problem}_{xover_out}_{selection}_cfg{cfg}_{self.metrics[metric].code_name}.csv',
                                     index=False
                                 )
 
@@ -239,12 +345,13 @@ class AnalysisToolkit:
                                 continue
 
                         xover_out = xover.replace('/full', '_full') if '/full' in xover else xover
+                        print(best_fitness)
 
-                        np.savetxt(output_dir / f'{problem}_{xover_out}_{selection}_{config}_min_fitnesses.csv',
+                        np.savetxt(output_dir / f'{problem}_{xover_out}_{selection}_cfg{cfg}_min_fitnesses.csv',
                                    best_fitness)
-                        np.savetxt(output_dir / f'{problem}_{xover_out}_{selection}_{config}_min_test_fitnesses.csv',
+                        np.savetxt(output_dir / f'{problem}_{xover_out}_{selection}_cfg{cfg}_min_test_fitnesses.csv',
                                    best_test_fitness)
-                        np.savetxt(output_dir / f'{problem}_{xover_out}_{selection}_{config}_best_sizes.csv',
+                        np.savetxt(output_dir / f'{problem}_{xover_out}_{selection}_cfg{cfg}_best_sizes.csv',
                                    best_sizes)
 
                         """
@@ -283,71 +390,135 @@ class AnalysisToolkit:
     def make_path(self, problem: str, xover: str, selection: str, metric: str):
         return Path(f'../../output/intermediate_results/{problem}_{xover}_{selection}_{metric}.csv')
 
-    def plot_line_graph(self, selection_method: str, metric: str, graph_filename: str, title: str, x_label: str,
-                        y_label: str, log: bool = False):
+    def plot_line_graph(self, selection_method: str, metric: str, graph_filename: str,
+                        title: str, x_label: str, y_label: str, log: bool = False):
+
         if isinstance(metric, str):
-            metric = next((m for m in self.metrics if m.code_name == metric), None)
-            if metric is None:
+            metric_obj = next((m for m in self.metrics if m.code_name == metric), None)
+            if metric_obj is None:
                 raise ValueError(f"Metric '{metric}' not found in self.metrics")
+            metric = metric_obj
 
         n_problems = len(self.problems)
-        fig, axs = plt.subplots(int(np.round(n_problems / 2)), 2, figsize=(8, 10))
-        axs = axs.flatten()
-        legend_dict = {}
-        for i, problem in enumerate(self.problems):
-            for xover_method in self.crossover_methods:
-                xover = self.crossover_methods[xover_method].code_name
-                sel_key = 'paretoelite' if 'None' in xover else selection_method
-                if '/full' in xover:
-                    xover = xover.replace('/full', '_full')
+        n_rows = int(np.ceil(n_problems / 2))
 
-                file_name = self.make_path(problem, xover, sel_key, metric.code_name)
-                if file_name.exists():
-                    data = pd.read_csv(file_name)
-                    median = data['Median']
-                    quartile_1 = data['First Quartile']
-                    quartile_3 = data['Third Quartile']
-                else:
-                    raise FileNotFoundError(f"File {file_name} not found.")
-                if log:
-                    axs[i].set_yscale('log')
+        fig, axs = plt.subplots(n_rows, 2, figsize=(8, 10))
+        axs = axs.flatten()
+
+        legend_dict = {}
+
+        for i, problem_key in enumerate(self.problems):
+            ax = axs[i]
+
+            for xover_method in self.crossover_methods:
+                method = self.crossover_methods[xover_method]
+
+                xover = method.code_name
+                sel_key = "paretoelite" if xover == "None" else selection_method
+
+                if "/full" in xover:
+                    xover = xover.replace("/full", "_full")
+
                 try:
-                    line = axs[i].plot(
-                        range(self.max_generations),
+                    file_name = self.make_selected_path(
+                        problem_key=problem_key,
+                        xover=xover,
+                        fallback_selection=sel_key,
+                        metric=metric.code_name,
+                    )
+
+                    if not file_name.exists():
+                        raise FileNotFoundError(f"File {file_name} not found.")
+
+                    data = pd.read_csv(file_name)
+
+                    median = data["Median"]
+                    quartile_1 = data["First Quartile"]
+                    quartile_3 = data["Third Quartile"]
+
+                except Exception as e:
+                    import traceback
+                    print(f"Error loading data for {problem_key} {xover}: {e}")
+                    traceback.print_exc()
+                    continue
+
+                if log:
+                    ax.set_yscale("log")
+
+                x_vals = range(len(median))
+
+                try:
+                    line = ax.plot(
+                        x_vals,
                         median,
-                        label=self.crossover_methods[xover_method].short_name,
-                        c=self.crossover_methods[xover_method].color,
-                        linestyle=self.crossover_methods[xover_method].linestyle
+                        label=method.short_name,
+                        c=method.color,
+                        linestyle=method.linestyle
                     )[0]
+
+                    ax.fill_between(
+                        x_vals,
+                        quartile_1,
+                        quartile_3,
+                        alpha=0.1,
+                        color=method.color
+                    )
+
                 except ValueError as e:
                     print(e)
-                    print(f'{sel_key} {xover} {problem}')
-                    exit()
-                # axs[i//2, i%2].plot(range(self.max_generations), median, label=self.crossover_methods[xover_method].short_name, c=self.crossover_methods[xover_method].color, linestyle=self.crossover_methods[xover_method].linestyle)
-                axs[i].fill_between(range(self.max_generations), quartile_1, quartile_3, alpha=0.1)
-                axs[i].set_title(self.problems[problem], fontsize=11)
-                axs[i].set_xlabel('', fontsize=8)
+                    print(f"{sel_key} {xover} {problem_key}")
+                    print(f"median length: {len(median)}")
+                    print(f"q1 length: {len(quartile_1)}")
+                    print(f"q3 length: {len(quartile_3)}")
+                    continue
+
+                ax.set_title(self.problems[problem_key], fontsize=11)
+                ax.set_xlabel("", fontsize=8)
+
                 if i % 2 == 0:
-                    axs[i].set_ylabel(y_label, fontsize=8)
+                    ax.set_ylabel(y_label, fontsize=8)
                 else:
-                    axs[i].set_ylabel('')
-                # axs[i//2, i%2].legend()
-                label = self.crossover_methods[xover_method].short_name
-                legend_dict[label] = line  # overwrites duplicates automatically
+                    ax.set_ylabel("")
+
+                legend_dict[method.short_name] = line
+
+        # Hide unused axes
+        for j in range(n_problems, len(axs)):
+            axs[j].set_visible(False)
+
+        # Put x-axis label only on bottom visible row
         for ax in axs[-2:]:
-            ax.set_xlabel(x_label, fontsize=8)
-        fig.tight_layout(rect=[0, 0, 1, 0.88])  # Before legend + title
-        fig.legend(list(legend_dict.values()), list(legend_dict.keys()), loc='upper center', ncol=3,
-                   bbox_to_anchor=(0.5, 0.96), fontsize=10)
-        # fig.suptitle(f'{title}\n{self.selection_methods[selection_method]}\n{metric.full_name}', fontsize=14)
-        fig.suptitle(f'{title}', fontsize=14)
-        file_path = f"../output/graphs_raw/{graph_filename}.pkl"  # Path to save the binary file
-        with open(file_path, "wb") as file:
-            pickle.dump(plt.gcf(), file)
+            if ax.get_visible():
+                ax.set_xlabel(x_label, fontsize=8)
+
+        fig.tight_layout(rect=[0, 0, 1, 0.88])
+
+        fig.legend(
+            list(legend_dict.values()),
+            list(legend_dict.keys()),
+            loc="upper center",
+            ncol=3,
+            bbox_to_anchor=(0.5, 0.96),
+            fontsize=10
+        )
+
+        fig.suptitle(title, fontsize=14)
+
+        raw_output_dir = "../output/graphs_raw/"
         output_dir = "../output/graphs/"
+
+        os.makedirs(raw_output_dir, exist_ok=True)
         os.makedirs(output_dir, exist_ok=True)
-        plt.savefig(f"../output/graphs/{graph_filename}{self.output_format}")
-        print(f'{graph_filename} saved')
+
+        file_path = f"{raw_output_dir}/{graph_filename}.pkl"
+
+        with open(file_path, "wb") as file:
+            pickle.dump(fig, file)
+
+        plt.savefig(f"{output_dir}/{graph_filename}{self.output_format}")
+        plt.close(fig)
+
+        print(f"{graph_filename} saved")
 
     def plot_box_plots(self, selection_method: str, metric: Metric, graph_filename: str, title: str,
                        x_label: str, y_label: str, log: bool = False, violin: bool = False, jitter: bool = False):
@@ -370,15 +541,21 @@ class AnalysisToolkit:
 
             for xover_key, xover_obj in self.crossover_methods.items():
                 xover = xover_obj.code_name
-                sel_key = 'elite' if 'None' in xover else selection_method
+                sel_key = 'paretoelite' if 'None' in xover else selection_method
                 if '/full' in xover:
                     xover = xover.replace('/full', '_full')
 
                 try:
-                    file_name = self.make_path(problem_key, xover, sel_key, metric.code_name)
+                    file_name = self.make_selected_path(
+                        problem_key=problem_key,
+                        xover=xover,
+                        fallback_selection=sel_key,
+                        metric=metric.code_name,
+                    )
                     final_values = np.loadtxt(file_name)
                 except Exception as e:
                     print(f"Error loading data for {problem_key} {xover}: {e}")
+                    traceback.print_exc()
                     continue
                 box_data.append(final_values)
                 labels.append(xover_obj.short_name)
@@ -447,7 +624,10 @@ class AnalysisToolkit:
                               plackett_dir: str = '../output/plackett_input'):
         results = {}
         full_results = {}
-
+        if isinstance(metric, Metric):
+            metric_code = metric.code_name
+        else:
+            metric_code = metric
         os.makedirs(plackett_dir, exist_ok=True)
 
         for problem_key, problem_name in self.problems.items():
@@ -455,12 +635,17 @@ class AnalysisToolkit:
             full_row = {}
             for xover_key, xover_obj in self.crossover_methods.items():
                 xover = xover_obj.code_name
-                sel_key = 'elite' if 'None' in xover else selection_method
+                sel_key = 'paretoelite' if 'None' in xover else selection_method
                 if '/full' in xover:
                     xover = xover.replace('/full', '_full')
 
                 try:
-                    file_name = self.make_path(problem_key, xover, sel_key, metric)
+                    file_name = self.make_selected_path(
+                        problem_key=problem_key,
+                        xover=xover,
+                        fallback_selection=sel_key,
+                        metric=metric_code,
+                    )
                     final_values = np.loadtxt(file_name)
                     final_values = final_values.flatten()  # ensure 1D
                     median_value = np.median(final_values)
@@ -486,7 +671,7 @@ class AnalysisToolkit:
                 matrix = matrix.T  # shape (n_replicates, n_methods)
                 rankings = np.argsort(np.argsort(matrix, axis=1), axis=1) + 1
                 df_out = pd.DataFrame(rankings, columns=methods)
-                df_out.to_csv(os.path.join(plackett_dir, f'plackett_input_{problem_name}_{metric}.csv'), index=False)
+                df_out.to_csv(os.path.join(plackett_dir, f'plackett_input_{problem_name}_{metric_code}.csv'), index=False)
             except Exception as e:
                 print(f"Could not generate PL input for {problem_name}: {e}")
 
@@ -544,12 +729,17 @@ class AnalysisToolkit:
             # Collect data for each crossover method
             for xover_key, xover_obj in self.crossover_methods.items():
                 xover = xover_obj.code_name
-                sel_key = 'elite' if 'None' in xover else selection_method
+                sel_key = 'paretoelite' if 'None' in xover else selection_method
                 if xover == 'None/full':
                     xover = 'None_full'
 
                 try:
-                    file_name = self.make_path(problem_key, xover, sel_key, 'min_fitnesses')
+                    file_name = self.make_selected_path(
+                        problem=problem,
+                        xover=xover,
+                        fallback_selection=sel_key,
+                        metric=metric.code_name,
+                    )
                     final_values = np.loadtxt(file_name)
                     data[xover] = final_values
                     method_names.append(xover)
@@ -619,101 +809,4 @@ class AnalysisToolkit:
     def plot_box_plots_compare_old_new(self, old_methods, old_problems, selection_method: str, metric: Metric,
                                        graph_filename: str, title: str,
                                        x_label: str, y_label: str, log: bool = False, jitter: bool = False):
-        if isinstance(metric, str):
-            metric = next((m for m in self.metrics if m.code_name == metric), None)
-            if metric is None:
-                raise ValueError(f"Metric '{metric}' not found in self.metrics")
-
-        # External mappings — provide these in your main script or in class if preferred
-        n_problems = len(self.problems)
-        fig, axs = plt.subplots(int(np.round(n_problems / 2)), 2, figsize=(8, 8))
-        axs = axs.flatten() if n_problems > 1 else [axs]
-
-        for i, (problem_key, problem_name) in enumerate(self.problems.items()):
-            ax = axs[i]
-            box_data = []
-            labels = []
-            colors = []
-
-            for xover_key, xover_obj in self.crossover_methods.items():
-                xover = xover_obj.code_name
-                sel_key = 'elite' if 'None' in xover else selection_method
-                if xover == 'None/full':
-                    xover = 'None_full'
-
-                # Load OLD data using external mappings
-                old_problem = old_problems.get(problem_key)
-                old_method = old_methods.get(xover)
-                if not old_problem or not old_method:
-                    print(f"⚠️ Old mapping not found for: {problem_key}, {xover}")
-                    continue
-                try:
-                    if metric.code_name == 'best_sizes':
-                        old_path = Path(
-                            f"../output/intermediate_results_old/intermediate_results_{old_problem}_{old_method}_size_old.csv")
-                    else:
-                        old_path = Path(
-                            f"../output/intermediate_results_old/intermediate_results_{old_problem}_{old_method}_old.csv")
-                    old_vals = np.loadtxt(old_path, delimiter=',')
-                    box_data.append(old_vals)
-                    labels.append(f'{xover_obj.short_name} (old)')
-                    colors.append(xover_obj.color)
-                except Exception as e:
-                    print(f"⚠️ Old data missing: {old_path}: {e}")
-                    continue
-                # Load NEW data
-                try:
-                    temp_key = old_problems.get(problem_key, None)
-                    if temp_key is None:
-                        continue
-                    new_file = self.make_path(problem_key, xover, sel_key, metric.code_name)
-                    new_vals = np.loadtxt(new_file)
-                    box_data.append(new_vals)
-                    labels.append(f'{xover_obj.short_name} (new)')
-                    colors.append(xover_obj.color)
-                except Exception as e:
-                    print(f"⚠️ New data missing: {problem_key} {xover}: {e}")
-                    continue
-
-            # Plotting
-            bp = ax.boxplot(box_data, patch_artist=True, showfliers=False, notch=False, widths=0.75)
-            positions = np.arange(1, len(box_data) + 1)
-            for patch, color in zip(bp['boxes'], colors):  # colors already interleaved
-                patch.set_facecolor(color)
-
-            if jitter:
-                for j, data in enumerate(box_data):
-                    x = np.random.normal(loc=positions[j], scale=0.06, size=len(data))
-                    ax.scatter(x, data, alpha=0.5, s=8, color='black', zorder=3)
-
-            ax.set_title(problem_name, fontsize=12)
-            if log:
-                ax.set_yscale('log')
-                box_bottoms = [box.get_path().vertices[:, 1].min() for box in bp['boxes']]
-                box_tops = [box.get_path().vertices[:, 1].max() for box in bp['boxes']]
-                ymin = min(box_bottoms)
-                ymax = max(box_tops)
-                lower_exp = np.floor(np.log10(ymin)) if ymin > 0 else -1
-                upper_exp = np.ceil(np.log10(ymax)) if ymax > 0 else 1
-                ax.set_ylim(10 ** lower_exp, 10 ** upper_exp)
-
-            ax.set_xlabel(x_label, fontsize=9)
-            ax.set_ylabel(y_label, fontsize=9)
-            ax.set_xticks(range(1, len(labels) + 1))
-            ax.set_xticklabels(labels, rotation=45, fontsize=8)
-            for label in ax.get_xticklabels():
-                label.set_horizontalalignment('right')
-
-        fig.suptitle(f'{title}\nSelection: {self.selection_methods[selection_method]}\nMetric: {metric.full_name}',
-                     fontsize=14)
-        fig.tight_layout(rect=[0, 0, 1, 1])
-        Path("../output/graphs_raw").mkdir(exist_ok=True)
-        Path("../output/graphs").mkdir(exist_ok=True)
-        with open(f"../output/graphs_raw/{graph_filename}.pkl", "wb") as f:
-            pickle.dump(fig, f)
-        plt.savefig(f"../output/graphs/{graph_filename}{self.output_format}")
-        print(f'{graph_filename} saved')
-        plt.close(fig)
-
-
-
+        raise KeyError("plot_box_plots_compare_old_new has been deprecated.")

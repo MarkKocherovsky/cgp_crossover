@@ -132,7 +132,7 @@ functions = Collection()
 # function_list = ['EnergyEfficiency']
 # function_list = ['ConcreteStrength']
 # function_list = ['HeartDisease', 'ComputerHardware', 'CreditApproval']
-function_list = ['ComputerHardware']
+# function_list = ['ComputerHardware']
 # xovers = ['n_point', 'uniform', 'subgraph', 'semantic_n_point', 'semantic_uniform', 'homologous_semantic_n_point',
 #          'homologous_semantic_uniform']
 # xovers = ['dnc_n_point', 'dnc_uniform', 'dnc_semantic_uniform', 'dnc_semantic_n_point']
@@ -143,12 +143,29 @@ function_list = ['ComputerHardware']
 # xovers = ['n_point', 'subgraph', 'homologous_semantic_n_point', 'aligned_homologous_semantic_n_point']
 # xovers = ['homologous_semantic_n_point'] #, 'semantic_uniform']
 # xovers = ['aligned_homologous_semantic_n_point'] #, 'semantic_uniform']
-xovers = ['None', 'aligned_homologous_semantic_n_point']
+#function_list = ['add3']
+#function_list = ['add4', 'add5', 'add6', 'add7', 'add8',
+#            'add_sub3', 'add_sub4',
+#            'alu3', 'alu4', 'alu5', 'alu6', 'alu7', 'alu8',
+#            'demux8', 'demux16', 'demux32', 'demux64',
+#            'epar8', 'epar9', 'epar10', 'epar11',
+#            'icomp3', 'icomp4', 'icomp5', 'icomp6',
+#            'icomp7', 'icomp8', 'icomp9',
+#            'mcomp3', 'mcomp4', 'mcomp5', 'mcomp6',
+#            'mul3', 'mul4', 'mul5',
+#            'onehot_dec4', 'onehot_dec8', 'onehot_dec16',
+#            'onehot_enc8', 'onehot_enc16', 'onehot_enc32',
+#            'onescount4', 'onescount6', 'onescount8', 'onescount10',
+#]
+xovers = ['None']
 # xovers = ['uniform']
-# xovers = ['n_point', 'uniform', 'subgraph']
+#function_list = ['mcomp5', 'icomp5']
+#function_list = ['icomp5']
+function_list = ['demux32']
+#xovers = ['n_point', 'subgraph', 'homologous_semantic_n_point', 'aligned_homologous_semantic_n_point']
 #          'semantic_n_point', 'aligned_homologous_semantic_n_point', 'aligned_semantic_uniform',
 #          'aligned_homologous_semantic_uniform', 'homologous_semantic_uniform']
-# xovers = ['n_point', 'uniform']
+# xovers = ['aligned_homologous_semantic_n_point']
 # function_list = ['Koza1', 'Koza2']
 
 # xovers = ['homologous_semantic_uniform', 'homologous_semantic_n_point']

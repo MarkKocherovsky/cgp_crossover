@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from .cgp_evolver import CartesianGP
-from .cgp_operators import add, sub, mul, div
+from .cgp_operators import add, sub, mul, div, op_and, op_or, op_xor, op_not
 from .test_problems import Collection
 from .fitness_functions import *
 
@@ -49,9 +49,9 @@ def configspace(seed=0) -> ConfigurationSpace:
     # t_size = Categorical("t_size", [4, 6, 8, 10], default=4)
 
     # (1+lambda)
-    #cs.add([max_size, n_children])
+    cs.add([max_size, n_children])
     # (mu+lambda)
-    cs.add([max_size, n_children, n_parents, x_rate, m_rate])
+    #cs.add([max_size, n_children, n_parents, x_rate, m_rate])
 
     return cs
 
@@ -160,11 +160,18 @@ model_parameters = {
     'inputs': n_inputs,
     'outputs': n_outputs,
     'arity': 2,
-    'constants': np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+    #'constants': np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+    'constants': None
 }
 print(f'input nodes: {model_parameters["inputs"]}\noutput nodes: {model_parameters["outputs"]}')
-function_bank = {'add': add, 'sub': sub, 'mul': mul, 'div': div}
+#function_bank = {'add': add, 'sub': sub, 'mul': mul, 'div': div}
 
+function_bank = {
+    'and': op_and,
+    'or': op_or,
+    'xor': op_xor,
+    'not': op_not
+}
 if asex or max_parents < max_children:
     mutation_breeding = True
 else:
@@ -213,9 +220,9 @@ if tuning:
         config_model_parameters = {'max_size': config.get('max_size', model_size),
                                    'inputs': model_parameters["inputs"],
                                    'outputs': model_parameters["outputs"], 'arity': 2,
-                                   'constants': np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-                                  }
-
+                                   #'constants': np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+                                   'constants': [],
+        }
         config_max_children = config.get('n_children', max_children)
         config_max_parents = config.get('n_parents', max_parents)
         config_mutation_type = config.get('m_type', mutation_type)
@@ -344,6 +351,6 @@ else:
         tmp_file = CHECKPOINT_FILE + ".tmp"
         if os.path.exists(tmp_file):
             os.remove(tmp_file)
-        print("✅ Checkpoint and temporary file removed after successful run.")
+        print("Checkpoint and temporary file removed after successful run.")
     except Exception as e:
-        print(f"⚠️ Could not remove checkpoint files: {e}")
+        print(f"Could not remove checkpoint files: {e}")

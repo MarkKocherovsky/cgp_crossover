@@ -1,5 +1,5 @@
 import argparse
-from analysis_helper import Method, Metric, AnalysisToolkit
+from analysis_helper import Method, Metric, AnalysisToolkit, read_selected_configs_from_meta
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -19,10 +19,10 @@ def str2bool(v):
 base_path = "/mnt/gs21/scratch/kocherov/Documents/cgp/output/"
 graph_path = "../../output/"
 crossover_methods = {
-    #'Canonical': Method('None', 'Canonical', 'Canonical', 'blue', 'solid'),
-    'N-Point': Method('n_point', 'One-Point', 'One-Point', 'green', 'solid'),
-    'Subgraph': Method('subgraph', 'Subgraph', 'Subgraph', 'orange', 'solid'),
-    'Semantic N-Point': Method('homologous_semantic_n_point', 'Semantic One-Point', 'Semantic One-Point', 'darkred', 'solid'),
+    'Canonical': Method('None', 'Canonical', 'Canonical', 'blue', 'solid'),
+     'N-Point': Method('n_point', 'One-Point', 'One-Point', 'green', 'solid'),
+    'Subgraph': Method('subgraph', 'Subgraph', 'Subgraph', 'red', 'solid'),
+    'Semantic N-Point': Method('homologous_semantic_n_point', 'Semantic One-Point', 'Semantic One-Point', 'orange', 'solid'),
     'Aligned Semantic N-Point': Method('aligned_homologous_semantic_n_point', 'Aligned Semantic One-Point', 'Aligned Semantic One-Point', 'brown', 'solid'),
 
 }
@@ -35,7 +35,6 @@ metrics = {
     'Best Model Size': Metric('best_model_size', 'Best Model Size', r"\mathrm{Median}(\mathrm{Best Model Size})", False),
     'Median Model Size': Metric('median_model_size', 'Median Model Size', r"\mathrm{Median}(\mathrm{Median Model Size})", False),
     'Semantic Diversity': Metric('semantic_diversity', 'Semantic Diversity',r"\mathrm{Median}(\mathrm{Semantic Diversity})", True),
-    'Best Model Size Test': Metric('best_model_size_test', 'Best Model Size Test', r"\mathrm{Median}(\mathrm{Best Model Size Test})", False),
 }
 best_fitnesses = Metric('min_fitnesses', 'Best Fitness', r"$\mathrm{Median}(\min(\mathrm{f}))$", True)
 best_test_fitnesses = Metric('min_test_fitnesses', 'Best Test Fitness', r"$\mathrm{Median}(\min(\mathrm{f}))$", True)
@@ -52,20 +51,18 @@ mutation_methods = {
 }
 # key->name
 problems = {
-    #'Koza3_1d': 'Koza 3',
-    #'Nguyen5_1d': 'Nguyen 5',
-    #'Nguyen7_1d': 'Nguyen 7',
-    #'Ackley_1d': 'Ackley',
-    #'Levy_1d': 'Levy',
-    #'Rastrigin_1d': 'Rastrigin',
-    #'Diabetes_1d': 'Diabetes',
-    #'HeartDisease_1d': 'Heart Disease',
-    #'ConcreteStrength_1d': 'Concrete Strength',
+    'Koza3_1d': 'Koza 3',
+    'Nguyen5_1d': 'Nguyen 5',
+    'Nguyen7_1d': 'Nguyen 7',
+    'Ackley_1d': 'Ackley',
+    'Levy_1d': 'Levy',
+    'Rastrigin_1d': 'Rastrigin',
+    'Diabetes_1d': 'Diabetes',
+    'HeartDisease_1d': 'Heart Disease',
+    'ConcreteStrength_1d': 'Concrete Strength',
     #'ComputerHardware_1d': 'Computer Hardware',
-    #'CreditApproval_1d': 'Credit Approval',
-    #'EnergyEfficiency_1d': 'Energy Efficiency'
-    #'mcomp5': 'Mcomp5'
-    'demux32_1d': 'demux32'
+    'CreditApproval_1d': 'Credit Approval',
+    'EnergyEfficiency_1d': 'Energy Efficiency'
 }
 """
 problems = {
@@ -89,9 +86,12 @@ problems = {
 #                   xover_density_neutral.csv
 
 analyzer = AnalysisToolkit(crossover_methods, selection_methods, base_path, problems, metrics, 50, 6001, output_format = '.pdf')
-analyzer.compile_averages([25], restart=False, mutation='full')
-#analyzer.compile_averages([0, 2, 5, 7, 10, 13, 16, 25], restart=False, mutation='full')
-exit()
+
+analyzer.selected_configs = read_selected_configs_from_meta(
+    "meta.csv",
+)
+#analyzer.compile_averages([0, 2, 5, 7, 10, 13, 16], restart=False, mutation='full')
+#exit()
 for selection in (selection_methods.keys()):
     analyzer.plot_box_plots(selection, best_test_fitnesses, f'minimum_test_fitness_{selection}_box_graph',
                              'Fitness of Best Models - Test Set', 'Crossover Methods', 'Best Fitness', log=True, violin=False, jitter=True)

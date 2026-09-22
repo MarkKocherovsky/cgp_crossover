@@ -229,6 +229,7 @@ class CartesianGP:
 
     def initialize_population(self):
         """Initialize population in parallel."""
+        print(self.function_bank)
         with ThreadPoolExecutor() as executor:
             future_models = {
                 i: executor.submit(CGP, fixed_length=self.fixed_length, fitness_function=self.ff_string,

@@ -7,9 +7,9 @@ from .stn_analysis import plot_search_trajectory
 
 
 def set_up_cgp(x, y, seed):
-    trial_number = 4
-    max_generations = 100
-    model_size = 64
+    trial_number = 999
+    max_generations = 1
+    model_size = 8
     xover_type = "subgraph"
     xover_rate = 0.5
     max_parents = 16
@@ -65,7 +65,7 @@ def set_up_cgp(x, y, seed):
     return evolution_module
 
 problems = Collection()
-test_function = problems("mcomp3")
+test_function = problems("Koza3")
 train_x, test_x, train_y, test_y = test_function.return_points()
 """print(train_x.shape)
 print(test_x.shape)
@@ -85,11 +85,58 @@ xover_rate = 0.5
 
 best_model, _ = evolution_module.fit(train_x, test_x, train_y, test_y, xover_rate=xover_rate, mutation_rate = mutation_rate)
 
-print(best_model.model)
-print(best_model.fitness)
-stn = evolution_module.return_stn()
-target = stn.get_target(train_y)
-evolution_module.save_stn("../../output/Koza3_1d/None/full/paretoelite/trial_22")
+pop = evolution_module.population
+parent1 = pop[0]
+parent2 = pop[1]
 
-plot_search_trajectory("../../output/Koza3_1d/None/full/paretoelite/trial_22/stn.json",
-                       )
+parent1_model = parent1.model_for_llm(with_inputs=True)
+parent1_f = parent1.fitness
+parent1_c = parent1.complexity
+
+parent2_model = parent2.model_for_llm(with_inputs=True)
+parent2_f = parent2.fitness
+parent2_c = parent2.complexity
+
+print(parent1_model)
+print(parent2_model)
+import ollama
+
+prompt = f"""
+Parent 1 Fitness: {parent1_f}
+Parent 1 Complexity: {parent1_c}
+
+Parent 1:
+{parent1_model.to_csv(index=False)}
+
+Parent 2 Fitness: {parent2_f}
+Parent 2 Complexity: {parent2_c}
+
+Parent 2:
+{parent2_model.to_csv(index=False)}
+
+Number of Inputs: 1
+Number of Outputs: 1
+Number of Function Nodes: 8
+
+Create two children.
+"""
+
+response = ollama.chat(
+    model="crossover-gemma",
+    messages=[
+        {"role": "user", "content": prompt}
+    ]
+)
+child_csv = response["message"]["content"]
+
+from io import StringIO
+import pandas as pd
+
+children = pd.read_csv(StringIO(child_csv))
+
+child0 = children[children["child_id"] == 0].drop(columns=["child_id"])
+child1 = children[children["child_id"] == 1].drop(columns=["child_id"])
+
+print(child0)
+print(child1)
+

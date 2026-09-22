@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=mk_tuning_scheduler
+#SBATCH --chdir /mnt/ffs24/home/kocherov/Documents/cgp/src/cgp
 #SBATCH --output=/mnt/ffs24/home/kocherov/Documents/cgp/output/logs/job_scheduler_%j.out
 #SBATCH --error=/mnt/ffs24/home/kocherov/Documents/cgp/output/err/job_scheduler_%j.err
 #SBATCH --time=03:59:00

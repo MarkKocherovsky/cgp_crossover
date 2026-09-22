@@ -5,7 +5,8 @@ from pathlib import Path
 import pandas as pd
 
 
-CSV_PATH = "config_data.csv"
+#CSV_PATH = "config_data.csv"
+CSV_PATH = "mcomp_configs.csv"
 
 DEFAULT_CONFIG = {
     "mutation": "full",
